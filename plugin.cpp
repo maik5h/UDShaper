@@ -3,7 +3,38 @@
 #include <stdio.h>
 #include <assert.h>
 #include <math.h>
+#include <fstream>
+#include <iostream>
 #include "clap/clap.h"
+
+// Parameters.
+#define P_VOLUME (0)
+#define P_COUNT (1)
+
+// GUI size.
+#define GUI_WIDTH (1500)
+#define GUI_HEIGHT (1000)
+
+#define DOUBLE_CLICK_TIME (5000)
+
+// #define COLOR_BACKGROUND (0x86D5F9)
+// #define COLOR_MESH (0xC0C0C0)
+// #define COLOR_CURVE (0xFFFFFF)
+
+// const uint32_t COLOR_BACKGROUND = 0x86D5F9;
+
+// #include "GUI_utils/shapeEditor.cpp"
+
+// std::vector<int> parameterTypes = {0};
+
+void logToFile(const std::string& message) {
+    std::ofstream logFile("C:/Users/mm/Desktop/log.txt", std::ios_base::app);  // Open for appending
+    if (logFile.is_open()) {
+        logFile << message << std::endl;
+    } else {
+        std::cerr << "Failed to open log file!" << std::endl;
+    }
+}
 
 template <class T>
 struct Array {
@@ -49,14 +80,6 @@ typedef pthread_mutex_t Mutex;
 #define MutexDestroy(mutex) pthread_mutex_destroy(&(mutex))
 #endif
 
-// Parameters.
-#define P_VOLUME (0)
-#define P_COUNT (1)
-
-// GUI size.
-#define GUI_WIDTH (1500)
-#define GUI_HEIGHT (1000)
-
 struct Voice {
 	bool held;
 	int32_t noteID;
@@ -66,13 +89,26 @@ struct Voice {
 	float parameterOffsets[P_COUNT];
 };
 
+// enum parameterType {
+// 	volume,
+// 	shapePointX1,
+// 	shapePointY1,
+// 	shapePointX2,
+// 	shapePointY2,
+// 	windowSize,
+// 	shapePointPower
+// };
+
 struct MyPlugin {
 	clap_plugin_t plugin;
 	const clap_host_t *host;
 	float sampleRate;
 	Array<Voice> voices;
-	float parameters[P_COUNT], mainParameters[P_COUNT];
-	bool changed[P_COUNT], mainChanged[P_COUNT];
+	float parameters[3], mainParameters[3];
+	bool changed[3], mainChanged[3];
+	// vector for keeping track of which parameter is stored at which index
+	// std::vector<parameterType> parameterTypes = {volume};
+
 	bool gestureStart[P_COUNT], gestureEnd[P_COUNT];
 	Mutex syncParameters;
 	struct GUI *gui;
@@ -84,7 +120,14 @@ struct MyPlugin {
 	int32_t mouseDragOriginX, mouseDragOriginY;
 	float mouseDragOriginValue;
 	clap_id timerID;
+	int editorSize[4] = {50, 50, 550, 500};
+	// ShapeEditor shapeEditor1 = ShapeEditor(editorSize);
+	// ShapeEditor shapeEditor2;
 };
+
+#include "GUI_utils/shapeEditor.cpp"
+int editorSize[4] = {50, 50, 550, 500};
+ShapeEditor shapeEditor1 = ShapeEditor(editorSize);
 
 static float FloatClamp01(float x) {
 	return x >= 1.0f ? 1.0f : x <= 0.0f ? 0.0f : x;
@@ -162,40 +205,46 @@ static void PluginPaintRectangle(MyPlugin *plugin, uint32_t *bits, uint32_t l, u
 
 static void PluginPaint(MyPlugin *plugin, uint32_t *bits) {
 	PluginPaintRectangle(plugin, bits, 0, GUI_WIDTH, 0, GUI_HEIGHT, 0xC0C0C0, 0xC0C0C0);
+	shapeEditor1.drawGraph(bits);
 	// PluginPaintRectangle(plugin, bits, 10, 40, 10, 40, 0x000000, 0xC0C0C0);
 	// PluginPaintRectangle(plugin, bits, 10, 40, 10 + 30 * (1.0f - plugin->mainParameters[P_VOLUME]), 40, 0x000000, 0x000000);
 }
 
 static void PluginProcessMouseDrag(MyPlugin *plugin, int32_t x, int32_t y) {
 	if (plugin->mouseDragging) {
-		float newValue = FloatClamp01(plugin->mouseDragOriginValue + (plugin->mouseDragOriginY - y) * 0.01f);
-		MutexAcquire(plugin->syncParameters);
-		plugin->mainParameters[plugin->mouseDraggingParameter] = newValue;
-		plugin->mainChanged[plugin->mouseDraggingParameter] = true;
-		MutexRelease(plugin->syncParameters);
+		// float newValue = FloatClamp01(plugin->mouseDragOriginValue + (plugin->mouseDragOriginY - y) * 0.01f);
+		// MutexAcquire(plugin->syncParameters);
+		// plugin->mainParameters[plugin->mouseDraggingParameter] = newValue;
+		// plugin->mainChanged[plugin->mouseDraggingParameter] = true;
+		// MutexRelease(plugin->syncParameters);
 
 		if (plugin->hostParams && plugin->hostParams->request_flush) {
 			plugin->hostParams->request_flush(plugin->host);
 		}
+
+		shapeEditor1.processMouseDrag(x, y);
 	}
 }
 
 static void PluginProcessMousePress(MyPlugin *plugin, int32_t x, int32_t y) {
-	if (x >= 10 && x < 40 && y >= 10 && y < 40) {
-		plugin->mouseDragging = true;
-		plugin->mouseDraggingParameter = P_VOLUME;
-		plugin->mouseDragOriginX = x;
-		plugin->mouseDragOriginY = y;
-		plugin->mouseDragOriginValue = plugin->mainParameters[P_VOLUME];
+	// if (x >= 10 && x < 40 && y >= 10 && y < 40) {
+	// 	plugin->mouseDragging = true;
+	// 	plugin->mouseDraggingParameter = P_VOLUME;
+	// 	plugin->mouseDragOriginX = x;
+	// 	plugin->mouseDragOriginY = y;
+	// 	plugin->mouseDragOriginValue = plugin->mainParameters[P_VOLUME];
 
-		MutexAcquire(plugin->syncParameters);
-		plugin->gestureStart[plugin->mouseDraggingParameter] = true;
-		MutexRelease(plugin->syncParameters);
+	// 	MutexAcquire(plugin->syncParameters);
+	// 	plugin->gestureStart[plugin->mouseDraggingParameter] = true;
+	// 	MutexRelease(plugin->syncParameters);
 
-		if (plugin->hostParams && plugin->hostParams->request_flush) {
-			plugin->hostParams->request_flush(plugin->host);
-		}
-	}
+	// 	if (plugin->hostParams && plugin->hostParams->request_flush) {
+	// 		plugin->hostParams->request_flush(plugin->host);
+	// 	}
+	// }
+
+	shapeEditor1.processMousePress(x, y);
+	plugin->mouseDragging = true;
 }
 
 static void PluginProcessMouseRelease(MyPlugin *plugin) {
@@ -208,8 +257,13 @@ static void PluginProcessMouseRelease(MyPlugin *plugin) {
 			plugin->hostParams->request_flush(plugin->host);
 		}
 
+		shapeEditor1.processMouseRelease();
 		plugin->mouseDragging = false;
 	}
+}
+
+void PluginProcessDoubleClick(MyPlugin *plugin, uint32_t x, uint32_t y){
+	shapeEditor1.processDoubleClick(x, y);
 }
 
 static void PluginSyncMainToAudio(MyPlugin *plugin, const clap_output_events_t *out) {
@@ -347,10 +401,18 @@ static const clap_plugin_audio_ports_t extensionAudioPorts = {
 static const clap_plugin_params_t extensionParams = {
 	.count = [] (const clap_plugin_t *plugin) -> uint32_t {
 		return P_COUNT;
+
+		// for std::vector<float>:
+		// MyPlugin *myPlugin = (MyPlugin *) plugin->plugin_data;
+		// return myPlugin->parameters.size();
 	},
 
 	.get_info = [] (const clap_plugin_t *_plugin, uint32_t index, clap_param_info_t *information) -> bool {
-		if (index == P_VOLUME) {
+		// get the parameterTypes vector
+		MyPlugin *myPlugin = (MyPlugin *) _plugin->plugin_data;
+
+		// if (myPlugin->parameterTypes.at(index) == volume) {
+		if (index == 0) {
 			memset(information, 0, sizeof(clap_param_info_t));
 			information->id = index;
 			information->flags = CLAP_PARAM_IS_AUTOMATABLE | CLAP_PARAM_IS_MODULATABLE | CLAP_PARAM_IS_MODULATABLE_PER_NOTE_ID;
@@ -359,7 +421,29 @@ static const clap_plugin_params_t extensionParams = {
 			information->default_value = 0.5f;
 			strcpy(information->name, "Volume");
 			return true;
-		} else {
+		}
+		else if (index == 1 | index == 2){
+			memset(information, 0, sizeof(clap_param_info_t));
+			information->id = index;
+			information->flags = CLAP_PARAM_IS_MODULATABLE;
+			information->min_value = 0.0f;
+			information->max_value = 1.0f;
+			information->default_value = 0.0f;
+			strcpy(information->name, "Shaper point position");
+			return true;
+		}
+		// else if (myPlugin->parameterTypes.at(index) == shapePointX1) {
+		// 	memset(information, 0, sizeof(clap_param_info_t));
+		// 	information->id = index;
+		// 	information->flags = CLAP_PARAM_IS_AUTOMATABLE | CLAP_PARAM_IS_MODULATABLE;
+		// 	information->min_value = myPlugin->shapeEditor1.XYXY[0];
+		// 	information->max_value = 1.0f;
+		// 	information->default_value = 0.5f;
+		// 	strcpy(information->name, "Volume");
+		// 	return true;
+		// }
+		
+		else {
 			return false;
 		}
 	},
@@ -402,12 +486,15 @@ static const clap_plugin_state_t extensionState = {
 		MyPlugin *plugin = (MyPlugin *) _plugin->plugin_data;
 		PluginSyncAudioToMain(plugin);
 		return sizeof(float) * P_COUNT == stream->write(stream, plugin->mainParameters, sizeof(float) * P_COUNT);
+		// this is for vector<float>:
+		// return sizeof(float) * plugin->mainParameters.size() == stream->write(stream, plugin->mainParameters.data(), sizeof(float) * plugin->mainParameters.size());
 	},
 
 	.load = [] (const clap_plugin_t *_plugin, const clap_istream_t *stream) -> bool {
 		MyPlugin *plugin = (MyPlugin *) _plugin->plugin_data;
 		MutexAcquire(plugin->syncParameters);
 		bool success = sizeof(float) * P_COUNT == stream->read(stream, plugin->mainParameters, sizeof(float) * P_COUNT);
+		// bool success = sizeof(float) * plugin->mainParameters.size() == stream->read(stream, plugin->mainParameters.data(), sizeof(float) * plugin->mainParameters.size());
 		for (uint32_t i = 0; i < P_COUNT; i++) plugin->mainChanged[i] = true;
 		MutexRelease(plugin->syncParameters);
 		return success;
