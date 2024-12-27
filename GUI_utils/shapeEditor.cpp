@@ -9,35 +9,19 @@ Everything concerning the graph editors
 #include <cmath>
 #include <iostream>
 
-// different shapes a curve segment can follow. Most stll have to be implemented, more might follow
 enum Shapes{
-    shapePower,
-    shapeStep,
-    shapeBezier,
-    shapeSine,
+    // Function each curve segment between two points can follow
+    shapePower, // curve follows shape of f(x) = (x < 0.5) ? x^power : 1-(1-x)^power, for 0 <= x <= 1, streched to the corresponding x and y intervals
+    shapeSine, // TODO not sure yet
+    shapeBezier // i think i will drop this because i do NOT fell like programming this... more points and some more clamping to the box etc
 };
 
-// TODO move this to gui_w32.cpp since it is platform dependent
-void ShowShapeMenu(HWND hwnd, int xPos, int yPos) {
-    // Create a menu
-    HMENU hMenu = CreatePopupMenu();
-
-    // title and separator
-    AppendMenu(hMenu, MF_STRING | MF_DISABLED | MF_GRAYED, 0, "Function:");
-    AppendMenu(hMenu, MF_SEPARATOR, 0, NULL);
-    
-    // Add items to the menu
-    AppendMenu(hMenu, MF_STRING, shapePower, "Power");
-    AppendMenu(hMenu, MF_STRING, shapeStep, "Step");
-    AppendMenu(hMenu, MF_STRING, shapeSine, "Sine");
-    AppendMenu(hMenu, MF_STRING, shapeBezier, "Bezier");
-
-    // Display the menu at the given position
-    TrackPopupMenu(hMenu, TPM_LEFTALIGN | TPM_TOPALIGN, xPos, yPos, 0, hwnd, NULL);
-
-    // Clean up the menu after use
-    DestroyMenu(hMenu);
-}
+enum draggingMode{
+    // When MouseDrag is processed, decide which parameters to change depending on these values
+    none, // ignore
+    position, // moves position of selected point
+    curveCenter // adjusts curveCenter and therefore parameter of curve function of next point to the right
+};
 
 void drawPoint(uint32_t *bits, float x, float y, uint32_t color = 0x000000, float size = 5){
     for (int i=(int)-size/2; i<(int)size/2; i++){
@@ -50,35 +34,49 @@ void drawPoint(uint32_t *bits, float x, float y, uint32_t color = 0x000000, floa
 }
 
 class ShapePoint{
+    /* Class to store all information about a curve Segment. Curve segments are handled in a way that information about the function
+    (e.g. mode and parameters) are stored together with the point next to the right, which marks the beginning of the next segment.
+    The reason for that is that curve has to always satisfy f(0) = 0 or else the plugin would generate a DC offset, so the first curve segment
+    has a point only on its right end.*/
+
     private:
         float maxPower = 30;
 
     public:
+        // position and size of parent shapeEditor
+        int32_t XYXY[4];
+
+        // parameters of the point
         float posX;
         float posY;
-        float absPosX;
-        float absPosY;
-        float power;
+        int32_t absPosX;
+        int32_t absPosY;
         bool belowPrevious = false;
         bool flipPower = false;
-        int XYXY[4];
-        float curveCenterAbsPosX;
-        float curveCenterAbsPosY;
-        bool hasChanged;
+
+        // parameters of the curve left to the point
+        int32_t curveCenterAbsPosX;
+        int32_t curveCenterAbsPosY;
+        float power; // power can be negative, which does NOT mean the curve is actually f(x) = 1 / (x^power) but that the curve is flipped vertically
         Shapes mode = shapePower;
 
-    ShapePoint(float x, float y, int editorSize[4], ShapePoint *previousPoint, float pow = 1){
+    // TODO rename pow to parameter since it serves for all modes
+    ShapePoint(float x, float y, int32_t editorSize[4], ShapePoint *previousPoint, float pow = 1, Shapes initMode = shapePower){
+        /*x, y are relative positions on the graph editor, e.g. they must be between 0 and 1
+        editorSize is screen coordinates of parent shapeEditor in XYXY notation: {xMin, yMin, xMax, yMax}
+        previousPoint is pointer to the next ShapePoint on the left hand side of the current point. If there is no point to the left, should be nullptr
+        pow is parameter defining the shape of the curve segment, its role is dependent on the mode:
+            shapePower: f(x) = x^parameter
+        */
         assert ((0 <= x) && (x <= 1) && (0 <= y) && (y <= 1));
 
-        // x and y are relative pixel coordinates on the Graph
+        // x and y are relative coordinates on the Graph 0 <= x, y <= 1
         posX = x;
         posY = y;
 
         // in absolute coordinates y is mirrored
-        // TODO turn this into int
-        absPosX = editorSize[0] + x * (editorSize[2] - editorSize[0]);
-        absPosY = editorSize[3] - y * (editorSize[3] - editorSize[1]);
-        power = pow;
+        absPosX = editorSize[0] + (int32_t)(x * (editorSize[2] - editorSize[0]));
+        absPosY = editorSize[3] - (int32_t)(y * (editorSize[3] - editorSize[1]));
 
         curveCenterAbsPosX = (absPosX + ((previousPoint == nullptr) ? editorSize[0] : previousPoint->absPosX)) / 2;
         curveCenterAbsPosY = (absPosY + ((previousPoint == nullptr) ? editorSize[3] : previousPoint->absPosY)) / 2;
@@ -87,10 +85,11 @@ class ShapePoint{
             XYXY[i] = editorSize[i];
         }
 
-        hasChanged = true;
+        power = pow;
+        mode = initMode;
     }
 
-    void updatePositionAbsolute(uint32_t x, uint32_t y, ShapePoint *previous){
+    void updatePositionAbsolute(int32_t x, int32_t y, ShapePoint *previous){
         absPosX = x;
         absPosY = y;
 
@@ -98,22 +97,15 @@ class ShapePoint{
         posY = (XYXY[3] - y) / (XYXY[3] - XYXY[1]);
 
         updateCurveCenter(previous);
-        hasChanged = true;
     }
 
     void updateCurveCenter(ShapePoint *previous){
         // updates the Curve center point in cases where point position changes
-        curveCenterAbsPosX = (absPosX + ((previous == nullptr) ? XYXY[0] : previous->absPosX)) / 2;
+        // curve center x is always in the middle of neighbouring points
+        curveCenterAbsPosX = (int32_t)(absPosX + ((previous == nullptr) ? XYXY[0] : previous->absPosX)) / 2;
 
-        float yL = (previous == nullptr) ? XYXY[3] : previous->absPosY;
-
-        // curveCenterAbsPosY = yMax - pow(0.5 * (absPosX - xL), power) * (yMax - yMin);
-        belowPrevious = (absPosY > yL);
-        // magic is happening here
-        flipPower = belowPrevious ? (absPosY - curveCenterAbsPosY < curveCenterAbsPosY - yL) : (yL - curveCenterAbsPosY < curveCenterAbsPosY - absPosY);
-        curveCenterAbsPosY = flipPower ? absPosY + pow(0.5, power) * (yL - absPosY) : yL - pow(0.5, power) * (yL - absPosY);
-    
-        hasChanged = true;
+        int32_t yL = (previous == nullptr) ? XYXY[3] : previous->absPosY;
+        curveCenterAbsPosY = (power > 0) ? yL - pow(0.5, power) * (yL - absPosY) : absPosY + pow(0.5, -power) * (yL - absPosY);
     }
 
     void updateCurveCenter(ShapePoint *previous, int x, int y){
@@ -124,45 +116,25 @@ class ShapePoint{
             return;
         }
 
-        float minCenterY = pow(0.5, maxPower);
-        float maxCenterY = 1. - minCenterY;
+        switch (mode){
+            case shapePower:
+                // logarithm will be problematic if y position reaches zero. Clamp y value between these limits so that power can not extend maxPower
+                float minCenterY = pow(0.5, maxPower);
+                float maxCenterY = 1. - minCenterY;
 
-        float xL = (previous == nullptr) ? XYXY[0] : previous->absPosX; 
-        float yL = (previous == nullptr) ? XYXY[3] : previous->absPosY;
-        float yMin = (yL <= absPosY) ? yL : absPosY;
-        float yMax = (yL > absPosY) ? yL : absPosY;
+                int32_t yL = (previous == nullptr) ? XYXY[3] : previous->absPosY;
 
-        // find mouse position normalized to y extent and clamp it to boundaries
-        float relExtent = (yMax - (float)y) / (yMax - yMin);
-        relExtent = (relExtent > maxCenterY) ? maxCenterY : (relExtent < minCenterY) ? minCenterY : relExtent;
+                // find mouse position normalized to y extent and clamp it to boundaries
+                float relExtent = (yL - (float)y) / (yL - absPosY);
+                relExtent = (relExtent > maxCenterY) ? maxCenterY : (relExtent < minCenterY) ? minCenterY : relExtent;
 
-        // first find mouse position on normalized y-interval [0, 1]
-        if (relExtent < 0.5){
-            power = log(relExtent) / log(0.5);
-            flipPower = false;
+                // update power by following convention that a y-flipped curve is represented by a negative power
+                power = (relExtent < 0.5) ? log(relExtent) / log(0.5) :  - log(1 - relExtent) / log(0.5);
+
+                curveCenterAbsPosY = (power > 0) ? yL - pow(0.5, power) * (yL - absPosY) : absPosY + pow(0.5, -power) * (yL - absPosY);
+                break;
         }
-        else{
-            power = log(1 - relExtent) / log(0.5);
-            flipPower = true;
-        }
-
-        // for curve calculation, determine if point is higher or lower than previous
-        belowPrevious = (absPosY > yL);
-
-        curveCenterAbsPosY = flipPower ? absPosY + pow(0.5, power) * (yL - absPosY) : yL - pow(0.5, power) * (yL - absPosY);
-        if (absPosY > yL){
-            curveCenterAbsPosY = absPosY - curveCenterAbsPosY + yL;
-        }
-
-
-        hasChanged = true;
     }
-};
-
-enum draggingMode{
-    none,
-    position,
-    curveCenter
 };
 
 class ShapeEditor{
@@ -172,15 +144,19 @@ class ShapeEditor{
         static const uint32_t colorThinLines = 0xC0C0C0;
         static const uint32_t colorCurve = 0xFFFFFF;
 
+        // square of the minimum distance the mouse needs to have from a point in order to connect any input to this point
         const float requiredSquaredDistance = 200;
 
+        // all points of this editor are stored in a vector, they must always be sorted by ther absolute x position
         std::vector<ShapePoint> shapePoints;
         int XYXY[4];
         uint32_t *canvas;
 
-        std::chrono::_V2::system_clock::time_point time = std::chrono::high_resolution_clock::now();
-        long lastMousePress = std::chrono::duration_cast<std::chrono::milliseconds>(time.time_since_epoch()).count();
+        // this is only relevant for Linux since xlib does not feature automatic double click detection
+        // std::chrono::_V2::system_clock::time_point time = std::chrono::high_resolution_clock::now();
+        // long lastMousePress = std::chrono::duration_cast<std::chrono::milliseconds>(time.time_since_epoch()).count();
 
+        // place to store point which is currently edited and the edit mode
         ShapePoint *currentlyDragging = nullptr;
         draggingMode currentDraggingMode = none;
 
@@ -188,12 +164,9 @@ class ShapeEditor{
         ShapePoint *rightClicked = nullptr;
 
     public:
-    ShapeEditor(int position[4], std::vector<ShapePoint> points = {}){
+    ShapeEditor(int32_t position[4], std::vector<ShapePoint> points = {}){
         if (points.empty()){
             // if no points are given, use the default points which diagonally span across the whole Graph.
-            // ShapePoint test = ShapePoint(1, 1, position, nullptr);
-            // shapePoints = {test};
-            // assert(false);
             shapePoints = {ShapePoint(1., 1., position, nullptr)};
         }
         else{
@@ -203,27 +176,25 @@ class ShapeEditor{
         for (int i=0; i<4; i++){
             XYXY[i] = position[i];
         }
-        // canvas = bits;
-        // drawGraph(canvas);
     }
 
     void drawGraph(uint32_t *bits){
+        // set whole area to background color
         for (uint32_t i = XYXY[0]; i < XYXY[2]; i++) {
             for (uint32_t j = XYXY[1]; j < XYXY[3]; j++) {
                 bits[i + j * GUI_WIDTH] = colorBackground;
             }
         }
 
-        ShapePoint *previous = nullptr;
-        for (ShapePoint point : shapePoints){
-            // point.draw(bits, previous, colorBackground, colorCurve);
-            // previous = &point;
-            drawPoint(bits, point.absPosX, point.absPosY, colorCurve, 20);
-            drawPoint(bits, point.curveCenterAbsPosX, point.curveCenterAbsPosY, colorCurve, 16);
-        }
+        // first draw all connections between points, then points on top
         for (int i=0; i< shapePoints.size(); i++){
             drawConnection(bits, i, colorCurve);
         }
+        for (ShapePoint point : shapePoints){
+            drawPoint(bits, point.absPosX, point.absPosY, colorCurve, 20);
+            drawPoint(bits, point.curveCenterAbsPosX, point.curveCenterAbsPosY, colorCurve, 16);
+        }
+
     }
 
     std::tuple<float, int> getClosestPoint(uint32_t x, uint32_t y){
@@ -232,23 +203,21 @@ class ShapeEditor{
         float closestDistance = 10E5;
         int closestIndex;
 
-        // TODO would be faster if checking for time first
+        // check mouse distance to all points and find closest
         float distance;
         for (int i=0; i<shapePoints.size(); i++){
+            // check for distance to point and set mode to position
             distance = (shapePoints[i].absPosX - x)*(shapePoints[i].absPosX - x) + (shapePoints[i].absPosY - y)*(shapePoints[i].absPosY - y);
             if (distance < closestDistance){
                 closestDistance = distance;
                 closestIndex = i;
-
-                // TODO this is very much not optimal i think. Should only be changed if actually started dragging?
                 currentDraggingMode = position;
             }
+            // check for distance to curve center and set mode to curveCenter
             distance = (shapePoints[i].curveCenterAbsPosX - x)*(shapePoints[i].curveCenterAbsPosX - x) + (shapePoints[i].curveCenterAbsPosY - y)*(shapePoints[i].curveCenterAbsPosY - y);
             if (distance < closestDistance){
                 closestDistance = distance;
                 closestIndex = i;
-
-                // TODO this is very much not optimal i think. Should only be changed if actually started dragging?
                 currentDraggingMode = curveCenter;
             }
         }
@@ -259,22 +228,22 @@ class ShapeEditor{
     void processMousePress(int32_t x, int32_t y){
 
         // check if mouse hovers over the graphical interface and return if not
-        if (x < XYXY[0] | x >= XYXY[2] | y < XYXY[1] | y >= XYXY[3]){
+        // check for slightly higher area to be able to grab point from outside the interface
+        float offset = pow(requiredSquaredDistance, 0.5);
+        if (x < XYXY[0] - offset | x >= XYXY[2] + offset | y < XYXY[1] - offset | y >= XYXY[3] + offset){
             return;
         }
 
-        // check distance of mouse from all existing points and choose closest if close enough
-
         // Get time since last click and substract now. LastMousePress will be updated on Mouse release.
-        long now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
-        long timePassed = now - lastMousePress;
-        lastMousePress = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+        // long now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+        // long timePassed = now - lastMousePress;
+        // lastMousePress = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
 
         float closestDistance;
         int closestIndex;
         std::tie(closestDistance, closestIndex) = getClosestPoint(x, y);
 
-        // if in proximity to point mark point as currentlyDragging or remove it if double click
+        // if in proximity to point mark point as currentlyDragging
         if (closestDistance <= requiredSquaredDistance){
             currentlyDragging = &shapePoints.at(closestIndex);
         }
@@ -293,8 +262,6 @@ class ShapeEditor{
             // if close to point and point is not last, which cannot be removed, remmove point
             if (currentDraggingMode == position && closestIndex != shapePoints.size()){
                 shapePoints.erase(shapePoints.begin() + closestIndex);
-
-                // update curve center of next point
                 shapePoints.at(closestIndex).updateCurveCenter((closestIndex == 0) ? nullptr : &shapePoints.at(closestIndex - 1));
             }
 
@@ -319,34 +286,32 @@ class ShapeEditor{
             ShapePoint *previous = (insertIdx == 0) ? nullptr : &shapePoints.at(insertIdx - 1);
             shapePoints.insert(shapePoints.begin() + insertIdx, ShapePoint((float)(x - XYXY[0]) / (XYXY[2] - XYXY[0]), (float)(XYXY[3] - y) / (XYXY[3] - XYXY[1]), XYXY, previous));
             shapePoints.at(insertIdx + 1).updateCurveCenter(&shapePoints.at(insertIdx));
-            // TODO can be optimized by saving the state and comparing with previous state to only update parts that have changed.
         }
     }
 
-    void processRightClick(HWND window, uint32_t x, uint32_t y){
+    ShapePoint* processRightClick(HWND window, uint32_t x, uint32_t y){
         float closestDistance;
         int closestIndex;
         std::tie(closestDistance, closestIndex) = getClosestPoint(x, y);
 
-        // if rightclick on point, show shape menu
+        // if rightclick on point, show shape menu to change function of curve segment
         if (closestDistance <= requiredSquaredDistance && currentDraggingMode == position){
             rightClicked = &shapePoints.at(closestIndex);
-            ShowShapeMenu(window, x, y);
+            return (currentDraggingMode == position) ? rightClicked : nullptr;
+            // ShowShapeMenu(window, x, y);
         }
         // if right click on curve center, reset power
         else if (closestDistance <= requiredSquaredDistance && currentDraggingMode == curveCenter){
             shapePoints.at(closestIndex).power = 1;
             shapePoints.at(closestIndex).updateCurveCenter((closestIndex == 0) ? nullptr : &shapePoints.at(closestIndex - 1));
         }
+        return nullptr;
     }
 
     void processMenuSelection(WPARAM wParam){
         switch (wParam) {
             case shapePower:
                 rightClicked->mode = shapePower;
-                break;
-            case shapeStep:
-                rightClicked->mode = shapeStep;
                 break;
             case shapeSine:
                 rightClicked->mode = shapeSine;
@@ -358,36 +323,31 @@ class ShapeEditor{
     }
 
     void processMouseRelease(){
-        // save time of release only if mouse was not dragging (feels better i think (nah))
-        // if (currentDraggingMode != none){
-        //     lastMousePress = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
-        // }
         currentlyDragging = nullptr;
         currentDraggingMode = none;
     }
 
+    /* TODO i want to have a single function that transforms values according to the shape of all curve segments. This function will then be used
+    to transform x-pixel coordinates to get the y value and also to actually shape the input sound.*/
     void drawConnection(uint32_t *bits, int index, uint32_t color = 0x000000, float thickness = 5){
-        // The curve is given by a * x^power + b with a and b such that it connects the two points
-        // b = shapePoints.at(index).posY;
-        // a = (((index == 0) ? 0 : shapePoints.at(index-1).posY) - b) / (pow(shapePoints.at(index).posX - shapePoints.at(index-1).posX, shapePoints.at(index).power));
+        switch (shapePoints.at(index).mode){
+            case shapePower:
+            {
+                // The curve is f(x) = x^power, where x is in [0, 1] and x and y intervals are stretched such that the curve connects this and previous point
+                int xMin = ((index == 0) ? (float)XYXY[0] : shapePoints.at(index - 1).absPosX);
+                int xMax = shapePoints.at(index).absPosX;
+                int yL = ((index == 0) ? (float)XYXY[3] : shapePoints.at(index - 1).absPosY);
+                int yR = shapePoints.at(index).absPosY;
 
-        int xMin = ((index == 0) ? (float)XYXY[0] : shapePoints.at(index - 1).absPosX);
-        int xMax = shapePoints.at(index).absPosX;
-        int yL = ((index == 0) ? (float)XYXY[3] : shapePoints.at(index - 1).absPosY);
-        int yR = shapePoints.at(index).absPosY;
-
-        // logToFile(std::to_string(shapePoints.at(index).flipX) + "\n" + std::to_string(shapePoints.at(index).flipY) + "\n");
-
-        for (int i = xMin; i < xMax; i++) {
-            // TODO: antialiasing/ width of curve
-            if (shapePoints.at(index).flipPower && shapePoints.at(index).belowPrevious){
-                bits[i + (int)((yL + pow((float)(i - xMin) / (xMax - xMin), shapePoints.at(index).power) * (yR - yL))) * GUI_WIDTH] = color;
-            } else if (shapePoints.at(index).flipPower){
-                bits[xMax - i + xMin + (int)((yR - pow((float)(i - xMin) / (xMax - xMin), shapePoints.at(index).power) * (yR - yL))) * GUI_WIDTH] = color;
-            } else if (shapePoints.at(index).belowPrevious){
-                bits[xMax - i + xMin + (int)((yR - pow((float)(i - xMin) / (xMax - xMin), shapePoints.at(index).power) * (yR - yL))) * GUI_WIDTH] = color;
-            } else {
-                bits[i + (int)((yL + pow((float)(i - xMin) / (xMax - xMin), shapePoints.at(index).power) * (yR - yL))) * GUI_WIDTH] = color;
+                for (int i = xMin; i < xMax; i++) {
+                    // TODO: antialiasing/ width of curve
+                    if (shapePoints.at(index).power > 0){
+                        bits[i + (int)((yL - pow((float)(i - xMin) / (xMax - xMin), shapePoints.at(index).power) * (yL - yR))) * GUI_WIDTH] = color;
+                    } else {
+                        bits[i + (int)((yR + pow((float)(xMax - i) / (xMax - xMin), -shapePoints.at(index).power) * (yL - yR))) * GUI_WIDTH] = color;
+                    }
+                }
+                break;
             }
         }
     }
@@ -397,36 +357,35 @@ class ShapeEditor{
             return;
         }
 
-        // point is not allowed to go beyond neighbouring points in x-direction or below 0 or above 1 if it first or last point.
-        int32_t xLowerLim;
-        int32_t xUpperLim;
-
-        ShapePoint *currentPrevious = nullptr;
-
-        if (currentlyDragging == &shapePoints.front()){
-            xLowerLim = XYXY[0];
-        }
-        else{
-            xLowerLim = (currentlyDragging - 1)->absPosX;
-            currentPrevious = currentlyDragging - 1;
-        }
-
-        if (currentlyDragging == &shapePoints.back()){
-            xUpperLim = XYXY[2];
-        }
-        else{
-            xUpperLim = (currentlyDragging + 1)->absPosX;
-        }
-
-        x = (x > xUpperLim) ? xUpperLim : (x < xLowerLim) ? xLowerLim : x;
-        y = (y > XYXY[3]) ? XYXY[3] : (y < XYXY[1]) ? XYXY[1] : y;
-
-        // the rightmost point must not move in x-direction
-        if (currentlyDragging == &shapePoints.back()){
-            x = XYXY[2];
-        }
+        ShapePoint *currentPrevious = (currentlyDragging == &shapePoints.front()) ? nullptr : (currentlyDragging - 1);
 
         if (currentDraggingMode == position){
+            // point is not allowed to go beyond neighbouring points in x-direction or below 0 or above 1 if it first or last point.
+            int32_t xLowerLim;
+            int32_t xUpperLim;
+
+            if (currentlyDragging == &shapePoints.front()){
+                xLowerLim = XYXY[0];
+            }
+            else{
+                xLowerLim = (currentlyDragging - 1)->absPosX;
+            }
+
+            if (currentlyDragging == &shapePoints.back()){
+                xUpperLim = XYXY[2];
+            }
+            else{
+                xUpperLim = (currentlyDragging + 1)->absPosX;
+            }
+
+            x = (x > xUpperLim) ? xUpperLim : (x < xLowerLim) ? xLowerLim : x;
+            y = (y > XYXY[3]) ? XYXY[3] : (y < XYXY[1]) ? XYXY[1] : y;
+
+            // the rightmost point must not move in x-direction
+            if (currentlyDragging == &shapePoints.back()){
+                x = XYXY[2];
+            }
+
             currentlyDragging->updatePositionAbsolute(x, y, currentPrevious);
 
             if (currentlyDragging != &shapePoints.back()){
@@ -435,16 +394,6 @@ class ShapeEditor{
         }
 
         else if (currentDraggingMode == curveCenter){
-            // // search for a power (1/maxPower <= power <= maxPower) such that the curve center is at mouse position
-            // float yL = (currentPrevious == nullptr) ? XYXY[3] : currentPrevious->absPosY;
-            // float yMax = (yL > currentlyDragging->absPosY) ? yL : currentlyDragging->absPosY;
-            // float yMin = (yL <= currentlyDragging->absPosY) ? yL : currentlyDragging->absPosY;
-            // if (y >= yMin && y <= yMax){
-            //     float newPower = log((currentlyDragging->absPosY - y) / (yMax - yMin)) / log(0.5);
-
-            //     // clamp between 1/maxPower and maxPower
-            //     newPower = (newPower < 1 / maxPower) ? 1/maxPower : (newPower > maxPower) ? maxPower : newPower;
-            //     currentlyDragging->power = newPower;
                 currentlyDragging->updateCurveCenter(currentPrevious, x, y);
             // }
         }

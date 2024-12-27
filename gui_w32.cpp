@@ -14,6 +14,22 @@ static void GUIPaint(MyPlugin *plugin, bool internal) {
 	RedrawWindow(plugin->gui->window, 0, 0, RDW_INVALIDATE);
 }
 
+void ShowShapeMenu(HWND hwnd, int xPos, int yPos) {
+    HMENU hMenu = CreatePopupMenu();
+
+    // title and separator
+    AppendMenu(hMenu, MF_STRING | MF_DISABLED | MF_GRAYED, 0, "Function:");
+    AppendMenu(hMenu, MF_SEPARATOR, 0, NULL);
+
+    AppendMenu(hMenu, MF_STRING, shapePower, "Power");
+    AppendMenu(hMenu, MF_STRING, shapeSine, "Sine");
+    AppendMenu(hMenu, MF_STRING, shapeBezier, "Bezier");
+
+    TrackPopupMenu(hMenu, TPM_LEFTALIGN | TPM_TOPALIGN, xPos, yPos, 0, hwnd, NULL);
+
+    DestroyMenu(hMenu);
+}
+
 LRESULT CALLBACK GUIWindowProcedure(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
 	MyPlugin *plugin = (MyPlugin *) GetWindowLongPtr(window, 0);
 
@@ -40,7 +56,10 @@ LRESULT CALLBACK GUIWindowProcedure(HWND window, UINT message, WPARAM wParam, LP
 		GUIPaint(plugin, true);
 	} else if (message == WM_RBUTTONUP){
 		SetCapture(window); 
-		shapeEditor1.processRightClick(window, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+		ShapePoint *rightClicked = shapeEditor1.processRightClick(window, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+		if (rightClicked != nullptr){
+			ShowShapeMenu(window, rightClicked->absPosX, rightClicked->absPosY);
+		}
 		GUIPaint(plugin, true);
 	} else if (message == WM_COMMAND){
 		shapeEditor1.processMenuSelection(wParam);
