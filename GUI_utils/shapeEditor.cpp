@@ -41,6 +41,7 @@ class ShapePoint{
 
     private:
         float maxPower = 30;
+        float minOmega = 10E-3;
 
     public:
         // position and size of parent shapeEditor
@@ -58,10 +59,12 @@ class ShapePoint{
         int32_t curveCenterAbsPosX;
         int32_t curveCenterAbsPosY;
         float power; // power can be negative, which does NOT mean the curve is actually f(x) = 1 / (x^power) but that the curve is flipped vertically
+        float sineOmegaPrevious;
+        float sineOmega;
         Shapes mode = shapePower;
 
     // TODO rename pow to parameter since it serves for all modes
-    ShapePoint(float x, float y, int32_t editorSize[4], ShapePoint *previousPoint, float pow = 1, Shapes initMode = shapePower){
+    ShapePoint(float x, float y, int32_t editorSize[4], ShapePoint *previousPoint, float pow = 1, float omega = 0.5, Shapes initMode = shapePower){
         /*x, y are relative positions on the graph editor, e.g. they must be between 0 and 1
         editorSize is screen coordinates of parent shapeEditor in XYXY notation: {xMin, yMin, xMax, yMax}
         previousPoint is pointer to the next ShapePoint on the left hand side of the current point. If there is no point to the left, should be nullptr
@@ -87,6 +90,8 @@ class ShapePoint{
 
         power = pow;
         mode = initMode;
+        sineOmega = omega;
+        sineOmegaPrevious = omega;
     }
 
     void updatePositionAbsolute(int32_t x, int32_t y, ShapePoint *previous){
@@ -104,8 +109,12 @@ class ShapePoint{
         // curve center x is always in the middle of neighbouring points
         curveCenterAbsPosX = (int32_t)(absPosX + ((previous == nullptr) ? XYXY[0] : previous->absPosX)) / 2;
 
-        int32_t yL = (previous == nullptr) ? XYXY[3] : previous->absPosY;
-        curveCenterAbsPosY = (power > 0) ? yL - pow(0.5, power) * (yL - absPosY) : absPosY + pow(0.5, -power) * (yL - absPosY);
+        if (mode == shapePower){
+            int32_t yL = (previous == nullptr) ? XYXY[3] : previous->absPosY;
+            curveCenterAbsPosY = (power > 0) ? yL - pow(0.5, power) * (yL - absPosY) : absPosY + pow(0.5, -power) * (yL - absPosY);
+        } else if (mode == shapeSine){
+            curveCenterAbsPosY = (int32_t)(absPosY + ((previous == nullptr) ? XYXY[3] : previous->absPosY)) / 2;
+        }
     }
 
     void updateCurveCenter(ShapePoint *previous, int x, int y){
@@ -119,6 +128,7 @@ class ShapePoint{
         switch (mode){
             case shapePower:
                 // logarithm will be problematic if y position reaches zero. Clamp y value between these limits so that power can not extend maxPower
+            {
                 float minCenterY = pow(0.5, maxPower);
                 float maxCenterY = 1. - minCenterY;
 
@@ -133,7 +143,32 @@ class ShapePoint{
 
                 curveCenterAbsPosY = (power > 0) ? yL - pow(0.5, power) * (yL - absPosY) : absPosY + pow(0.5, -power) * (yL - absPosY);
                 break;
+            }
+
+            case shapeSine:
+            {
+                /*For shapeSine the center point stays at the same position, while the sineOmega value is still updated when moving the mouse in y-direction.
+                Sine wave will always go through this point. When omega is smaller 0.5, the sine will smoothly connect the points, if larger 0.5,
+                it will be increased in discrete steps, such that always n + 1/2 cycles lay in the interval between the points.*/
+
+                curveCenterAbsPosX = (int32_t)(absPosX + ((previous == nullptr) ? XYXY[0] : previous->absPosX)) / 2;
+                curveCenterAbsPosY = (int32_t)(absPosY + ((previous == nullptr) ? XYXY[3] : previous->absPosY)) / 2;
+
+                if (sineOmega <= 0.5){
+                    sineOmega = sineOmegaPrevious * pow(0.5, (float)(y - curveCenterAbsPosY) / 50);
+                    sineOmega = (sineOmega < minOmega) ? minOmega : sineOmega;
+                } else {
+                    // TODO if shift or strg or smth is pressed, be continuous
+                    sineOmega = sineOmegaPrevious + ((curveCenterAbsPosY - y) / 40);
+                    sineOmega -= (int32_t)sineOmega % 2;
+                }
+                break;
+            }
         }
+    }
+
+    void processMousePress(){
+        sineOmegaPrevious = sineOmega;
     }
 };
 
@@ -149,7 +184,6 @@ class ShapeEditor{
 
         // all points of this editor are stored in a vector, they must always be sorted by ther absolute x position
         std::vector<ShapePoint> shapePoints;
-        int XYXY[4];
         uint32_t *canvas;
 
         // this is only relevant for Linux since xlib does not feature automatic double click detection
@@ -164,6 +198,8 @@ class ShapeEditor{
         ShapePoint *rightClicked = nullptr;
 
     public:
+        int XYXY[4];
+
     ShapeEditor(int32_t position[4], std::vector<ShapePoint> points = {}){
         if (points.empty()){
             // if no points are given, use the default points which diagonally span across the whole Graph.
@@ -245,6 +281,7 @@ class ShapeEditor{
 
         // if in proximity to point mark point as currentlyDragging
         if (closestDistance <= requiredSquaredDistance){
+            shapePoints.at(closestIndex).processMousePress();
             currentlyDragging = &shapePoints.at(closestIndex);
         }
     }
@@ -267,8 +304,14 @@ class ShapeEditor{
 
             // if double click on curve center, reset power
             else if (currentDraggingMode == curveCenter){
-                shapePoints.at(closestIndex).power = 1;
+                if (shapePoints.at(closestIndex).mode == shapePower){
+                    shapePoints.at(closestIndex).power = 1;
+                } else if (shapePoints.at(closestIndex).mode == shapeSine){
+                    shapePoints.at(closestIndex).sineOmega = 0.5;
+                    shapePoints.at(closestIndex).sineOmegaPrevious = 0.5;
+                }
                 shapePoints.at(closestIndex).updateCurveCenter((closestIndex == 0) ? nullptr : &shapePoints.at(closestIndex - 1));
+
             }
         }
 
@@ -302,7 +345,12 @@ class ShapeEditor{
         }
         // if right click on curve center, reset power
         else if (closestDistance <= requiredSquaredDistance && currentDraggingMode == curveCenter){
-            shapePoints.at(closestIndex).power = 1;
+            if (shapePoints.at(closestIndex).mode == shapePower){
+                shapePoints.at(closestIndex).power = 1;
+            } else if (shapePoints.at(closestIndex).mode == shapeSine){
+                shapePoints.at(closestIndex).sineOmega = 0.5;
+                shapePoints.at(closestIndex).sineOmegaPrevious = 0.5;
+            }
             shapePoints.at(closestIndex).updateCurveCenter((closestIndex == 0) ? nullptr : &shapePoints.at(closestIndex - 1));
         }
         return nullptr;
@@ -320,6 +368,7 @@ class ShapeEditor{
                 rightClicked->mode = shapeBezier;
                 break;
         }
+        rightClicked->updateCurveCenter((rightClicked == &shapePoints.front()) ? nullptr : rightClicked);
     }
 
     void processMouseRelease(){
@@ -330,15 +379,17 @@ class ShapeEditor{
     /* TODO i want to have a single function that transforms values according to the shape of all curve segments. This function will then be used
     to transform x-pixel coordinates to get the y value and also to actually shape the input sound.*/
     void drawConnection(uint32_t *bits, int index, uint32_t color = 0x000000, float thickness = 5){
+
+        int xMin = ((index == 0) ? (float)XYXY[0] : shapePoints.at(index - 1).absPosX);
+        int xMax = shapePoints.at(index).absPosX;
+
+        int yL = ((index == 0) ? (float)XYXY[3] : shapePoints.at(index - 1).absPosY);
+        int yR = shapePoints.at(index).absPosY;
+
         switch (shapePoints.at(index).mode){
             case shapePower:
             {
                 // The curve is f(x) = x^power, where x is in [0, 1] and x and y intervals are stretched such that the curve connects this and previous point
-                int xMin = ((index == 0) ? (float)XYXY[0] : shapePoints.at(index - 1).absPosX);
-                int xMax = shapePoints.at(index).absPosX;
-                int yL = ((index == 0) ? (float)XYXY[3] : shapePoints.at(index - 1).absPosY);
-                int yR = shapePoints.at(index).absPosY;
-
                 for (int i = xMin; i < xMax; i++) {
                     // TODO: antialiasing/ width of curve
                     if (shapePoints.at(index).power > 0){
@@ -346,6 +397,18 @@ class ShapeEditor{
                     } else {
                         bits[i + (int)((yR + pow((float)(xMax - i) / (xMax - xMin), -shapePoints.at(index).power) * (yL - yR))) * GUI_WIDTH] = color;
                     }
+                }
+                break;
+            }
+            case shapeSine:
+            {
+                for (int i = xMin; i < xMax; i++) {
+                    // TODO: antialiasing/ width of curve
+                    float pi = 3.141592654;
+                    // normalize curve to one if if frequency is so low that segment is smaller than half a wavelength
+                    float ampCorrection = (shapePoints.at(index).sineOmega < 0.5) ? 1 / sin(shapePoints.at(index).sineOmega * pi) : 1;
+                    // this works trust me
+                    bits[i + (int)(ampCorrection * sin((float)(i - xMin - (xMax - xMin)/2) / (xMax - xMin) * shapePoints.at(index).sineOmega * 2 * pi) * (yR - yL) / 2 - (yL - yR)/2 + yL) * GUI_WIDTH] = color;
                 }
                 break;
             }
