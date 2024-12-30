@@ -99,6 +99,8 @@ struct Voice {
 // 	shapePointPower
 // };
 
+#include "GUI_utils/shapeEditor.cpp"
+
 struct MyPlugin {
 	clap_plugin_t plugin;
 	const clap_host_t *host;
@@ -120,18 +122,17 @@ struct MyPlugin {
 	int32_t mouseDragOriginX, mouseDragOriginY;
 	float mouseDragOriginValue;
 	clap_id timerID;
-	int editorSize[4] = {50, 50, 550, 500};
-	// ShapeEditor shapeEditor1 = ShapeEditor(editorSize);
+	ShapeEditor shapeEditor1;
 	// ShapeEditor shapeEditor2;
 };
 
-#include "GUI_utils/shapeEditor.cpp"
-int editorSize[4] = {50, 50, 550, 500};
-ShapeEditor shapeEditor1 = ShapeEditor(editorSize);
+// #include "GUI_utils/shapeEditor.cpp"
+// int editorSize[4] = {50, 50, 550, 500};
+// ShapeEditor shapeEditor1 = ShapeEditor(editorSize);
 
-static float FloatClamp01(float x) {
-	return x >= 1.0f ? 1.0f : x <= 0.0f ? 0.0f : x;
-}
+// static float FloatClamp01(float x) {
+// 	return x >= 1.0f ? 1.0f : x <= 0.0f ? 0.0f : x;
+// }
 
 // static void PluginProcessEvent(MyPlugin *plugin, const clap_event_header_t *event) {
 // 	if (event->space_id == CLAP_CORE_EVENT_SPACE_ID) {
@@ -190,8 +191,11 @@ static float FloatClamp01(float x) {
 
 static void PluginRenderAudio(MyPlugin *plugin, uint32_t start, uint32_t end, float *inputL, float *inputR, float *outputL, float *outputR) {
 	for (uint32_t index = start; index < end; index++) {
-		outputL[index] = inputL[index];
-		outputR[index] = inputR[index];
+		// outputL[index] = inputL[index];
+		outputL[index] = plugin->shapeEditor1.renderAudio(inputL[index]);
+		// outputR[index] = inputR[index];
+		outputR[index] = plugin->shapeEditor1.renderAudio(inputR[index]);
+
 	}
 }
 
@@ -205,7 +209,7 @@ static void PluginPaintRectangle(MyPlugin *plugin, uint32_t *bits, uint32_t l, u
 
 static void PluginPaint(MyPlugin *plugin, uint32_t *bits) {
 	PluginPaintRectangle(plugin, bits, 0, GUI_WIDTH, 0, GUI_HEIGHT, 0xC0C0C0, 0xC0C0C0);
-	shapeEditor1.drawGraph(bits);
+	plugin->shapeEditor1.drawGraph(bits);
 	// PluginPaintRectangle(plugin, bits, 10, 40, 10, 40, 0x000000, 0xC0C0C0);
 	// PluginPaintRectangle(plugin, bits, 10, 40, 10 + 30 * (1.0f - plugin->mainParameters[P_VOLUME]), 40, 0x000000, 0x000000);
 }
@@ -222,7 +226,7 @@ static void PluginProcessMouseDrag(MyPlugin *plugin, int32_t x, int32_t y) {
 			plugin->hostParams->request_flush(plugin->host);
 		}
 
-		shapeEditor1.processMouseDrag(x, y);
+		plugin->shapeEditor1.processMouseDrag(x, y);
 	}
 }
 
@@ -243,7 +247,7 @@ static void PluginProcessMousePress(MyPlugin *plugin, int32_t x, int32_t y) {
 	// 	}
 	// }
 
-	shapeEditor1.processMousePress(x, y);
+	plugin->shapeEditor1.processMousePress(x, y);
 	plugin->mouseDragging = true;
 }
 
@@ -257,13 +261,13 @@ static void PluginProcessMouseRelease(MyPlugin *plugin) {
 			plugin->hostParams->request_flush(plugin->host);
 		}
 
-		shapeEditor1.processMouseRelease();
+		plugin->shapeEditor1.processMouseRelease();
 		plugin->mouseDragging = false;
 	}
 }
 
 void PluginProcessDoubleClick(MyPlugin *plugin, uint32_t x, uint32_t y){
-	shapeEditor1.processDoubleClick(x, y);
+	plugin->shapeEditor1.processDoubleClick(x, y);
 }
 
 static void PluginSyncMainToAudio(MyPlugin *plugin, const clap_output_events_t *out) {
@@ -355,20 +359,20 @@ static const clap_plugin_descriptor_t pluginDescriptor = {
 	},
 };
 
-static const clap_plugin_note_ports_t extensionNotePorts = {
-	.count = [] (const clap_plugin_t *plugin, bool isInput) -> uint32_t {
-		return isInput ? 1 : 0;
-	},
+// static const clap_plugin_note_ports_t extensionNotePorts = {
+// 	.count = [] (const clap_plugin_t *plugin, bool isInput) -> uint32_t {
+// 		return isInput ? 1 : 0;
+// 	},
 
-	.get = [] (const clap_plugin_t *plugin, uint32_t index, bool isInput, clap_note_port_info_t *info) -> bool {
-		if (!isInput || index) return false;
-		info->id = 0;
-		info->supported_dialects = CLAP_NOTE_DIALECT_CLAP;
-		info->preferred_dialect = CLAP_NOTE_DIALECT_CLAP;
-		snprintf(info->name, sizeof(info->name), "%s", "Note Port");
-		return true;
-	},
-};
+// 	.get = [] (const clap_plugin_t *plugin, uint32_t index, bool isInput, clap_note_port_info_t *info) -> bool {
+// 		if (!isInput || index) return false;
+// 		info->id = 0;
+// 		info->supported_dialects = CLAP_NOTE_DIALECT_CLAP;
+// 		info->preferred_dialect = CLAP_NOTE_DIALECT_CLAP;
+// 		snprintf(info->name, sizeof(info->name), "%s", "Note Port");
+// 		return true;
+// 	},
+// };
 
 static const clap_plugin_audio_ports_t extensionAudioPorts = {
 	.count = [] (const clap_plugin_t *plugin, bool isInput) -> uint32_t { 
@@ -607,6 +611,8 @@ static const clap_plugin_t pluginClass = {
 		plugin->hostPOSIXFDSupport = (const clap_host_posix_fd_support_t *) plugin->host->get_extension(plugin->host, CLAP_EXT_POSIX_FD_SUPPORT);
 		plugin->hostTimerSupport = (const clap_host_timer_support_t *) plugin->host->get_extension(plugin->host, CLAP_EXT_TIMER_SUPPORT);
 		plugin->hostParams = (const clap_host_params_t *) plugin->host->get_extension(plugin->host, CLAP_EXT_PARAMS);
+		int editorSize[4] = {50, 50, 550, 500};
+		plugin->shapeEditor1 = ShapeEditor(editorSize);
 
 		MutexInitialise(plugin->syncParameters);
 
@@ -669,7 +675,10 @@ static const clap_plugin_t pluginClass = {
 
 		PluginSyncMainToAudio(plugin, process->out_events);
 
-		for (uint32_t i = 0; i < frameCount; ) {
+		PluginRenderAudio(plugin, 0, frameCount, process->audio_inputs[0].data32[0], process->audio_inputs[0].data32[1], process->audio_outputs[0].data32[0], process->audio_outputs[0].data32[1]);
+
+
+		// for (uint32_t i = 0; i < frameCount; ) {
 			// while (eventIndex < inputEventCount && nextEventFrame == i) {
 			// 	const clap_event_header_t *event = process->in_events->get(process->in_events, eventIndex);
 
@@ -687,9 +696,9 @@ static const clap_plugin_t pluginClass = {
 			// 	}
 			// }
 
-			PluginRenderAudio(plugin, i, nextEventFrame, process->audio_inputs[0].data32[0], process->audio_inputs[0].data32[1], process->audio_outputs[0].data32[0], process->audio_outputs[0].data32[1]);
-			i = nextEventFrame;
-		}
+		// 	PluginRenderAudio(plugin, i, nextEventFrame, process->audio_inputs[0].data32[0], process->audio_inputs[0].data32[1], process->audio_outputs[0].data32[0], process->audio_outputs[0].data32[1]);
+		// 	i = nextEventFrame;
+		// }
 
 		for (int i = 0; i < plugin->voices.Length(); i++) {
 			Voice *voice = &plugin->voices[i];
@@ -715,7 +724,7 @@ static const clap_plugin_t pluginClass = {
 	},
 
 	.get_extension = [] (const clap_plugin *plugin, const char *id) -> const void * {
-		if (0 == strcmp(id, CLAP_EXT_NOTE_PORTS      )) return &extensionNotePorts;
+		// if (0 == strcmp(id, CLAP_EXT_NOTE_PORTS      )) return &extensionNotePorts;
 		if (0 == strcmp(id, CLAP_EXT_AUDIO_PORTS     )) return &extensionAudioPorts;
 		if (0 == strcmp(id, CLAP_EXT_PARAMS          )) return &extensionParams;
 		if (0 == strcmp(id, CLAP_EXT_GUI             )) return &extensionGUI;

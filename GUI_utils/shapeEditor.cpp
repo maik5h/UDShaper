@@ -58,12 +58,13 @@ class ShapePoint{
         // parameters of the curve left to the point
         int32_t curveCenterAbsPosX;
         int32_t curveCenterAbsPosY;
-        float power; // power can be negative, which does NOT mean the curve is actually f(x) = 1 / (x^power) but that the curve is flipped vertically
+        float power; // power can be negative, which does NOT mean the curve is actually f(x) = 1 / (x^|power|) but that the curve is flipped vertically
         float sineOmegaPrevious;
         float sineOmega;
         Shapes mode = shapePower;
 
-    // TODO rename pow to parameter since it serves for all modes
+    /*some methods need a pointer to the previous ShapePoint. I tried saving it as a member as in a linked list but that did not work, it would sometimes
+    break and lose track of previous somehow.*/
     ShapePoint(float x, float y, int32_t editorSize[4], ShapePoint *previousPoint, float pow = 1, float omega = 0.5, Shapes initMode = shapePower){
         /*x, y are relative positions on the graph editor, e.g. they must be between 0 and 1
         editorSize is screen coordinates of parent shapeEditor in XYXY notation: {xMin, yMin, xMax, yMax}
@@ -98,8 +99,8 @@ class ShapePoint{
         absPosX = x;
         absPosY = y;
 
-        posX = (x - XYXY[0]) / (XYXY[2] - XYXY[0]);
-        posY = (XYXY[3] - y) / (XYXY[3] - XYXY[1]);
+        posX = (float)(x - XYXY[0]) / (XYXY[2] - XYXY[0]);
+        posY = (float)(XYXY[3] - y) / (XYXY[3] - XYXY[1]);
 
         updateCurveCenter(previous);
     }
@@ -129,17 +130,24 @@ class ShapePoint{
             case shapePower:
                 // logarithm will be problematic if y position reaches zero. Clamp y value between these limits so that power can not extend maxPower
             {
-                float minCenterY = pow(0.5, maxPower);
-                float maxCenterY = 1. - minCenterY;
+                // float minCenterY = pow(0.5, maxPower);
+                // float maxCenterY = 1. - minCenterY;
 
                 int32_t yL = (previous == nullptr) ? XYXY[3] : previous->absPosY;
 
+                int32_t yMin = (yL > absPosY) ? absPosY : yL;
+                int32_t yMax = (yL < absPosY) ? absPosY : yL;
+
+                // y must not be yL or posY, else there will be a log(0). set y to be at least one pixel off of these values
+                y = (y > yMax) ? yMax - 1 : (y < yMin) ? yMin + 1 : y;
+
                 // find mouse position normalized to y extent and clamp it to boundaries
                 float relExtent = (yL - (float)y) / (yL - absPosY);
-                relExtent = (relExtent > maxCenterY) ? maxCenterY : (relExtent < minCenterY) ? minCenterY : relExtent;
+                // relExtent = (relExtent > maxCenterY) ? maxCenterY : (relExtent < minCenterY) ? minCenterY : relExtent;
 
                 // update power by following convention that a y-flipped curve is represented by a negative power
                 power = (relExtent < 0.5) ? log(relExtent) / log(0.5) :  - log(1 - relExtent) / log(0.5);
+                power = (power < 0) ? ((power < -maxPower) ? -maxPower : power) : ((power > maxPower) ? maxPower : power);
 
                 curveCenterAbsPosY = (power > 0) ? yL - pow(0.5, power) * (yL - absPosY) : absPosY + pow(0.5, -power) * (yL - absPosY);
                 break;
@@ -180,7 +188,8 @@ class ShapeEditor{
         static const uint32_t colorCurve = 0xFFFFFF;
 
         // square of the minimum distance the mouse needs to have from a point in order to connect any input to this point
-        const float requiredSquaredDistance = 200;
+        // TODO why this cant be static const???
+        float requiredSquaredDistance = 200;
 
         // all points of this editor are stored in a vector, they must always be sorted by ther absolute x position
         std::vector<ShapePoint> shapePoints;
@@ -457,8 +466,38 @@ class ShapeEditor{
         }
 
         else if (currentDraggingMode == curveCenter){
-                currentlyDragging->updateCurveCenter(currentPrevious, x, y);
-            // }
+            currentlyDragging->updateCurveCenter(currentPrevious, x, y);
         }
+    }
+
+    // TODO name might be misleading, change it
+    float renderAudio(float input){
+        float out;
+        // absolute value of input is processed, store information to flip sign after computing if necessary
+        bool negativeInput = (input < 0) ? true : false;
+        input = (input < 0) ? -input : input;
+        // limit input to one
+        input = (input > 1) ? 1 : input;
+
+        ShapePoint *point = &shapePoints.front();
+        ShapePoint *previous = nullptr;
+
+        while(point->posX < input){
+            previous = point;
+            point ++;
+        }
+
+        switch(point->mode){
+            case shapePower:
+            {
+                float xL = (previous == nullptr) ? 0 : previous->posX;
+                float yL = (previous == nullptr) ? 0 : previous->posY;
+
+                float relX = (point->posX == xL) ? xL : (input - xL) / (point->posX - xL);
+                float factor = (point->posY - yL);
+                out = (point->power > 0) ? yL + pow(relX, point->power) * factor : point->posY - pow(1-relX, -point->power) * factor;
+            }
+        }
+        return negativeInput ? -out : out;
     }
 };
