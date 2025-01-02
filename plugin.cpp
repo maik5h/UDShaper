@@ -27,6 +27,13 @@
 
 // std::vector<int> parameterTypes = {0};
 
+enum distortionMode {
+	upDown,
+	midSide,
+	leftRight,
+	positiveNegative
+};
+
 void logToFile(const std::string& message) {
     std::ofstream logFile("C:/Users/mm/Desktop/log.txt", std::ios_base::app);  // Open for appending
     if (logFile.is_open()) {
@@ -113,6 +120,7 @@ struct MyPlugin {
 
 	bool gestureStart[P_COUNT], gestureEnd[P_COUNT];
 	Mutex syncParameters;
+	Mutex findInflectionPoints;
 	struct GUI *gui;
 	const clap_host_posix_fd_support_t *hostPOSIXFDSupport;
 	const clap_host_timer_support_t *hostTimerSupport;
@@ -122,17 +130,15 @@ struct MyPlugin {
 	int32_t mouseDragOriginX, mouseDragOriginY;
 	float mouseDragOriginValue;
 	clap_id timerID;
+
 	ShapeEditor shapeEditor1;
-	// ShapeEditor shapeEditor2;
+	ShapeEditor shapeEditor2;
+
+	float lastBufferLevelL;
+	float lastBufferLevelR;
+
+	distortionMode distortionMode;
 };
-
-// #include "GUI_utils/shapeEditor.cpp"
-// int editorSize[4] = {50, 50, 550, 500};
-// ShapeEditor shapeEditor1 = ShapeEditor(editorSize);
-
-// static float FloatClamp01(float x) {
-// 	return x >= 1.0f ? 1.0f : x <= 0.0f ? 0.0f : x;
-// }
 
 // static void PluginProcessEvent(MyPlugin *plugin, const clap_event_header_t *event) {
 // 	if (event->space_id == CLAP_CORE_EVENT_SPACE_ID) {
@@ -190,12 +196,73 @@ struct MyPlugin {
 // }
 
 static void PluginRenderAudio(MyPlugin *plugin, uint32_t start, uint32_t end, float *inputL, float *inputR, float *outputL, float *outputR) {
-	for (uint32_t index = start; index < end; index++) {
-		// outputL[index] = inputL[index];
-		outputL[index] = plugin->shapeEditor1.renderAudio(inputL[index]);
-		// outputR[index] = inputR[index];
-		outputR[index] = plugin->shapeEditor1.renderAudio(inputR[index]);
+	
+	switch (plugin->distortionMode) {
+		/* TODO Buffer is parallelized into pieces of ~200 samples. I dont know how to access all of them in
+		one place so i can not properly decide which shape to choose.
+		*/
+		case upDown:
+		{
+			bool processShape1L;
+			bool processShape1R;
 
+			/* at start of each new buffer, load last level of last buffer from plugin struct, else there would be
+			jumping between the two shapes and therefore clicking every time a new buffer starts
+			*/
+			float previousLevelL = plugin->lastBufferLevelL;
+			float previousLevelR = plugin->lastBufferLevelR;
+
+			for (uint32_t index = start; index < end; index++) {
+				// update active shape only if value has changed so for plateaus the current shape stays active
+				if (inputL[index] != previousLevelL) {
+					processShape1L = (inputL[index] > previousLevelL);
+				}
+				if (inputR[index] != previousLevelR) {
+					processShape1R = (inputR[index] > previousLevelR);
+				}
+
+				outputL[index] = processShape1L ? plugin->shapeEditor1.renderAudio(inputL[index]) : plugin->shapeEditor2.renderAudio(inputL[index]);
+				outputR[index] = processShape1R ? plugin->shapeEditor1.renderAudio(inputR[index]) : plugin->shapeEditor2.renderAudio(inputR[index]);
+
+				previousLevelL = inputL[index];
+				previousLevelR = inputR[index];
+			}
+
+			plugin->lastBufferLevelL = inputL[end];
+			plugin->lastBufferLevelR = inputR[end];
+			
+			break;
+		}
+		case midSide:
+		{
+			float mid;
+			float	side;
+
+			for (uint32_t index = start; index < end; index++) {
+				mid = plugin->shapeEditor1.renderAudio((inputL[index] + inputR[index])/2);
+				side = plugin->shapeEditor2.renderAudio((inputL[index] - inputR[index])/2);
+
+				outputL[index] = mid + side;
+				outputR[index] = mid - side;
+			}
+			break;
+		}
+		case leftRight:
+		{
+			for (uint32_t index = start; index < end; index++) {
+				outputL[index] = plugin->shapeEditor1.renderAudio(inputL[index]);
+				outputR[index] = plugin->shapeEditor2.renderAudio(inputR[index]);
+			}
+			break;
+		}
+		case positiveNegative:
+		{
+			for (uint32_t index = start; index < end; index++) {
+				outputL[index] = (inputL[index] > 0) ? plugin->shapeEditor1.renderAudio(inputL[index]) : plugin->shapeEditor2.renderAudio(inputL[index]);
+				outputR[index] = (inputR[index] > 0) ? plugin->shapeEditor1.renderAudio(inputR[index]) : plugin->shapeEditor2.renderAudio(inputR[index]);
+			}
+			break;
+		}
 	}
 }
 
@@ -209,7 +276,9 @@ static void PluginPaintRectangle(MyPlugin *plugin, uint32_t *bits, uint32_t l, u
 
 static void PluginPaint(MyPlugin *plugin, uint32_t *bits) {
 	PluginPaintRectangle(plugin, bits, 0, GUI_WIDTH, 0, GUI_HEIGHT, 0xC0C0C0, 0xC0C0C0);
+
 	plugin->shapeEditor1.drawGraph(bits);
+	plugin->shapeEditor2.drawGraph(bits);
 	// PluginPaintRectangle(plugin, bits, 10, 40, 10, 40, 0x000000, 0xC0C0C0);
 	// PluginPaintRectangle(plugin, bits, 10, 40, 10 + 30 * (1.0f - plugin->mainParameters[P_VOLUME]), 40, 0x000000, 0x000000);
 }
@@ -227,6 +296,7 @@ static void PluginProcessMouseDrag(MyPlugin *plugin, int32_t x, int32_t y) {
 		}
 
 		plugin->shapeEditor1.processMouseDrag(x, y);
+		plugin->shapeEditor2.processMouseDrag(x, y);
 	}
 }
 
@@ -248,6 +318,7 @@ static void PluginProcessMousePress(MyPlugin *plugin, int32_t x, int32_t y) {
 	// }
 
 	plugin->shapeEditor1.processMousePress(x, y);
+	plugin->shapeEditor2.processMousePress(x, y);
 	plugin->mouseDragging = true;
 }
 
@@ -262,12 +333,14 @@ static void PluginProcessMouseRelease(MyPlugin *plugin) {
 		}
 
 		plugin->shapeEditor1.processMouseRelease();
+		plugin->shapeEditor2.processMouseRelease();
 		plugin->mouseDragging = false;
 	}
 }
 
 void PluginProcessDoubleClick(MyPlugin *plugin, uint32_t x, uint32_t y){
 	plugin->shapeEditor1.processDoubleClick(x, y);
+	plugin->shapeEditor2.processDoubleClick(x, y);
 }
 
 static void PluginSyncMainToAudio(MyPlugin *plugin, const clap_output_events_t *out) {
@@ -611,8 +684,14 @@ static const clap_plugin_t pluginClass = {
 		plugin->hostPOSIXFDSupport = (const clap_host_posix_fd_support_t *) plugin->host->get_extension(plugin->host, CLAP_EXT_POSIX_FD_SUPPORT);
 		plugin->hostTimerSupport = (const clap_host_timer_support_t *) plugin->host->get_extension(plugin->host, CLAP_EXT_TIMER_SUPPORT);
 		plugin->hostParams = (const clap_host_params_t *) plugin->host->get_extension(plugin->host, CLAP_EXT_PARAMS);
-		int editorSize[4] = {50, 50, 550, 500};
-		plugin->shapeEditor1 = ShapeEditor(editorSize);
+		
+		int editorSize1[4] = {50, 50, 550, 500};
+		int editorSize2[4] = {600, 50, 1100, 500};
+		plugin->shapeEditor1 = ShapeEditor(editorSize1);
+		plugin->shapeEditor2 = ShapeEditor(editorSize2);
+		plugin->lastBufferLevelL = 0;
+		plugin->lastBufferLevelR = 0;
+		plugin->distortionMode = upDown;
 
 		MutexInitialise(plugin->syncParameters);
 
