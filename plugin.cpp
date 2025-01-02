@@ -203,22 +203,29 @@ static void PluginRenderAudio(MyPlugin *plugin, uint32_t start, uint32_t end, fl
 		*/
 		case upDown:
 		{
-			bool processShape1L;
-			bool processShape1R;
+			// since data from last buffer is not available, take first samples as a reference, works most of
+			//  the time but is not optimal.
+			bool processShape1L = (inputL[1] >= inputL[0]);
+			bool processShape1R = (inputR[1] >= inputR[0]);
 
 			/* at start of each new buffer, load last level of last buffer from plugin struct, else there would be
 			jumping between the two shapes and therefore clicking every time a new buffer starts
 			*/
-			float previousLevelL = plugin->lastBufferLevelL;
-			float previousLevelR = plugin->lastBufferLevelR;
+			// float previousLevelL = plugin->lastBufferLevelL;
+			// float previousLevelR = plugin->lastBufferLevelR;
+
+			float previousLevelL;
+			float previousLevelR;
 
 			for (uint32_t index = start; index < end; index++) {
 				// update active shape only if value has changed so for plateaus the current shape stays active
-				if (inputL[index] != previousLevelL) {
-					processShape1L = (inputL[index] > previousLevelL);
-				}
-				if (inputR[index] != previousLevelR) {
-					processShape1R = (inputR[index] > previousLevelR);
+				if (index > 0) {
+					// if (inputL[index] != previousLevelL) {
+						processShape1L = (inputL[index] >= previousLevelL);
+					// }
+					// if (inputR[index] != previousLevelR) {
+						processShape1R = (inputR[index] >= previousLevelR);
+					// }
 				}
 
 				outputL[index] = processShape1L ? plugin->shapeEditor1.renderAudio(inputL[index]) : plugin->shapeEditor2.renderAudio(inputL[index]);
@@ -228,8 +235,8 @@ static void PluginRenderAudio(MyPlugin *plugin, uint32_t start, uint32_t end, fl
 				previousLevelR = inputR[index];
 			}
 
-			plugin->lastBufferLevelL = inputL[end];
-			plugin->lastBufferLevelR = inputR[end];
+			// plugin->lastBufferLevelL = inputL[end];
+			// plugin->lastBufferLevelR = inputR[end];
 			
 			break;
 		}
