@@ -56,7 +56,7 @@ LRESULT CALLBACK GUIWindowProcedure(HWND window, UINT message, WPARAM wParam, LP
 		GUIPaint(plugin, true);
 	} else if (message == WM_RBUTTONUP){
 		SetCapture(window); 
-		ShapePoint *rightClicked = plugin->shapeEditor1.processRightClick(window, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+		ShapePoint *rightClicked = plugin->shapeEditor1.processRightClick(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
 		if (rightClicked != nullptr){
 			ShowShapeMenu(window, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
 		}

@@ -1,5 +1,9 @@
 /*
-Everything concerning the graph editors
+Everything concerning the shape editors.
+A shape editor is a region on the UI that can be used to design a curve by adding, moving and deleting points between
+which the curve is interpolated. The interpolation shape in each region between two points ("curve segment") can be
+chosen from a dialog box if rightclicking the point to the right of the segment. Some shapes can further be edited
+by dragging the center of the curve.
 */
 
 #include <vector>
@@ -8,12 +12,15 @@ Everything concerning the graph editors
 #include <tuple>
 #include <cmath>
 #include <iostream>
+#include <assert.h>
+#include <windowsx.h>
+#include "../config.h"
 
 enum Shapes{
     // Function each curve segment between two points can follow
     shapePower, // curve follows shape of f(x) = (x < 0.5) ? x^power : 1-(1-x)^power, for 0 <= x <= 1, streched to the corresponding x and y intervals
-    shapeSine, // TODO not sure yet
-    shapeBezier // i think i will drop this because i do NOT fell like programming this... more points and some more clamping to the box etc
+    shapeSine,
+    shapeBezier // i think i will drop this because i do NOT feel like programming this... more points and some more clamping to the box etc
 };
 
 enum draggingMode{
@@ -32,6 +39,44 @@ void drawPoint(uint32_t *bits, float x, float y, uint32_t color = 0x000000, floa
         }
     }
 }
+
+/* class that saves all information necessary to modulate a parameter. There should be one instance of this per
+parameter. The modulated value can be retrieved by passing the current value and beat position to the .get method. */
+// class Modulator{
+//     private:
+//         float amount = 1;
+//         float min;
+//         float max;
+//         // TODO could be vector so several envelopes can modulate a single parameter
+//         Envelope *envelope;
+
+//     public:
+//         Modulator(Envelope *initEnvelope, float initMin, float initMax){
+//             envelope = initEnvelope;
+//             min = initMin;
+//             max = initMax;
+//         }
+
+//         void setAmount(float newAmount){
+//             amount = newAmount;
+//         }
+
+//         void setEnvelope(Envelope *newEnvelope){
+//             envelope = newEnvelope;
+//         }
+
+//         float get(float base, float beat){
+//             // check if Modulater is set to an envelope
+//             if (envelope == nullptr){
+//                 return base;
+//             }
+
+//             float newParameter = base + amount * envelope->forward(beat);
+//             // clamp to limits
+//             newParameter = (newParameter < min) ? min : (newParameter > max) ? max : newParameter;
+//             return newParameter;
+//         }
+// };
 
 class ShapePoint{
     /* Class to store all information about a curve Segment. Curve segments are handled in a way that information about the function
@@ -56,8 +101,8 @@ class ShapePoint{
         bool flipPower = false;
 
         // parameters of the curve left to the point
-        int32_t curveCenterAbsPosX;
-        int32_t curveCenterAbsPosY;
+        uint16_t curveCenterAbsPosX;
+        uint16_t curveCenterAbsPosY;
         float power; // power can be negative, which does NOT mean the curve is actually f(x) = 1 / (x^|power|) but that the curve is flipped vertically
         float sineOmegaPrevious;
         float sineOmega;
@@ -65,7 +110,7 @@ class ShapePoint{
 
     /*some methods need a pointer to the previous ShapePoint. I tried saving it as a member as in a linked list but that did not work, it would sometimes
     break and lose track of previous somehow.*/
-    ShapePoint(float x, float y, int32_t editorSize[4], ShapePoint *previousPoint, float pow = 1, float omega = 0.5, Shapes initMode = shapePower){
+    ShapePoint(float x, float y, uint16_t editorSize[4], ShapePoint *previousPoint, float pow = 1, float omega = 0.5, Shapes initMode = shapePower){
         /*x, y are relative positions on the graph editor, e.g. they must be between 0 and 1
         editorSize is screen coordinates of parent shapeEditor in XYXY notation: {xMin, yMin, xMax, yMax}
         previousPoint is pointer to the next ShapePoint on the left hand side of the current point. If there is no point to the left, should be nullptr
@@ -172,6 +217,8 @@ class ShapePoint{
                 }
                 break;
             }
+            case shapeBezier:
+            break;
         }
     }
 
@@ -183,16 +230,16 @@ class ShapePoint{
 class ShapeEditor{
     private:
         // static const uint32_t colorBackground = 0x86D5F9;
-        static const uint32_t colorBackground = 0xFFCF7F;
-        static const uint32_t colorThinLines = 0xC0C0C0;
-        static const uint32_t colorCurve = 0xFFFFFF;
+        // static const uint32_t colorBackground = 0xFFCF7F;
+        // static const uint32_t colorThinLines = 0xC0C0C0;
+        // static const uint32_t colorCurve = 0xFFFFFF;
 
         // square of the minimum distance the mouse needs to have from a point in order to connect any input to this point
         // TODO why this cant be static const???
         float requiredSquaredDistance = 200;
 
         // all points of this editor are stored in a vector, they must always be sorted by ther absolute x position
-        std::vector<ShapePoint> shapePoints;
+        // std::vector<ShapePoint> shapePoints;
         uint32_t *canvas;
 
         // this is only relevant for Linux since xlib does not feature automatic double click detection
@@ -207,9 +254,10 @@ class ShapeEditor{
         ShapePoint *rightClicked = nullptr;
 
     public:
-        int XYXY[4];
+        uint16_t XYXY[4];
+        std::vector<ShapePoint> shapePoints;
 
-    ShapeEditor(int32_t position[4], std::vector<ShapePoint> points = {}){
+    ShapeEditor(uint16_t position[4], std::vector<ShapePoint> points = {}){
         if (points.empty()){
             // if no points are given, use the default points which diagonally span across the whole Graph.
             shapePoints = {ShapePoint(1., 1., position, nullptr)};
@@ -232,7 +280,7 @@ class ShapeEditor{
         }
 
         // first draw all connections between points, then points on top
-        for (int i=0; i< shapePoints.size(); i++){
+        for (uint16_t i=0; i< shapePoints.size(); i++){
             drawConnection(bits, i, colorCurve);
         }
         for (ShapePoint point : shapePoints){
@@ -250,7 +298,7 @@ class ShapeEditor{
 
         // check mouse distance to all points and find closest
         float distance;
-        for (int i=0; i<shapePoints.size(); i++){
+        for (uint16_t i=0; i<shapePoints.size(); i++){
             // check for distance to point and set mode to position
             distance = (shapePoints[i].absPosX - x)*(shapePoints[i].absPosX - x) + (shapePoints[i].absPosY - y)*(shapePoints[i].absPosY - y);
             if (distance < closestDistance){
@@ -275,7 +323,7 @@ class ShapeEditor{
         // check if mouse hovers over the graphical interface and return if not
         // check for slightly higher area to be able to grab point from outside the interface
         float offset = pow(requiredSquaredDistance, 0.5);
-        if (x < XYXY[0] - offset | x >= XYXY[2] + offset | y < XYXY[1] - offset | y >= XYXY[3] + offset){
+        if ((x < XYXY[0] - offset) | (x >= XYXY[2] + offset) | (y < XYXY[1] - offset) | (y >= XYXY[3] + offset)){
             return;
         }
 
@@ -296,7 +344,7 @@ class ShapeEditor{
     }
 
     void processDoubleClick(uint32_t x, uint32_t y){
-        if (x < XYXY[0] | x >= XYXY[2] | y < XYXY[1] | y >= XYXY[3]){
+        if ((x < XYXY[0]) | (x >= XYXY[2]) | (y < XYXY[1]) | (y >= XYXY[3])){
             return;
         }
 
@@ -327,7 +375,7 @@ class ShapeEditor{
         // if not in proximity to point, add one
         if (closestDistance > requiredSquaredDistance){
             // points in shapePoints should be sorted by x-position, find correct index to insert
-            int insertIdx = 0;
+            uint16_t insertIdx = 0;
             while (insertIdx < shapePoints.size()){
                 if (shapePoints.at(insertIdx).absPosX >= x){
                     break;
@@ -341,7 +389,7 @@ class ShapeEditor{
         }
     }
 
-    ShapePoint* processRightClick(HWND window, uint32_t x, uint32_t y){
+    ShapePoint* processRightClick(uint32_t x, uint32_t y){
         float closestDistance;
         int closestIndex;
         std::tie(closestDistance, closestIndex) = getClosestPoint(x, y);
@@ -421,6 +469,8 @@ class ShapeEditor{
                 }
                 break;
             }
+            case shapeBezier:
+            break;
         }
     }
 
@@ -470,8 +520,9 @@ class ShapeEditor{
         }
     }
 
-    // TODO name might be misleading, change it
-    float renderAudio(float input){
+    // TODO changed name, not sure if good
+    // gives input to the function defined on the interface and returns the output
+    float forward(float input){
         float out;
         // absolute value of input is processed, store information to flip sign after computing if necessary
         bool negativeInput = (input < 0) ? true : false;
@@ -497,7 +548,34 @@ class ShapeEditor{
                 float factor = (point->posY - yL);
                 out = (point->power > 0) ? yL + pow(relX, point->power) * factor : point->posY - pow(1-relX, -point->power) * factor;
             }
+            case shapeSine:
+            break;
+
+            case shapeBezier:
+            break;
         }
         return negativeInput ? -out : out;
     }
+};
+
+/* Envelopes inherit the graphical editing capabilities from ShapeEditor but include methods to add, remove and update
+controlled parameters */
+class Envelope : public ShapeEditor {
+    private:
+        std::vector<float *> controlledParameters;
+
+    public:
+        Envelope(uint16_t size[4]) : ShapeEditor(size) {};
+
+        void addControlledParameter(float *parameter){
+            controlledParameters.push_back(parameter);
+        }
+
+        void updateControlledParameters(double beatPosition){
+            float updatedPosition = forward(beatPosition / 4);
+
+            for (float *parameter : controlledParameters){
+                *parameter = 1 + 10*updatedPosition;
+            }
+        }
 };

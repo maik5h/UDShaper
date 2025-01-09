@@ -6,26 +6,11 @@
 #include <fstream>
 #include <iostream>
 #include "clap/clap.h"
+#include "config.h"
 
 // Parameters.
 #define P_VOLUME (0)
 #define P_COUNT (1)
-
-// GUI size.
-#define GUI_WIDTH (1500)
-#define GUI_HEIGHT (1000)
-
-#define DOUBLE_CLICK_TIME (5000)
-
-// #define COLOR_BACKGROUND (0x86D5F9)
-// #define COLOR_MESH (0xC0C0C0)
-// #define COLOR_CURVE (0xFFFFFF)
-
-// const uint32_t COLOR_BACKGROUND = 0x86D5F9;
-
-// #include "GUI_utils/shapeEditor.cpp"
-
-// std::vector<int> parameterTypes = {0};
 
 enum distortionMode {
 	upDown,
@@ -96,16 +81,7 @@ struct Voice {
 	float parameterOffsets[P_COUNT];
 };
 
-// enum parameterType {
-// 	volume,
-// 	shapePointX1,
-// 	shapePointY1,
-// 	shapePointX2,
-// 	shapePointY2,
-// 	windowSize,
-// 	shapePointPower
-// };
-
+// TODO update task to compile this seperately and include only header.
 #include "GUI_utils/shapeEditor.cpp"
 
 struct MyPlugin {
@@ -134,69 +110,19 @@ struct MyPlugin {
 	ShapeEditor shapeEditor1;
 	ShapeEditor shapeEditor2;
 
+	std::vector<Envelope> envelopes;
+
 	float lastBufferLevelL;
 	float lastBufferLevelR;
 
 	distortionMode distortionMode;
 };
 
-// static void PluginProcessEvent(MyPlugin *plugin, const clap_event_header_t *event) {
-// 	if (event->space_id == CLAP_CORE_EVENT_SPACE_ID) {
-// 		if (event->type == CLAP_EVENT_NOTE_ON || event->type == CLAP_EVENT_NOTE_OFF || event->type == CLAP_EVENT_NOTE_CHOKE) {
-// 			const clap_event_note_t *noteEvent = (const clap_event_note_t *) event;
+static void PluginRenderAudio(MyPlugin *plugin, uint32_t start, uint32_t end, float *inputL, float *inputR, float *outputL, float *outputR, double beatPosition) {
+	for (Envelope envelope : plugin->envelopes){
+		envelope.updateControlledParameters(beatPosition);
+	}
 
-// 			for (int i = 0; i < plugin->voices.Length(); i++) {
-// 				Voice *voice = &plugin->voices[i];
-
-// 				if ((noteEvent->key == -1 || voice->key == noteEvent->key)
-// 						&& (noteEvent->note_id == -1 || voice->noteID == noteEvent->note_id)
-// 						&& (noteEvent->channel == -1 || voice->channel == noteEvent->channel)) {
-// 					if (event->type == CLAP_EVENT_NOTE_CHOKE) {
-// 						plugin->voices.Delete(i--);
-// 					} else {
-// 						voice->held = false;
-// 					}
-// 				}
-// 			}
-
-// 			if (event->type == CLAP_EVENT_NOTE_ON) {
-// 				Voice voice = { 
-// 					.held = true, 
-// 					.noteID = noteEvent->note_id, 
-// 					.channel = noteEvent->channel, 
-// 					.key = noteEvent->key,
-// 					.phase = 0.0f,
-// 					.parameterOffsets = {},
-// 				};
-
-// 				plugin->voices.Add(voice);
-// 			}
-// 		} else if (event->type == CLAP_EVENT_PARAM_VALUE) {
-// 			const clap_event_param_value_t *valueEvent = (const clap_event_param_value_t *) event;
-// 			uint32_t i = (uint32_t) valueEvent->param_id;
-// 			MutexAcquire(plugin->syncParameters);
-// 			plugin->parameters[i] = valueEvent->value;
-// 			plugin->changed[i] = true;
-// 			MutexRelease(plugin->syncParameters);
-// 		} else if (event->type == CLAP_EVENT_PARAM_MOD) {
-// 			const clap_event_param_mod_t *modEvent = (const clap_event_param_mod_t *) event;
-
-// 			for (int i = 0; i < plugin->voices.Length(); i++) {
-// 				Voice *voice = &plugin->voices[i];
-
-// 				if ((modEvent->key == -1 || voice->key == modEvent->key)
-// 						&& (modEvent->note_id == -1 || voice->noteID == modEvent->note_id)
-// 						&& (modEvent->channel == -1 || voice->channel == modEvent->channel)) {
-// 					voice->parameterOffsets[modEvent->param_id] = modEvent->amount;
-// 					break;
-// 				}
-// 			}
-// 		}
-// 	}
-// }
-
-static void PluginRenderAudio(MyPlugin *plugin, uint32_t start, uint32_t end, float *inputL, float *inputR, float *outputL, float *outputR) {
-	
 	switch (plugin->distortionMode) {
 		/* TODO Buffer is parallelized into pieces of ~200 samples. I dont know how to access all of them in
 		one place so i can not properly decide which shape to choose.
@@ -207,12 +133,6 @@ static void PluginRenderAudio(MyPlugin *plugin, uint32_t start, uint32_t end, fl
 			//  the time but is not optimal.
 			bool processShape1L = (inputL[1] >= inputL[0]);
 			bool processShape1R = (inputR[1] >= inputR[0]);
-
-			/* at start of each new buffer, load last level of last buffer from plugin struct, else there would be
-			jumping between the two shapes and therefore clicking every time a new buffer starts
-			*/
-			// float previousLevelL = plugin->lastBufferLevelL;
-			// float previousLevelR = plugin->lastBufferLevelR;
 
 			float previousLevelL;
 			float previousLevelR;
@@ -228,26 +148,22 @@ static void PluginRenderAudio(MyPlugin *plugin, uint32_t start, uint32_t end, fl
 					// }
 				}
 
-				outputL[index] = processShape1L ? plugin->shapeEditor1.renderAudio(inputL[index]) : plugin->shapeEditor2.renderAudio(inputL[index]);
-				outputR[index] = processShape1R ? plugin->shapeEditor1.renderAudio(inputR[index]) : plugin->shapeEditor2.renderAudio(inputR[index]);
+				outputL[index] = processShape1L ? plugin->shapeEditor1.forward(inputL[index]) : plugin->shapeEditor2.forward(inputL[index]);
+				outputR[index] = processShape1R ? plugin->shapeEditor1.forward(inputR[index]) : plugin->shapeEditor2.forward(inputR[index]);
 
 				previousLevelL = inputL[index];
 				previousLevelR = inputR[index];
-			}
-
-			// plugin->lastBufferLevelL = inputL[end];
-			// plugin->lastBufferLevelR = inputR[end];
-			
+			}		
 			break;
 		}
 		case midSide:
 		{
 			float mid;
-			float	side;
+			float side;
 
 			for (uint32_t index = start; index < end; index++) {
-				mid = plugin->shapeEditor1.renderAudio((inputL[index] + inputR[index])/2);
-				side = plugin->shapeEditor2.renderAudio((inputL[index] - inputR[index])/2);
+				mid = plugin->shapeEditor1.forward((inputL[index] + inputR[index])/2);
+				side = plugin->shapeEditor2.forward((inputL[index] - inputR[index])/2);
 
 				outputL[index] = mid + side;
 				outputR[index] = mid - side;
@@ -257,16 +173,16 @@ static void PluginRenderAudio(MyPlugin *plugin, uint32_t start, uint32_t end, fl
 		case leftRight:
 		{
 			for (uint32_t index = start; index < end; index++) {
-				outputL[index] = plugin->shapeEditor1.renderAudio(inputL[index]);
-				outputR[index] = plugin->shapeEditor2.renderAudio(inputR[index]);
+				outputL[index] = plugin->shapeEditor1.forward(inputL[index]);
+				outputR[index] = plugin->shapeEditor2.forward(inputR[index]);
 			}
 			break;
 		}
 		case positiveNegative:
 		{
 			for (uint32_t index = start; index < end; index++) {
-				outputL[index] = (inputL[index] > 0) ? plugin->shapeEditor1.renderAudio(inputL[index]) : plugin->shapeEditor2.renderAudio(inputL[index]);
-				outputR[index] = (inputR[index] > 0) ? plugin->shapeEditor1.renderAudio(inputR[index]) : plugin->shapeEditor2.renderAudio(inputR[index]);
+				outputL[index] = (inputL[index] > 0) ? plugin->shapeEditor1.forward(inputL[index]) : plugin->shapeEditor2.forward(inputL[index]);
+				outputR[index] = (inputR[index] > 0) ? plugin->shapeEditor1.forward(inputR[index]) : plugin->shapeEditor2.forward(inputR[index]);
 			}
 			break;
 		}
@@ -286,8 +202,9 @@ static void PluginPaint(MyPlugin *plugin, uint32_t *bits) {
 
 	plugin->shapeEditor1.drawGraph(bits);
 	plugin->shapeEditor2.drawGraph(bits);
-	// PluginPaintRectangle(plugin, bits, 10, 40, 10, 40, 0x000000, 0xC0C0C0);
-	// PluginPaintRectangle(plugin, bits, 10, 40, 10 + 30 * (1.0f - plugin->mainParameters[P_VOLUME]), 40, 0x000000, 0x000000);
+	for (Envelope envelope : plugin->envelopes){
+		envelope.drawGraph(bits);
+	}
 }
 
 static void PluginProcessMouseDrag(MyPlugin *plugin, int32_t x, int32_t y) {
@@ -304,6 +221,11 @@ static void PluginProcessMouseDrag(MyPlugin *plugin, int32_t x, int32_t y) {
 
 		plugin->shapeEditor1.processMouseDrag(x, y);
 		plugin->shapeEditor2.processMouseDrag(x, y);
+		Envelope *envelope = &plugin->envelopes.front();
+		while (envelope <= &plugin->envelopes.back()){
+			envelope->processMouseDrag(x, y);
+			envelope++;
+		}
 	}
 }
 
@@ -326,6 +248,11 @@ static void PluginProcessMousePress(MyPlugin *plugin, int32_t x, int32_t y) {
 
 	plugin->shapeEditor1.processMousePress(x, y);
 	plugin->shapeEditor2.processMousePress(x, y);
+	Envelope *envelope = &plugin->envelopes.front();
+	while (envelope <= &plugin->envelopes.back()){
+		envelope->processMousePress(x, y);
+		envelope++;
+	}
 	plugin->mouseDragging = true;
 }
 
@@ -341,6 +268,11 @@ static void PluginProcessMouseRelease(MyPlugin *plugin) {
 
 		plugin->shapeEditor1.processMouseRelease();
 		plugin->shapeEditor2.processMouseRelease();
+		Envelope *envelope = &plugin->envelopes.front();
+		while (envelope <= &plugin->envelopes.back()){
+			envelope->processMouseRelease();
+			envelope++;
+		}
 		plugin->mouseDragging = false;
 	}
 }
@@ -348,6 +280,11 @@ static void PluginProcessMouseRelease(MyPlugin *plugin) {
 void PluginProcessDoubleClick(MyPlugin *plugin, uint32_t x, uint32_t y){
 	plugin->shapeEditor1.processDoubleClick(x, y);
 	plugin->shapeEditor2.processDoubleClick(x, y);
+	Envelope *envelope = &plugin->envelopes.front();
+	while (envelope <= &plugin->envelopes.back()){
+		envelope->processDoubleClick(x, y);
+		envelope++;
+	}
 }
 
 static void PluginSyncMainToAudio(MyPlugin *plugin, const clap_output_events_t *out) {
@@ -439,21 +376,6 @@ static const clap_plugin_descriptor_t pluginDescriptor = {
 	},
 };
 
-// static const clap_plugin_note_ports_t extensionNotePorts = {
-// 	.count = [] (const clap_plugin_t *plugin, bool isInput) -> uint32_t {
-// 		return isInput ? 1 : 0;
-// 	},
-
-// 	.get = [] (const clap_plugin_t *plugin, uint32_t index, bool isInput, clap_note_port_info_t *info) -> bool {
-// 		if (!isInput || index) return false;
-// 		info->id = 0;
-// 		info->supported_dialects = CLAP_NOTE_DIALECT_CLAP;
-// 		info->preferred_dialect = CLAP_NOTE_DIALECT_CLAP;
-// 		snprintf(info->name, sizeof(info->name), "%s", "Note Port");
-// 		return true;
-// 	},
-// };
-
 static const clap_plugin_audio_ports_t extensionAudioPorts = {
 	.count = [] (const clap_plugin_t *plugin, bool isInput) -> uint32_t { 
 		return 1; 
@@ -485,10 +407,6 @@ static const clap_plugin_audio_ports_t extensionAudioPorts = {
 static const clap_plugin_params_t extensionParams = {
 	.count = [] (const clap_plugin_t *plugin) -> uint32_t {
 		return P_COUNT;
-
-		// for std::vector<float>:
-		// MyPlugin *myPlugin = (MyPlugin *) plugin->plugin_data;
-		// return myPlugin->parameters.size();
 	},
 
 	.get_info = [] (const clap_plugin_t *_plugin, uint32_t index, clap_param_info_t *information) -> bool {
@@ -516,17 +434,6 @@ static const clap_plugin_params_t extensionParams = {
 			strcpy(information->name, "Shaper point position");
 			return true;
 		}
-		// else if (myPlugin->parameterTypes.at(index) == shapePointX1) {
-		// 	memset(information, 0, sizeof(clap_param_info_t));
-		// 	information->id = index;
-		// 	information->flags = CLAP_PARAM_IS_AUTOMATABLE | CLAP_PARAM_IS_MODULATABLE;
-		// 	information->min_value = myPlugin->shapeEditor1.XYXY[0];
-		// 	information->max_value = 1.0f;
-		// 	information->default_value = 0.5f;
-		// 	strcpy(information->name, "Volume");
-		// 	return true;
-		// }
-		
 		else {
 			return false;
 		}
@@ -692,13 +599,16 @@ static const clap_plugin_t pluginClass = {
 		plugin->hostTimerSupport = (const clap_host_timer_support_t *) plugin->host->get_extension(plugin->host, CLAP_EXT_TIMER_SUPPORT);
 		plugin->hostParams = (const clap_host_params_t *) plugin->host->get_extension(plugin->host, CLAP_EXT_PARAMS);
 		
-		int editorSize1[4] = {50, 50, 550, 500};
-		int editorSize2[4] = {600, 50, 1100, 500};
+		uint16_t editorSize1[4] = {50, 50, 450, 650};
+		uint16_t editorSize2[4] = {500, 50, 900, 650};
+		uint16_t envelopeSize[4] = {950, 50, 1750, 350};
 		plugin->shapeEditor1 = ShapeEditor(editorSize1);
 		plugin->shapeEditor2 = ShapeEditor(editorSize2);
 		plugin->lastBufferLevelL = 0;
 		plugin->lastBufferLevelR = 0;
 		plugin->distortionMode = upDown;
+		plugin->envelopes = {Envelope(envelopeSize)};
+		plugin->envelopes[0].addControlledParameter(&plugin->shapeEditor1.shapePoints[0].power);
 
 		MutexInitialise(plugin->syncParameters);
 
@@ -761,8 +671,13 @@ static const clap_plugin_t pluginClass = {
 
 		PluginSyncMainToAudio(plugin, process->out_events);
 
-		PluginRenderAudio(plugin, 0, frameCount, process->audio_inputs[0].data32[0], process->audio_inputs[0].data32[1], process->audio_outputs[0].data32[0], process->audio_outputs[0].data32[1]);
+		const clap_event_transport_t *transport = process->transport;
+		clap_transport_flags flag = CLAP_TRANSPORT_IS_PLAYING;
+		double beatPosition = (double)transport->song_pos_beats / CLAP_BEATTIME_FACTOR;
 
+		if (transport->flags[&flag]){
+			PluginRenderAudio(plugin, 0, frameCount, process->audio_inputs[0].data32[0], process->audio_inputs[0].data32[1], process->audio_outputs[0].data32[0], process->audio_outputs[0].data32[1], beatPosition);
+		}
 
 		// for (uint32_t i = 0; i < frameCount; ) {
 			// while (eventIndex < inputEventCount && nextEventFrame == i) {
