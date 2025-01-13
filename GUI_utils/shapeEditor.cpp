@@ -1,9 +1,11 @@
 /*
 Everything concerning the shape editors.
 A shape editor is a region on the UI that can be used to design a curve by adding, moving and deleting points between
-which the curve is interpolated. The interpolation shape in each region between two points ("curve segment") can be
-chosen from a dialog box if rightclicking the point to the right of the segment. Some shapes can further be edited
-by dragging the center of the curve.
+which the curve is interpolated. The way the curve is interpolated in each region between two points ("curve segment") can be
+chosen from a dialog box if rightclicking the point to the right of the segment. There are the options power and sine, see implementation for further explanations.
+Some shapes can further be edited by dragging the center of the curve.
+
+Envelopes are shapeEditors that can be used to modulate certain parameters.
 */
 
 #include <vector>
@@ -13,7 +15,7 @@ by dragging the center of the curve.
 #include <cmath>
 #include <iostream>
 #include <assert.h>
-#include <windowsx.h>
+#include <set>
 #include "../config.h"
 
 enum Shapes{
@@ -30,6 +32,12 @@ enum draggingMode{
     curveCenter // adjusts curveCenter and therefore parameter of curve function of next point to the right
 };
 
+enum modulationMode{
+    modCurveCenterY,
+    modPosX,
+    modPosY
+};
+
 void drawPoint(uint32_t *bits, float x, float y, uint32_t color = 0x000000, float size = 5){
     for (int i=(int)-size/2; i<(int)size/2; i++){
         for (int j=(int)-size/2; j<(int)size/2; j++){
@@ -40,54 +48,21 @@ void drawPoint(uint32_t *bits, float x, float y, uint32_t color = 0x000000, floa
     }
 }
 
-/* class that saves all information necessary to modulate a parameter. There should be one instance of this per
-parameter. The modulated value can be retrieved by passing the current value and beat position to the .get method. */
-// class Modulator{
-//     private:
-//         float amount = 1;
-//         float min;
-//         float max;
-//         // TODO could be vector so several envelopes can modulate a single parameter
-//         Envelope *envelope;
+/*Returns the power p of a curve f(x) = x^p that goes through yCenter at x=0.5. User is able to deform curves by dragging the curve center. This function is used to get the power of the curve from the mouse position.
+If yCenter > 0.5, the power is negative, which does NOT mean f(x)=1/(x^power), but that the curve is flipped f(x)=1-(1-x)^power. This convention is always used for shapes with mode shapePower.*/
+float getPowerFromYCenter(float yCenter){
+    float power = (yCenter < 0.5) ? log(yCenter) / log(0.5) :  - log(1 - yCenter) / log(0.5);
+    power = (power < 0) ? ((power < -SHAPE_MAX_POWER) ? -SHAPE_MAX_POWER : power) : ((power > SHAPE_MAX_POWER) ? SHAPE_MAX_POWER : power);
+    return power;
+}
 
-//     public:
-//         Modulator(Envelope *initEnvelope, float initMin, float initMax){
-//             envelope = initEnvelope;
-//             min = initMin;
-//             max = initMax;
-//         }
+class Modulator;
 
-//         void setAmount(float newAmount){
-//             amount = newAmount;
-//         }
-
-//         void setEnvelope(Envelope *newEnvelope){
-//             envelope = newEnvelope;
-//         }
-
-//         float get(float base, float beat){
-//             // check if Modulater is set to an envelope
-//             if (envelope == nullptr){
-//                 return base;
-//             }
-
-//             float newParameter = base + amount * envelope->forward(beat);
-//             // clamp to limits
-//             newParameter = (newParameter < min) ? min : (newParameter > max) ? max : newParameter;
-//             return newParameter;
-//         }
-// };
-
+/* Class to store all information about a curve Segment. Curve segments are handled in a way that information about the function
+(e.g. mode and parameters) are stored together with the point next to the right, which marks the beginning of the next segment.
+The reason for that is that curve has to always satisfy f(0) = 0 or else the plugin would generate a DC offset, so the first curve segment
+has a point only on its right end.*/
 class ShapePoint{
-    /* Class to store all information about a curve Segment. Curve segments are handled in a way that information about the function
-    (e.g. mode and parameters) are stored together with the point next to the right, which marks the beginning of the next segment.
-    The reason for that is that curve has to always satisfy f(0) = 0 or else the plugin would generate a DC offset, so the first curve segment
-    has a point only on its right end.*/
-
-    private:
-        float maxPower = 30;
-        float minOmega = 10E-3;
-
     public:
         // position and size of parent shapeEditor
         int32_t XYXY[4];
@@ -101,22 +76,28 @@ class ShapePoint{
         bool flipPower = false;
 
         // parameters of the curve left to the point
+        float curveCenterPosY;
+        float curveCenterPosYMod;
         uint16_t curveCenterAbsPosX;
         uint16_t curveCenterAbsPosY;
+        uint16_t curveCenterAbsPosYMod;
         float power; // power can be negative, which does NOT mean the curve is actually f(x) = 1 / (x^|power|) but that the curve is flipped vertically
         float sineOmegaPrevious;
         float sineOmega;
         Shapes mode = shapePower;
 
+        bool isActive;
+
     /*some methods need a pointer to the previous ShapePoint. I tried saving it as a member as in a linked list but that did not work, it would sometimes
     break and lose track of previous somehow.*/
+
+    /*x, y are relative positions on the graph editor, e.g. they must be between 0 and 1
+    editorSize is screen coordinates of parent shapeEditor in XYXY notation: {xMin, yMin, xMax, yMax}
+    previousPoint is pointer to the next ShapePoint on the left hand side of the current point. If there is no point to the left, should be nullptr
+    pow is parameter defining the shape of the curve segment, its role is dependent on the mode:
+        shapePower: f(x) = x^parameter
+    */
     ShapePoint(float x, float y, uint16_t editorSize[4], ShapePoint *previousPoint, float pow = 1, float omega = 0.5, Shapes initMode = shapePower){
-        /*x, y are relative positions on the graph editor, e.g. they must be between 0 and 1
-        editorSize is screen coordinates of parent shapeEditor in XYXY notation: {xMin, yMin, xMax, yMax}
-        previousPoint is pointer to the next ShapePoint on the left hand side of the current point. If there is no point to the left, should be nullptr
-        pow is parameter defining the shape of the curve segment, its role is dependent on the mode:
-            shapePower: f(x) = x^parameter
-        */
         assert ((0 <= x) && (x <= 1) && (0 <= y) && (y <= 1));
 
         // x and y are relative coordinates on the Graph 0 <= x, y <= 1
@@ -127,6 +108,7 @@ class ShapePoint{
         absPosX = editorSize[0] + (int32_t)(x * (editorSize[2] - editorSize[0]));
         absPosY = editorSize[3] - (int32_t)(y * (editorSize[3] - editorSize[1]));
 
+        curveCenterPosY = 0.5;
         curveCenterAbsPosX = (absPosX + ((previousPoint == nullptr) ? editorSize[0] : previousPoint->absPosX)) / 2;
         curveCenterAbsPosY = (absPosY + ((previousPoint == nullptr) ? editorSize[3] : previousPoint->absPosY)) / 2;
 
@@ -138,6 +120,8 @@ class ShapePoint{
         mode = initMode;
         sineOmega = omega;
         sineOmegaPrevious = omega;
+
+        isActive = true;
     }
 
     void updatePositionAbsolute(int32_t x, int32_t y, ShapePoint *previous){
@@ -150,23 +134,23 @@ class ShapePoint{
         updateCurveCenter(previous);
     }
 
+    // updates the Curve center point in cases where curveCenter is not directly changed, as for example if the point is being moved.
     void updateCurveCenter(ShapePoint *previous){
-        // updates the Curve center point in cases where point position changes
         // curve center x is always in the middle of neighbouring points
         curveCenterAbsPosX = (int32_t)(absPosX + ((previous == nullptr) ? XYXY[0] : previous->absPosX)) / 2;
 
         if (mode == shapePower){
             int32_t yL = (previous == nullptr) ? XYXY[3] : previous->absPosY;
             curveCenterAbsPosY = (power > 0) ? yL - pow(0.5, power) * (yL - absPosY) : absPosY + pow(0.5, -power) * (yL - absPosY);
+            // curveCenterAbsPosY = yL + curveCenterPosY * (yL - absPosY)
         } else if (mode == shapeSine){
             curveCenterAbsPosY = (int32_t)(absPosY + ((previous == nullptr) ? XYXY[3] : previous->absPosY)) / 2;
         }
     }
 
+    // updates the Curve center point when manually dragging it
     void updateCurveCenter(ShapePoint *previous, int x, int y){
-        // updates the Curve center point when manually dragging it
-
-        // nothing to update if line if flat
+        // nothing to update if line is horizontal
         if (((previous == nullptr) ? 0 : previous->absPosY) == absPosY){
             return;
         }
@@ -175,25 +159,18 @@ class ShapePoint{
             case shapePower:
                 // logarithm will be problematic if y position reaches zero. Clamp y value between these limits so that power can not extend maxPower
             {
-                // float minCenterY = pow(0.5, maxPower);
-                // float maxCenterY = 1. - minCenterY;
-
                 int32_t yL = (previous == nullptr) ? XYXY[3] : previous->absPosY;
 
                 int32_t yMin = (yL > absPosY) ? absPosY : yL;
                 int32_t yMax = (yL < absPosY) ? absPosY : yL;
 
                 // y must not be yL or posY, else there will be a log(0). set y to be at least one pixel off of these values
-                y = (y > yMax) ? yMax - 1 : (y < yMin) ? yMin + 1 : y;
+                y = (y >= yMax) ? yMax - 1 : (y <= yMin) ? yMin + 1 : y;
 
-                // find mouse position normalized to y extent and clamp it to boundaries
-                float relExtent = (yL - (float)y) / (yL - absPosY);
-                // relExtent = (relExtent > maxCenterY) ? maxCenterY : (relExtent < minCenterY) ? minCenterY : relExtent;
-
-                // update power by following convention that a y-flipped curve is represented by a negative power
-                power = (relExtent < 0.5) ? log(relExtent) / log(0.5) :  - log(1 - relExtent) / log(0.5);
-                power = (power < 0) ? ((power < -maxPower) ? -maxPower : power) : ((power > maxPower) ? maxPower : power);
-
+                // find mouse position normalized to y extent
+                curveCenterPosY = (yL - (float)y) / (yL - absPosY);
+                power = getPowerFromYCenter(curveCenterPosY);
+                // find pixel coordinates corresponding to normalized mouse position
                 curveCenterAbsPosY = (power > 0) ? yL - pow(0.5, power) * (yL - absPosY) : absPosY + pow(0.5, -power) * (yL - absPosY);
                 break;
             }
@@ -209,7 +186,7 @@ class ShapePoint{
 
                 if (sineOmega <= 0.5){
                     sineOmega = sineOmegaPrevious * pow(0.5, (float)(y - curveCenterAbsPosY) / 50);
-                    sineOmega = (sineOmega < minOmega) ? minOmega : sineOmega;
+                    sineOmega = (sineOmega < SHAPE_MIN_OMEGA) ? SHAPE_MIN_OMEGA : sineOmega;
                 } else {
                     // TODO if shift or strg or smth is pressed, be continuous
                     sineOmega = sineOmegaPrevious + ((curveCenterAbsPosY - y) / 40);
@@ -229,17 +206,10 @@ class ShapePoint{
 
 class ShapeEditor{
     private:
-        // static const uint32_t colorBackground = 0x86D5F9;
-        // static const uint32_t colorBackground = 0xFFCF7F;
-        // static const uint32_t colorThinLines = 0xC0C0C0;
-        // static const uint32_t colorCurve = 0xFFFFFF;
-
         // square of the minimum distance the mouse needs to have from a point in order to connect any input to this point
         // TODO why this cant be static const???
         float requiredSquaredDistance = 200;
 
-        // all points of this editor are stored in a vector, they must always be sorted by ther absolute x position
-        // std::vector<ShapePoint> shapePoints;
         uint32_t *canvas;
 
         // this is only relevant for Linux since xlib does not feature automatic double click detection
@@ -255,6 +225,7 @@ class ShapeEditor{
 
     public:
         uint16_t XYXY[4];
+        // all points of this editor are stored in a vector, they must always be sorted by ther absolute x position
         std::vector<ShapePoint> shapePoints;
 
     ShapeEditor(uint16_t position[4], std::vector<ShapePoint> points = {}){
@@ -398,7 +369,6 @@ class ShapeEditor{
         if (closestDistance <= requiredSquaredDistance && currentDraggingMode == position){
             rightClicked = &shapePoints.at(closestIndex);
             return (currentDraggingMode == position) ? rightClicked : nullptr;
-            // ShowShapeMenu(window, x, y);
         }
         // if right click on curve center, reset power
         else if (closestDistance <= requiredSquaredDistance && currentDraggingMode == curveCenter){
@@ -433,8 +403,7 @@ class ShapeEditor{
         currentDraggingMode = none;
     }
 
-    /* TODO i want to have a single function that transforms values according to the shape of all curve segments. This function will then be used
-    to transform x-pixel coordinates to get the y value and also to actually shape the input sound.*/
+    /* TODO does it make sense to have a single function that transforms values according to the shape of all curve segments? This function could be used to transform x-pixel coordinates to get the y value and also to actually shape the input sound.*/
     void drawConnection(uint32_t *bits, int index, uint32_t color = 0x000000, float thickness = 5){
 
         int xMin = ((index == 0) ? (float)XYXY[0] : shapePoints.at(index - 1).absPosX);
@@ -520,12 +489,10 @@ class ShapeEditor{
         }
     }
 
-    // TODO changed name, not sure if good
-    // gives input to the function defined on the interface and returns the output
     float forward(float input){
         float out;
         // absolute value of input is processed, store information to flip sign after computing if necessary
-        bool negativeInput = (input < 0) ? true : false;
+        bool negativeInput = input < 0;
         input = (input < 0) ? -input : input;
         // limit input to one
         input = (input > 1) ? 1 : input;
@@ -546,7 +513,12 @@ class ShapeEditor{
 
                 float relX = (point->posX == xL) ? xL : (input - xL) / (point->posX - xL);
                 float factor = (point->posY - yL);
-                out = (point->power > 0) ? yL + pow(relX, point->power) * factor : point->posY - pow(1-relX, -point->power) * factor;
+
+                float power = point->power;
+
+                power = power < -SHAPE_MAX_POWER ? -SHAPE_MAX_POWER : power > SHAPE_MAX_POWER ? SHAPE_MAX_POWER : power;
+
+                out = (power > 0) ? yL + pow(relX, power) * factor : point->posY - pow(1-relX, -power) * factor;
             }
             case shapeSine:
             break;
@@ -558,24 +530,68 @@ class ShapeEditor{
     }
 };
 
+/*Class that stores all information necessary to modulate a parameter, i.e. pointers to the affected shape points, amount of modulation and modulation mode.
+Every modulatable parameter has a counterpart called [parameter_name_here]Mod. This value is the "active" value of the parameter and is used for displaying on GUI and rendering audio. It is recalculated at every audio sample. The raw parameter value is the "default" to which the modulation offset is added.
+
+The "modulation" im referring to here is conceptually a modulation, but not technically speaking. These parameters are NOT reported to the host as modulatable or automatable parameter. The modulation is exclusively handled inside the plugin.*/
+struct ModulatedParameter{
+    ShapePoint *pPoint;
+    ShapePoint *pPrevious;
+    float amount;
+    modulationMode mode;
+
+    ModulatedParameter(ShapePoint *pInPoint, ShapePoint *pInPrevious, float inAmount, modulationMode inMode){
+        pPoint = pInPoint;
+        amount = inAmount;
+        mode = inMode;
+        pPrevious = pInPrevious;
+    }
+
+    void modulate(float modOffset){
+        switch (mode){
+            case modCurveCenterY:
+            {
+                float yL = pPrevious == nullptr ? pPoint->XYXY[3] : pPrevious->absPosY;
+                float yR = pPoint->absPosY;
+
+                int32_t yMin = (yL > yR) ? yR : yL;
+                int32_t yMax = (yL < yR) ? yR : yL;
+
+                float newY = pPoint->curveCenterPosY + amount * modOffset;
+                newY = (newY >= 1) ? 1 - (float)1/(yMax - yMin) : (newY <= 0) ? (float)1/(yMax - yMin) : newY;
+
+                pPoint->curveCenterPosYMod = newY;
+                pPoint->curveCenterAbsPosYMod = yL + newY * (yL - yR);
+                pPoint->power = getPowerFromYCenter(newY);
+                pPoint->updateCurveCenter(pPrevious);
+                break;
+            }
+        }
+    }
+};
+
 /* Envelopes inherit the graphical editing capabilities from ShapeEditor but include methods to add, remove and update
 controlled parameters */
 class Envelope : public ShapeEditor {
     private:
-        std::vector<float *> controlledParameters;
+        std::vector<ModulatedParameter> modulatedParameters;
 
     public:
         Envelope(uint16_t size[4]) : ShapeEditor(size) {};
 
-        void addControlledParameter(float *parameter){
-            controlledParameters.push_back(parameter);
+        void addControlledParameter(ShapePoint *pPoint, ShapePoint *pPrevious, float amount, modulationMode mode){
+            modulatedParameters.push_back(ModulatedParameter(pPoint, pPrevious, amount, mode));
         }
 
-        void updateControlledParameters(double beatPosition){
-            float updatedPosition = forward(beatPosition / 4);
+        void removeControlledParameter(int index){
+            modulatedParameters.erase(modulatedParameters.begin() + index);
+        }
 
-            for (float *parameter : controlledParameters){
-                *parameter = 1 + 10*updatedPosition;
+        void updateModulatedParameters(double beatPosition){
+            float modOffset = forward(beatPosition / 4);
+
+            for (ModulatedParameter parameter : modulatedParameters){
+                parameter.modulate(modOffset);
             }
         }
 };

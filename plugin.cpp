@@ -6,6 +6,7 @@
 #include <fstream>
 #include <iostream>
 #include "clap/clap.h"
+// TODO where are uint from? put them into config.h and shapeEditor.h
 #include "config.h"
 
 // Parameters.
@@ -120,7 +121,7 @@ struct MyPlugin {
 
 static void PluginRenderAudio(MyPlugin *plugin, uint32_t start, uint32_t end, float *inputL, float *inputR, float *outputL, float *outputR, double beatPosition) {
 	for (Envelope envelope : plugin->envelopes){
-		envelope.updateControlledParameters(beatPosition);
+		envelope.updateModulatedParameters(beatPosition);
 	}
 
 	switch (plugin->distortionMode) {
@@ -187,6 +188,9 @@ static void PluginRenderAudio(MyPlugin *plugin, uint32_t start, uint32_t end, fl
 			break;
 		}
 	}
+	// for (Envelope envelope : plugin->envelopes){
+	// 	envelope.resetModulatedParameters();
+	// }
 }
 
 static void PluginPaintRectangle(MyPlugin *plugin, uint32_t *bits, uint32_t l, uint32_t r, uint32_t t, uint32_t b, uint32_t border, uint32_t fill) {
@@ -582,9 +586,9 @@ static const clap_plugin_timer_support_t extensionTimerSupport = {
 	.on_timer = [] (const clap_plugin_t *_plugin, clap_id timerID) {
 		MyPlugin *plugin = (MyPlugin *) _plugin->plugin_data;
 
-		if (plugin->gui && PluginSyncAudioToMain(plugin)) {
-			GUIPaint(plugin, true);
-		}
+		// repaint plugin so Modulation is also visible when user is not giving input
+		GUIPaint(plugin, true);
+
 	},
 };
 
@@ -608,7 +612,7 @@ static const clap_plugin_t pluginClass = {
 		plugin->lastBufferLevelR = 0;
 		plugin->distortionMode = upDown;
 		plugin->envelopes = {Envelope(envelopeSize)};
-		plugin->envelopes[0].addControlledParameter(&plugin->shapeEditor1.shapePoints[0].power);
+		plugin->envelopes[0].addControlledParameter(&plugin->shapeEditor1.shapePoints[0], nullptr, 1, modCurveCenterY);
 
 		MutexInitialise(plugin->syncParameters);
 
@@ -619,7 +623,7 @@ static const clap_plugin_t pluginClass = {
 		}
 
 		if (plugin->hostTimerSupport && plugin->hostTimerSupport->register_timer) {
-			plugin->hostTimerSupport->register_timer(plugin->host, 200, &plugin->timerID);
+			plugin->hostTimerSupport->register_timer(plugin->host, GUI_REFRESH_INTERVAL, &plugin->timerID);
 		}
 
 		return true;
