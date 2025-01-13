@@ -9,10 +9,6 @@
 // TODO where are uint from? put them into config.h and shapeEditor.h
 #include "config.h"
 
-// Parameters.
-#define P_VOLUME (0)
-#define P_COUNT (1)
-
 enum distortionMode {
 	upDown,
 	midSide,
@@ -20,8 +16,9 @@ enum distortionMode {
 	positiveNegative
 };
 
+// for debugging
 void logToFile(const std::string& message) {
-    std::ofstream logFile("C:/Users/mm/Desktop/log.txt", std::ios_base::app);  // Open for appending
+    std::ofstream logFile("C:/Users/mm/Desktop/log.txt", std::ios_base::app);
     if (logFile.is_open()) {
         logFile << message << std::endl;
     } else {
@@ -29,33 +26,33 @@ void logToFile(const std::string& message) {
     }
 }
 
-template <class T>
-struct Array {
-	T *array;
-	size_t length, allocated;
+// template <class T>
+// struct Array {
+// 	T *array;
+// 	size_t length, allocated;
 
-	void Insert(T newItem, uintptr_t index) {
-		if (length + 1 > allocated) {
-			allocated *= 2;
-			if (length + 1 > allocated) allocated = length + 1;
-			array = (T *) realloc(array, allocated * sizeof(T));
-		}
+// 	void Insert(T newItem, uintptr_t index) {
+// 		if (length + 1 > allocated) {
+// 			allocated *= 2;
+// 			if (length + 1 > allocated) allocated = length + 1;
+// 			array = (T *) realloc(array, allocated * sizeof(T));
+// 		}
 
-		length++;
-		memmove(array + index + 1, array + index, (length - index - 1) * sizeof(T));
-		array[index] = newItem;
-	}
+// 		length++;
+// 		memmove(array + index + 1, array + index, (length - index - 1) * sizeof(T));
+// 		array[index] = newItem;
+// 	}
 
-	void Delete(uintptr_t index) { 
-		memmove(array + index, array + index + 1, (length - index - 1) * sizeof(T)); 
-		length--;
-	}
+// 	void Delete(uintptr_t index) { 
+// 		memmove(array + index, array + index + 1, (length - index - 1) * sizeof(T)); 
+// 		length--;
+// 	}
 
-	void Add(T item) { Insert(item, length); }
-	void Free() { free(array); array = nullptr; length = allocated = 0; }
-	int Length() { return length; }
-	T &operator[](uintptr_t index) { assert(index < length); return array[index]; }
-};
+// 	void Add(T item) { Insert(item, length); }
+// 	void Free() { free(array); array = nullptr; length = allocated = 0; }
+// 	int Length() { return length; }
+// 	T &operator[](uintptr_t index) { assert(index < length); return array[index]; }
+// };
 
 #ifdef _WIN32
 #include <windows.h>
@@ -73,29 +70,13 @@ typedef pthread_mutex_t Mutex;
 #define MutexDestroy(mutex) pthread_mutex_destroy(&(mutex))
 #endif
 
-struct Voice {
-	bool held;
-	int32_t noteID;
-	int16_t channel, key;
-
-	float phase;
-	float parameterOffsets[P_COUNT];
-};
-
 // TODO update task to compile this seperately and include only header.
 #include "GUI_utils/shapeEditor.cpp"
 
 struct MyPlugin {
 	clap_plugin_t plugin;
 	const clap_host_t *host;
-	float sampleRate;
-	Array<Voice> voices;
-	float parameters[3], mainParameters[3];
-	bool changed[3], mainChanged[3];
-	// vector for keeping track of which parameter is stored at which index
-	// std::vector<parameterType> parameterTypes = {volume};
 
-	bool gestureStart[P_COUNT], gestureEnd[P_COUNT];
 	Mutex syncParameters;
 	Mutex findInflectionPoints;
 	struct GUI *gui;
@@ -188,9 +169,6 @@ static void PluginRenderAudio(MyPlugin *plugin, uint32_t start, uint32_t end, fl
 			break;
 		}
 	}
-	// for (Envelope envelope : plugin->envelopes){
-	// 	envelope.resetModulatedParameters();
-	// }
 }
 
 static void PluginPaintRectangle(MyPlugin *plugin, uint32_t *bits, uint32_t l, uint32_t r, uint32_t t, uint32_t b, uint32_t border, uint32_t fill) {
@@ -263,7 +241,7 @@ static void PluginProcessMousePress(MyPlugin *plugin, int32_t x, int32_t y) {
 static void PluginProcessMouseRelease(MyPlugin *plugin) {
 	if (plugin->mouseDragging) {
 		MutexAcquire(plugin->syncParameters);
-		plugin->gestureEnd[plugin->mouseDraggingParameter] = true;
+		// plugin->gestureEnd[plugin->mouseDraggingParameter] = true;
 		MutexRelease(plugin->syncParameters);
 
 		if (plugin->hostParams && plugin->hostParams->request_flush) {
@@ -289,76 +267,6 @@ void PluginProcessDoubleClick(MyPlugin *plugin, uint32_t x, uint32_t y){
 		envelope->processDoubleClick(x, y);
 		envelope++;
 	}
-}
-
-static void PluginSyncMainToAudio(MyPlugin *plugin, const clap_output_events_t *out) {
-	MutexAcquire(plugin->syncParameters);
-
-	for (uint32_t i = 0; i < P_COUNT; i++) {
-		if (plugin->gestureStart[i]) {
-			plugin->gestureStart[i] = false;
-
-			clap_event_param_gesture_t event = {};
-			event.header.size = sizeof(event);
-			event.header.time = 0;
-			event.header.space_id = CLAP_CORE_EVENT_SPACE_ID;
-			event.header.type = CLAP_EVENT_PARAM_GESTURE_BEGIN;
-			event.header.flags = 0;
-			event.param_id = i;
-			out->try_push(out, &event.header);
-		}
-
-		if (plugin->mainChanged[i]) {
-			plugin->parameters[i] = plugin->mainParameters[i];
-			plugin->mainChanged[i] = false;
-
-			clap_event_param_value_t event = {};
-			event.header.size = sizeof(event);
-			event.header.time = 0;
-			event.header.space_id = CLAP_CORE_EVENT_SPACE_ID;
-			event.header.type = CLAP_EVENT_PARAM_VALUE;
-			event.header.flags = 0;
-			event.param_id = i;
-			event.cookie = NULL;
-			event.note_id = -1;
-			event.port_index = -1;
-			event.channel = -1;
-			event.key = -1;
-			event.value = plugin->parameters[i];
-			out->try_push(out, &event.header);
-		}
-
-		if (plugin->gestureEnd[i]) {
-			plugin->gestureEnd[i] = false;
-
-			clap_event_param_gesture_t event = {};
-			event.header.size = sizeof(event);
-			event.header.time = 0;
-			event.header.space_id = CLAP_CORE_EVENT_SPACE_ID;
-			event.header.type = CLAP_EVENT_PARAM_GESTURE_END;
-			event.header.flags = 0;
-			event.param_id = i;
-			out->try_push(out, &event.header);
-		}
-	}
-
-	MutexRelease(plugin->syncParameters);
-}
-
-static bool PluginSyncAudioToMain(MyPlugin *plugin) {
-	bool anyChanged = false;
-	MutexAcquire(plugin->syncParameters);
-
-	for (uint32_t i = 0; i < P_COUNT; i++) {
-		if (plugin->changed[i]) {
-			plugin->mainParameters[i] = plugin->parameters[i];
-			plugin->changed[i] = false;
-			anyChanged = true;
-		}
-	}
-
-	MutexRelease(plugin->syncParameters);
-	return anyChanged;
 }
 
 static const clap_plugin_descriptor_t pluginDescriptor = {
@@ -410,89 +318,47 @@ static const clap_plugin_audio_ports_t extensionAudioPorts = {
 
 static const clap_plugin_params_t extensionParams = {
 	.count = [] (const clap_plugin_t *plugin) -> uint32_t {
-		return P_COUNT;
+		return 0;
 	},
 
 	.get_info = [] (const clap_plugin_t *_plugin, uint32_t index, clap_param_info_t *information) -> bool {
-		// get the parameterTypes vector
-		MyPlugin *myPlugin = (MyPlugin *) _plugin->plugin_data;
-
-		// if (myPlugin->parameterTypes.at(index) == volume) {
-		if (index == 0) {
-			memset(information, 0, sizeof(clap_param_info_t));
-			information->id = index;
-			information->flags = CLAP_PARAM_IS_AUTOMATABLE | CLAP_PARAM_IS_MODULATABLE | CLAP_PARAM_IS_MODULATABLE_PER_NOTE_ID;
-			information->min_value = 0.0f;
-			information->max_value = 1.0f;
-			information->default_value = 0.5f;
-			strcpy(information->name, "Volume");
-			return true;
-		}
-		else if (index == 1 | index == 2){
-			memset(information, 0, sizeof(clap_param_info_t));
-			information->id = index;
-			information->flags = CLAP_PARAM_IS_MODULATABLE;
-			information->min_value = 0.0f;
-			information->max_value = 1.0f;
-			information->default_value = 0.0f;
-			strcpy(information->name, "Shaper point position");
-			return true;
-		}
-		else {
-			return false;
-		}
+		return false;
 	},
 
 	.get_value = [] (const clap_plugin_t *_plugin, clap_id id, double *value) -> bool {
-		MyPlugin *plugin = (MyPlugin *) _plugin->plugin_data;
-		uint32_t i = (uint32_t) id;
-		if (i >= P_COUNT) return false;
-		MutexAcquire(plugin->syncParameters);
-		*value = plugin->mainChanged[i] ? plugin->mainParameters[i] : plugin->parameters[i];
-		MutexRelease(plugin->syncParameters);
-		return true;
+		return false;
 	},
 
 	.value_to_text = [] (const clap_plugin_t *_plugin, clap_id id, double value, char *display, uint32_t size) {
-		uint32_t i = (uint32_t) id;
-		if (i >= P_COUNT) return false;
-		snprintf(display, size, "%f", value);
-		return true;
+		return false;
 	},
 
 	.text_to_value = [] (const clap_plugin_t *_plugin, clap_id param_id, const char *display, double *value) {
-		// TODO Implement this.
 		return false;
 	},
 
 	.flush = [] (const clap_plugin_t *_plugin, const clap_input_events_t *in, const clap_output_events_t *out) {
 		MyPlugin *plugin = (MyPlugin *) _plugin->plugin_data;
 		const uint32_t eventCount = in->size(in);
-		PluginSyncMainToAudio(plugin, out);
-
-		// for (uint32_t eventIndex = 0; eventIndex < eventCount; eventIndex++) {
-		// 	PluginProcessEvent(plugin, in->get(in, eventIndex));
-		// }
+		// PluginSyncMainToAudio(plugin, out);
 	},
 };
 
 static const clap_plugin_state_t extensionState = {
 	.save = [] (const clap_plugin_t *_plugin, const clap_ostream_t *stream) -> bool {
 		MyPlugin *plugin = (MyPlugin *) _plugin->plugin_data;
-		PluginSyncAudioToMain(plugin);
-		return sizeof(float) * P_COUNT == stream->write(stream, plugin->mainParameters, sizeof(float) * P_COUNT);
-		// this is for vector<float>:
-		// return sizeof(float) * plugin->mainParameters.size() == stream->write(stream, plugin->mainParameters.data(), sizeof(float) * plugin->mainParameters.size());
+		// PluginSyncAudioToMain(plugin);
+		// return sizeof(float) * P_COUNT == stream->write(stream, plugin->mainParameters, sizeof(float) * P_COUNT);
 	},
 
 	.load = [] (const clap_plugin_t *_plugin, const clap_istream_t *stream) -> bool {
 		MyPlugin *plugin = (MyPlugin *) _plugin->plugin_data;
 		MutexAcquire(plugin->syncParameters);
-		bool success = sizeof(float) * P_COUNT == stream->read(stream, plugin->mainParameters, sizeof(float) * P_COUNT);
+		// bool success = sizeof(float) * P_COUNT == stream->read(stream, plugin->mainParameters, sizeof(float) * P_COUNT);
 		// bool success = sizeof(float) * plugin->mainParameters.size() == stream->read(stream, plugin->mainParameters.data(), sizeof(float) * plugin->mainParameters.size());
-		for (uint32_t i = 0; i < P_COUNT; i++) plugin->mainChanged[i] = true;
-		MutexRelease(plugin->syncParameters);
-		return success;
+		// for (uint32_t i = 0; i < P_COUNT; i++) plugin->mainChanged[i] = true;
+		// MutexRelease(plugin->syncParameters);
+		// return success;
 	},
 };
 
@@ -616,12 +482,6 @@ static const clap_plugin_t pluginClass = {
 
 		MutexInitialise(plugin->syncParameters);
 
-		for (uint32_t i = 0; i < P_COUNT; i++) {
-			clap_param_info_t information = {};
-			extensionParams.get_info(_plugin, i, &information);
-			plugin->mainParameters[i] = plugin->parameters[i] = information.default_value;
-		}
-
 		if (plugin->hostTimerSupport && plugin->hostTimerSupport->register_timer) {
 			plugin->hostTimerSupport->register_timer(plugin->host, GUI_REFRESH_INTERVAL, &plugin->timerID);
 		}
@@ -631,7 +491,6 @@ static const clap_plugin_t pluginClass = {
 
 	.destroy = [] (const clap_plugin *_plugin) {
 		MyPlugin *plugin = (MyPlugin *) _plugin->plugin_data;
-		plugin->voices.Free();
 		MutexDestroy(plugin->syncParameters);
 
 		if (plugin->hostTimerSupport && plugin->hostTimerSupport->register_timer) {
@@ -643,7 +502,6 @@ static const clap_plugin_t pluginClass = {
 
 	.activate = [] (const clap_plugin *_plugin, double sampleRate, uint32_t minimumFramesCount, uint32_t maximumFramesCount) -> bool {
 		MyPlugin *plugin = (MyPlugin *) _plugin->plugin_data;
-		plugin->sampleRate = sampleRate;
 		return true;
 	},
 
@@ -659,7 +517,6 @@ static const clap_plugin_t pluginClass = {
 
 	.reset = [] (const clap_plugin *_plugin) {
 		MyPlugin *plugin = (MyPlugin *) _plugin->plugin_data;
-		plugin->voices.Free();
 	},
 
 	.process = [] (const clap_plugin *_plugin, const clap_process_t *process) -> clap_process_status {
@@ -673,7 +530,7 @@ static const clap_plugin_t pluginClass = {
 		uint32_t eventIndex = 0;
 		uint32_t nextEventFrame = inputEventCount ? 0 : frameCount; // what does this do???
 
-		PluginSyncMainToAudio(plugin, process->out_events);
+		// PluginSyncMainToAudio(plugin, process->out_events);
 
 		const clap_event_transport_t *transport = process->transport;
 		clap_transport_flags flag = CLAP_TRANSPORT_IS_PLAYING;
@@ -683,53 +540,10 @@ static const clap_plugin_t pluginClass = {
 			PluginRenderAudio(plugin, 0, frameCount, process->audio_inputs[0].data32[0], process->audio_inputs[0].data32[1], process->audio_outputs[0].data32[0], process->audio_outputs[0].data32[1], beatPosition);
 		}
 
-		// for (uint32_t i = 0; i < frameCount; ) {
-			// while (eventIndex < inputEventCount && nextEventFrame == i) {
-			// 	const clap_event_header_t *event = process->in_events->get(process->in_events, eventIndex);
-
-			// 	if (event->time != i) {
-			// 		nextEventFrame = event->time;
-			// 		break;
-			// 	}
-
-			// 	PluginProcessEvent(plugin, event);
-			// 	eventIndex++;
-
-			// 	if (eventIndex == inputEventCount) {
-			// 		nextEventFrame = frameCount;
-			// 		break;
-			// 	}
-			// }
-
-		// 	PluginRenderAudio(plugin, i, nextEventFrame, process->audio_inputs[0].data32[0], process->audio_inputs[0].data32[1], process->audio_outputs[0].data32[0], process->audio_outputs[0].data32[1]);
-		// 	i = nextEventFrame;
-		// }
-
-		for (int i = 0; i < plugin->voices.Length(); i++) {
-			Voice *voice = &plugin->voices[i];
-
-			if (!voice->held) {
-				clap_event_note_t event = {};
-				event.header.size = sizeof(event);
-				event.header.time = 0;
-				event.header.space_id = CLAP_CORE_EVENT_SPACE_ID;
-				event.header.type = CLAP_EVENT_NOTE_END;
-				event.header.flags = 0;
-				event.key = voice->key;
-				event.note_id = voice->noteID;
-				event.channel = voice->channel;
-				event.port_index = 0;
-				process->out_events->try_push(process->out_events, &event.header);
-
-				plugin->voices.Delete(i--);
-			}
-		}
-
 		return CLAP_PROCESS_CONTINUE;
 	},
 
 	.get_extension = [] (const clap_plugin *plugin, const char *id) -> const void * {
-		// if (0 == strcmp(id, CLAP_EXT_NOTE_PORTS      )) return &extensionNotePorts;
 		if (0 == strcmp(id, CLAP_EXT_AUDIO_PORTS     )) return &extensionAudioPorts;
 		if (0 == strcmp(id, CLAP_EXT_PARAMS          )) return &extensionParams;
 		if (0 == strcmp(id, CLAP_EXT_GUI             )) return &extensionGUI;

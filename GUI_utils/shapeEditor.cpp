@@ -97,7 +97,7 @@ class ShapePoint{
     pow is parameter defining the shape of the curve segment, its role is dependent on the mode:
         shapePower: f(x) = x^parameter
     */
-    ShapePoint(float x, float y, uint16_t editorSize[4], ShapePoint *previousPoint, float pow = 1, float omega = 0.5, Shapes initMode = shapePower){
+    ShapePoint(float x, float y, uint16_t editorSize[4], ShapePoint *previous, float pow = 1, float omega = 0.5, Shapes initMode = shapePower){
         assert ((0 <= x) && (x <= 1) && (0 <= y) && (y <= 1));
 
         // x and y are relative coordinates on the Graph 0 <= x, y <= 1
@@ -109,8 +109,8 @@ class ShapePoint{
         absPosY = editorSize[3] - (int32_t)(y * (editorSize[3] - editorSize[1]));
 
         curveCenterPosY = 0.5;
-        curveCenterAbsPosX = (absPosX + ((previousPoint == nullptr) ? editorSize[0] : previousPoint->absPosX)) / 2;
-        curveCenterAbsPosY = (absPosY + ((previousPoint == nullptr) ? editorSize[3] : previousPoint->absPosY)) / 2;
+        curveCenterAbsPosX = (absPosX + ((previous == nullptr) ? editorSize[0] : previous->absPosX)) / 2;
+        curveCenterAbsPosY = (absPosY + ((previous == nullptr) ? editorSize[3] : previous->absPosY)) / 2;
 
         for (int i=0; i<4; i++){
             XYXY[i] = editorSize[i];
@@ -354,8 +354,8 @@ class ShapeEditor{
                 insertIdx ++;
             }
 
-            ShapePoint *previous = (insertIdx == 0) ? nullptr : &shapePoints.at(insertIdx - 1);
-            shapePoints.insert(shapePoints.begin() + insertIdx, ShapePoint((float)(x - XYXY[0]) / (XYXY[2] - XYXY[0]), (float)(XYXY[3] - y) / (XYXY[3] - XYXY[1]), XYXY, previous));
+            ShapePoint *pPrevious = (insertIdx == 0) ? nullptr : &shapePoints.at(insertIdx - 1);
+            shapePoints.insert(shapePoints.begin() + insertIdx, ShapePoint((float)(x - XYXY[0]) / (XYXY[2] - XYXY[0]), (float)(XYXY[3] - y) / (XYXY[3] - XYXY[1]), XYXY, pPrevious));
             shapePoints.at(insertIdx + 1).updateCurveCenter(&shapePoints.at(insertIdx));
         }
     }
@@ -535,35 +535,35 @@ Every modulatable parameter has a counterpart called [parameter_name_here]Mod. T
 
 The "modulation" im referring to here is conceptually a modulation, but not technically speaking. These parameters are NOT reported to the host as modulatable or automatable parameter. The modulation is exclusively handled inside the plugin.*/
 struct ModulatedParameter{
-    ShapePoint *pPoint;
-    ShapePoint *pPrevious;
+    ShapePoint *point;
+    ShapePoint *previous;
     float amount;
     modulationMode mode;
 
-    ModulatedParameter(ShapePoint *pInPoint, ShapePoint *pInPrevious, float inAmount, modulationMode inMode){
-        pPoint = pInPoint;
+    ModulatedParameter(ShapePoint *inPoint, ShapePoint *inPrevious, float inAmount, modulationMode inMode){
+        point = inPoint;
         amount = inAmount;
         mode = inMode;
-        pPrevious = pInPrevious;
+        previous = inPrevious;
     }
 
     void modulate(float modOffset){
         switch (mode){
             case modCurveCenterY:
             {
-                float yL = pPrevious == nullptr ? pPoint->XYXY[3] : pPrevious->absPosY;
-                float yR = pPoint->absPosY;
+                float yL = previous == nullptr ? point->XYXY[3] : previous->absPosY;
+                float yR = point->absPosY;
 
                 int32_t yMin = (yL > yR) ? yR : yL;
                 int32_t yMax = (yL < yR) ? yR : yL;
 
-                float newY = pPoint->curveCenterPosY + amount * modOffset;
+                float newY = point->curveCenterPosY + amount * modOffset;
                 newY = (newY >= 1) ? 1 - (float)1/(yMax - yMin) : (newY <= 0) ? (float)1/(yMax - yMin) : newY;
 
-                pPoint->curveCenterPosYMod = newY;
-                pPoint->curveCenterAbsPosYMod = yL + newY * (yL - yR);
-                pPoint->power = getPowerFromYCenter(newY);
-                pPoint->updateCurveCenter(pPrevious);
+                point->curveCenterPosYMod = newY;
+                point->curveCenterAbsPosYMod = yL + newY * (yL - yR);
+                point->power = getPowerFromYCenter(newY);
+                point->updateCurveCenter(previous);
                 break;
             }
         }
