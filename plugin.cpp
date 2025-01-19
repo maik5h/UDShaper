@@ -6,7 +6,6 @@
 #include <fstream>
 #include <iostream>
 #include "clap/clap.h"
-// TODO where are uint from? put them into config.h and shapeEditor.h
 #include "config.h"
 
 enum distortionMode {
@@ -70,7 +69,7 @@ typedef pthread_mutex_t Mutex;
 #define MutexDestroy(mutex) pthread_mutex_destroy(&(mutex))
 #endif
 
-// TODO update task to compile this seperately and include only header.
+// TODO make makefile to compile this seperately and include only header.
 #include "GUI_utils/shapeEditor.cpp"
 
 struct MyPlugin {
@@ -100,19 +99,14 @@ struct MyPlugin {
 	distortionMode distortionMode;
 };
 
-static void PluginRenderAudio(MyPlugin *plugin, uint32_t start, uint32_t end, float *inputL, float *inputR, float *outputL, float *outputR, double beatPosition) {
-	for (Envelope envelope : plugin->envelopes){
-		envelope.updateModulatedParameters(beatPosition);
-	}
-
+static void PluginRenderAudio(MyPlugin *plugin, uint32_t start, uint32_t end, float *inputL, float *inputR, float *outputL, float *outputR, double beatPosition, double tempo) {
 	switch (plugin->distortionMode) {
 		/* TODO Buffer is parallelized into pieces of ~200 samples. I dont know how to access all of them in
 		one place so i can not properly decide which shape to choose.
 		*/
 		case upDown:
 		{
-			// since data from last buffer is not available, take first samples as a reference, works most of
-			//  the time but is not optimal.
+			// since data from last buffer is not available, take first samples as a reference, works most of the time but is not optimal.
 			bool processShape1L = (inputL[1] >= inputL[0]);
 			bool processShape1R = (inputR[1] >= inputR[0]);
 
@@ -120,6 +114,20 @@ static void PluginRenderAudio(MyPlugin *plugin, uint32_t start, uint32_t end, fl
 			float previousLevelR;
 
 			for (uint32_t index = start; index < end; index++) {
+				// before each modulation step, reset mod values to true default values. Modulations will add up onto this value
+				for (Envelope envelope : plugin->envelopes){
+					envelope.resetModulatedParameters();
+				}
+				// for modulation faster than buffer rate, modulate parameters with updated beatPosition for every sample
+				for (Envelope envelope : plugin->envelopes){
+					// Samplerate is samples per second, so index / samplerate gives time offset in seconds since start of buffer. Tempo, which is beats per minute, multiplied with this value and divided by 60 gives relative beat offset of sample at index.
+					// TODO get current samplerate
+					int samplerate = 44100;
+					double sampleTimeOffset = tempo * index / samplerate / 60;
+					// TODO this might be sped up by moving the whole modulation part to the shapeEditor::forward() method, so parameters are only modulated when needed. ForGUI rendering it would still have to be modulated, but at a much slower rate. The two processes could be split up, maybe GUI rendering can be synced to framrate of screen?
+					envelope.updateModulatedParameters(beatPosition);
+				}
+
 				// update active shape only if value has changed so for plateaus the current shape stays active
 				if (index > 0) {
 					// if (inputL[index] != previousLevelL) {
@@ -260,11 +268,18 @@ static void PluginProcessMouseRelease(MyPlugin *plugin) {
 }
 
 void PluginProcessDoubleClick(MyPlugin *plugin, uint32_t x, uint32_t y){
-	plugin->shapeEditor1.processDoubleClick(x, y);
+	// TODO i feel like this is very very much not elegant
+	int previousNumberPoints = plugin->shapeEditor1.shapePoints.size();
+	int idx = plugin->shapeEditor1.processDoubleClick(x, y);
 	plugin->shapeEditor2.processDoubleClick(x, y);
 	Envelope *envelope = &plugin->envelopes.front();
 	while (envelope <= &plugin->envelopes.back()){
 		envelope->processDoubleClick(x, y);
+
+		if (previousNumberPoints < plugin->shapeEditor1.shapePoints.size()){
+			envelope->updateIndexAfterPointAdded(idx);
+		}
+
 		envelope++;
 	}
 }
@@ -478,7 +493,7 @@ static const clap_plugin_t pluginClass = {
 		plugin->lastBufferLevelR = 0;
 		plugin->distortionMode = upDown;
 		plugin->envelopes = {Envelope(envelopeSize)};
-		plugin->envelopes[0].addControlledParameter(&plugin->shapeEditor1.shapePoints[0], nullptr, 1, modCurveCenterY);
+		// plugin->envelopes.at(0).addControlledParameter(&plugin->shapeEditor1.pointStorage, 0, 1, modCurveCenterY);
 
 		MutexInitialise(plugin->syncParameters);
 
@@ -527,17 +542,23 @@ static const clap_plugin_t pluginClass = {
 
 		const uint32_t frameCount = process->frames_count; // what is frame count, is it highest sample with event?
 		const uint32_t inputEventCount = process->in_events->size(process->in_events);
-		uint32_t eventIndex = 0;
-		uint32_t nextEventFrame = inputEventCount ? 0 : frameCount; // what does this do???
-
-		// PluginSyncMainToAudio(plugin, process->out_events);
 
 		const clap_event_transport_t *transport = process->transport;
 		clap_transport_flags flag = CLAP_TRANSPORT_IS_PLAYING;
 		double beatPosition = (double)transport->song_pos_beats / CLAP_BEATTIME_FACTOR;
-
+		
+		// if host is currently playing, render audio
 		if (transport->flags[&flag]){
-			PluginRenderAudio(plugin, 0, frameCount, process->audio_inputs[0].data32[0], process->audio_inputs[0].data32[1], process->audio_outputs[0].data32[0], process->audio_outputs[0].data32[1], beatPosition);
+
+			PluginRenderAudio(plugin, 0, frameCount, process->audio_inputs[0].data32[0], process->audio_inputs[0].data32[1], process->audio_outputs[0].data32[0], process->audio_outputs[0].data32[1], beatPosition, transport->tempo);
+		
+		}
+		
+		// if not, reset all modulations so values snap back to the true unmodulated values
+		else{
+			for (Envelope envelope : plugin->envelopes){
+				envelope.resetModulatedParameters();
+			}
 		}
 
 		return CLAP_PROCESS_CONTINUE;

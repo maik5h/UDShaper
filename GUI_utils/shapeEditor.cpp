@@ -56,12 +56,8 @@ float getPowerFromYCenter(float yCenter){
     return power;
 }
 
-class Modulator;
-
-/* Class to store all information about a curve Segment. Curve segments are handled in a way that information about the function
-(e.g. mode and parameters) are stored together with the point next to the right, which marks the beginning of the next segment.
-The reason for that is that curve has to always satisfy f(0) = 0 or else the plugin would generate a DC offset, so the first curve segment
-has a point only on its right end.*/
+/* Class to store all information about a curve Segment. Curve segments are handled in a way that information about the function (e.g. mode and parameters) are stored together with the point next to the right, which marks the beginning of the next segment.
+The reason for that is that curve has to always satisfy f(0) = 0 or else the plugin would generate a DC offset, so the first curve segment has a point only on its right end.*/
 class ShapePoint{
     public:
         // position and size of parent shapeEditor
@@ -70,8 +66,12 @@ class ShapePoint{
         // parameters of the point
         float posX;
         float posY;
+        float posXMod;
+        float posYMod;
         int32_t absPosX;
         int32_t absPosY;
+        int32_t	absPosXMod;
+        int32_t absPosYMod;
         bool belowPrevious = false;
         bool flipPower = false;
 
@@ -81,15 +81,10 @@ class ShapePoint{
         uint16_t curveCenterAbsPosX;
         uint16_t curveCenterAbsPosY;
         uint16_t curveCenterAbsPosYMod;
-        float power; // power can be negative, which does NOT mean the curve is actually f(x) = 1 / (x^|power|) but that the curve is flipped vertically
+        float power; // power can be negative, which does NOT mean the curve is actually f(x) = 1 / (x^|power|) but that the curve is flipped vertically and horizontally
         float sineOmegaPrevious;
         float sineOmega;
         Shapes mode = shapePower;
-
-        bool isActive;
-
-    /*some methods need a pointer to the previous ShapePoint. I tried saving it as a member as in a linked list but that did not work, it would sometimes
-    break and lose track of previous somehow.*/
 
     /*x, y are relative positions on the graph editor, e.g. they must be between 0 and 1
     editorSize is screen coordinates of parent shapeEditor in XYXY notation: {xMin, yMin, xMax, yMax}
@@ -104,9 +99,15 @@ class ShapePoint{
         posX = x;
         posY = y;
 
+        posXMod = posX;
+        posYMod = posY;
+
         // in absolute coordinates y is mirrored
         absPosX = editorSize[0] + (int32_t)(x * (editorSize[2] - editorSize[0]));
         absPosY = editorSize[3] - (int32_t)(y * (editorSize[3] - editorSize[1]));
+
+        absPosXMod = absPosX;
+        absPosYMod = absPosY;
 
         curveCenterPosY = 0.5;
         curveCenterAbsPosX = (absPosX + ((previous == nullptr) ? editorSize[0] : previous->absPosX)) / 2;
@@ -120,16 +121,34 @@ class ShapePoint{
         mode = initMode;
         sineOmega = omega;
         sineOmegaPrevious = omega;
-
-        isActive = true;
     }
 
+    /*Sets relative posXMod and posYMod to x and y respectively, sets absolute positions absPosX and absPosY accordingly and updates the curve center.*/
+    void modulatePositionRelative(float x, float y, ShapePoint *previous){
+        // clamp to interval [0, 1]
+        posXMod = x < 0 ? 0 : x > 1 ? 1 : x;
+        posYMod = y < 0 ? 0 : y > 1 ? 1 : y;
+
+        absPosXMod = XYXY[0] + (int32_t)(posXMod * (XYXY[2] - XYXY[0]));
+        absPosYMod = XYXY[3] - (int32_t)(posYMod * (XYXY[3] - XYXY[1]));
+
+        updateCurveCenter(previous);
+    }
+
+    /*Sets absolute absPosX and absPosY to x and y respectively, sets relative positions posX and posY accordingly and updates the curve center.*/
     void updatePositionAbsolute(int32_t x, int32_t y, ShapePoint *previous){
-        absPosX = x;
-        absPosY = y;
+        // clamp to editor size
+        absPosX = x < XYXY[0] ? XYXY[0] : x > XYXY[2] ? XYXY[2] : x;
+        absPosY = y < XYXY[1] ? XYXY[1] : y > XYXY[3] ? XYXY[3] : y;
 
         posX = (float)(x - XYXY[0]) / (XYXY[2] - XYXY[0]);
         posY = (float)(XYXY[3] - y) / (XYXY[3] - XYXY[1]);
+
+        absPosXMod = absPosX;
+        absPosYMod = absPosY;
+
+        posXMod = posX;
+        posYMod = posY;
 
         updateCurveCenter(previous);
     }
@@ -137,14 +156,14 @@ class ShapePoint{
     // updates the Curve center point in cases where curveCenter is not directly changed, as for example if the point is being moved.
     void updateCurveCenter(ShapePoint *previous){
         // curve center x is always in the middle of neighbouring points
-        curveCenterAbsPosX = (int32_t)(absPosX + ((previous == nullptr) ? XYXY[0] : previous->absPosX)) / 2;
+        curveCenterAbsPosX = (int32_t)(absPosXMod + ((previous == nullptr) ? XYXY[0] : previous->absPosXMod)) / 2;
 
         if (mode == shapePower){
-            int32_t yL = (previous == nullptr) ? XYXY[3] : previous->absPosY;
-            curveCenterAbsPosY = (power > 0) ? yL - pow(0.5, power) * (yL - absPosY) : absPosY + pow(0.5, -power) * (yL - absPosY);
+            int32_t yL = (previous == nullptr) ? XYXY[3] : previous->absPosYMod;
+            curveCenterAbsPosY = (power > 0) ? yL - pow(0.5, power) * (yL - absPosYMod) : absPosYMod + pow(0.5, -power) * (yL - absPosYMod);
             // curveCenterAbsPosY = yL + curveCenterPosY * (yL - absPosY)
         } else if (mode == shapeSine){
-            curveCenterAbsPosY = (int32_t)(absPosY + ((previous == nullptr) ? XYXY[3] : previous->absPosY)) / 2;
+            curveCenterAbsPosY = (int32_t)(absPosYMod + ((previous == nullptr) ? XYXY[3] : previous->absPosYMod)) / 2;
         }
     }
 
@@ -157,7 +176,6 @@ class ShapePoint{
 
         switch (mode){
             case shapePower:
-                // logarithm will be problematic if y position reaches zero. Clamp y value between these limits so that power can not extend maxPower
             {
                 int32_t yL = (previous == nullptr) ? XYXY[3] : previous->absPosY;
 
@@ -227,6 +245,8 @@ class ShapeEditor{
         uint16_t XYXY[4];
         // all points of this editor are stored in a vector, they must always be sorted by ther absolute x position
         std::vector<ShapePoint> shapePoints;
+        // The memory address of the vector memory is stored here and updated every time an element is added or removed, so the correct memory block can always be accessed from outside the object through this value
+        ShapePoint *pointStorage;
 
     ShapeEditor(uint16_t position[4], std::vector<ShapePoint> points = {}){
         if (points.empty()){
@@ -236,6 +256,8 @@ class ShapeEditor{
         else{
             shapePoints = points;
         }
+
+        pointStorage = &shapePoints.at(0);
 
         for (int i=0; i<4; i++){
             XYXY[i] = position[i];
@@ -255,7 +277,7 @@ class ShapeEditor{
             drawConnection(bits, i, colorCurve);
         }
         for (ShapePoint point : shapePoints){
-            drawPoint(bits, point.absPosX, point.absPosY, colorCurve, 20);
+            drawPoint(bits, point.absPosXMod, point.absPosYMod, colorCurve, 20);
             drawPoint(bits, point.curveCenterAbsPosX, point.curveCenterAbsPosY, colorCurve, 16);
         }
 
@@ -314,9 +336,9 @@ class ShapeEditor{
         }
     }
 
-    void processDoubleClick(uint32_t x, uint32_t y){
+    int processDoubleClick(uint32_t x, uint32_t y){
         if ((x < XYXY[0]) | (x >= XYXY[2]) | (y < XYXY[1]) | (y >= XYXY[3])){
-            return;
+            return -1;
         }
 
         float closestDistance;
@@ -328,6 +350,7 @@ class ShapeEditor{
             if (currentDraggingMode == position && closestIndex != shapePoints.size()){
                 shapePoints.erase(shapePoints.begin() + closestIndex);
                 shapePoints.at(closestIndex).updateCurveCenter((closestIndex == 0) ? nullptr : &shapePoints.at(closestIndex - 1));
+                return closestIndex;
             }
 
             // if double click on curve center, reset power
@@ -339,7 +362,7 @@ class ShapeEditor{
                     shapePoints.at(closestIndex).sineOmegaPrevious = 0.5;
                 }
                 shapePoints.at(closestIndex).updateCurveCenter((closestIndex == 0) ? nullptr : &shapePoints.at(closestIndex - 1));
-
+                return -1;
             }
         }
 
@@ -356,8 +379,12 @@ class ShapeEditor{
 
             ShapePoint *pPrevious = (insertIdx == 0) ? nullptr : &shapePoints.at(insertIdx - 1);
             shapePoints.insert(shapePoints.begin() + insertIdx, ShapePoint((float)(x - XYXY[0]) / (XYXY[2] - XYXY[0]), (float)(XYXY[3] - y) / (XYXY[3] - XYXY[1]), XYXY, pPrevious));
+            // shapePoints memory might have been reallocated after the insert. Go through all ModulatedParameters and update their index
+            pointStorage = &shapePoints.at(0);
             shapePoints.at(insertIdx + 1).updateCurveCenter(&shapePoints.at(insertIdx));
+            return insertIdx;
         }
+        return -1;
     }
 
     ShapePoint* processRightClick(uint32_t x, uint32_t y){
@@ -406,11 +433,11 @@ class ShapeEditor{
     /* TODO does it make sense to have a single function that transforms values according to the shape of all curve segments? This function could be used to transform x-pixel coordinates to get the y value and also to actually shape the input sound.*/
     void drawConnection(uint32_t *bits, int index, uint32_t color = 0x000000, float thickness = 5){
 
-        int xMin = ((index == 0) ? (float)XYXY[0] : shapePoints.at(index - 1).absPosX);
-        int xMax = shapePoints.at(index).absPosX;
+        int xMin = ((index == 0) ? (float)XYXY[0] : shapePoints.at(index - 1).absPosXMod);
+        int xMax = shapePoints.at(index).absPosXMod;
 
-        int yL = ((index == 0) ? (float)XYXY[3] : shapePoints.at(index - 1).absPosY);
-        int yR = shapePoints.at(index).absPosY;
+        int yL = ((index == 0) ? (float)XYXY[3] : shapePoints.at(index - 1).absPosYMod);
+        int yR = shapePoints.at(index).absPosYMod;
 
         switch (shapePoints.at(index).mode){
             case shapePower:
@@ -490,6 +517,11 @@ class ShapeEditor{
     }
 
     float forward(float input){
+        // Catching this case is important because due to quantization error, the function might return non-zero values for steep curves, which would result in an DC offset even when no input audio is given.
+        if (input == 0){
+            return 0;
+        }
+
         float out;
         // absolute value of input is processed, store information to flip sign after computing if necessary
         bool negativeInput = input < 0;
@@ -500,7 +532,7 @@ class ShapeEditor{
         ShapePoint *point = &shapePoints.front();
         ShapePoint *previous = nullptr;
 
-        while(point->posX < input){
+        while(point->posXMod < input){
             previous = point;
             point ++;
         }
@@ -508,11 +540,11 @@ class ShapeEditor{
         switch(point->mode){
             case shapePower:
             {
-                float xL = (previous == nullptr) ? 0 : previous->posX;
-                float yL = (previous == nullptr) ? 0 : previous->posY;
+                float xL = (previous == nullptr) ? 0 : previous->posXMod;
+                float yL = (previous == nullptr) ? 0 : previous->posYMod;
 
-                float relX = (point->posX == xL) ? xL : (input - xL) / (point->posX - xL);
-                float factor = (point->posY - yL);
+                float relX = (point->posXMod == xL) ? xL : (input - xL) / (point->posXMod - xL);
+                float factor = (point->posYMod - yL);
 
                 float power = point->power;
 
@@ -534,36 +566,73 @@ class ShapeEditor{
 Every modulatable parameter has a counterpart called [parameter_name_here]Mod. This value is the "active" value of the parameter and is used for displaying on GUI and rendering audio. It is recalculated at every audio sample. The raw parameter value is the "default" to which the modulation offset is added.
 
 The "modulation" im referring to here is conceptually a modulation, but not technically speaking. These parameters are NOT reported to the host as modulatable or automatable parameter. The modulation is exclusively handled inside the plugin.*/
-struct ModulatedParameter{
-    ShapePoint *point;
-    ShapePoint *previous;
+class ModulatedParameter{
+    // Points to memory address of the first element of vector, which is updated everytime the memory might be reallocated. Allows for correct referencing of the modulated point without having to update this value for each instance
+    /*This is my first time using a pointer to a pointer. Here is my little essay on why it is reasonable to do this here:
+    I want to keep track of an element (ShapePoint) in a dynamic structure (vector). To prevent my pointers from dangling, i have to somehow update them every time the vector is reallocated. I could store the pointers to the ShapePoint instances here and update them every time this happens, which would mean this updating step would happen for every ModulatedParameter instance. By using a pointer to a pointer to the first element in vector, i can do all this by only updating a single value: The pointer pointStorage points to. I still have to loop through all ModulatedParameters in order to correctly update the index though, which kind of makes this obsolete but i wont let that ruin my newly awakened enthusiasm. The double pointer will stay for now.*/
+    ShapePoint **pointStorage;
+
     float amount;
     modulationMode mode;
 
-    ModulatedParameter(ShapePoint *inPoint, ShapePoint *inPrevious, float inAmount, modulationMode inMode){
-        point = inPoint;
+    public:
+    // index of the point in the vector. Might be updated if a point is added or removed from the vector
+    int index;
+
+    ModulatedParameter(ShapePoint **inPointStorage, int inIndex, float inAmount, modulationMode inMode){
+        pointStorage = inPointStorage;
+        index = inIndex;
         amount = inAmount;
         mode = inMode;
-        previous = inPrevious;
     }
 
     void modulate(float modOffset){
         switch (mode){
             case modCurveCenterY:
             {
-                float yL = previous == nullptr ? point->XYXY[3] : previous->absPosY;
-                float yR = point->absPosY;
+                // TODO this works but it is not clear whats happening at all
+                float yL = index == 0 ? (*pointStorage + index)->XYXY[3] : (*pointStorage + index)->absPosY;
+                float yR = (*pointStorage + index)->absPosY;
 
                 int32_t yMin = (yL > yR) ? yR : yL;
                 int32_t yMax = (yL < yR) ? yR : yL;
 
-                float newY = point->curveCenterPosY + amount * modOffset;
+                float newY = (*pointStorage + index)->curveCenterPosYMod + amount * modOffset;
                 newY = (newY >= 1) ? 1 - (float)1/(yMax - yMin) : (newY <= 0) ? (float)1/(yMax - yMin) : newY;
 
-                point->curveCenterPosYMod = newY;
-                point->curveCenterAbsPosYMod = yL + newY * (yL - yR);
-                point->power = getPowerFromYCenter(newY);
-                point->updateCurveCenter(previous);
+                (*pointStorage + index)->curveCenterPosYMod = newY;
+                (*pointStorage + index)->curveCenterAbsPosYMod = yL + newY * (yL - yR);
+                (*pointStorage + index)->power = getPowerFromYCenter(newY);
+                (*pointStorage + index)->updateCurveCenter(index == 0 ? nullptr : *pointStorage + index - 1);
+                break;
+            }
+            case modPosY:
+            {
+                (*pointStorage + index)->modulatePositionRelative((*pointStorage + index)->posXMod, (*pointStorage + index)->posYMod + amount * modOffset, index == 0 ? nullptr : *pointStorage + index - 1);
+                (*pointStorage + index)->updateCurveCenter(index == 0 ? nullptr : *pointStorage + index - 1);
+                break;
+            }
+        }
+    }
+
+    // sets all modulated values to their default unmodulated value
+    void reset(){
+        switch (mode){
+            case modCurveCenterY:
+            {
+                float yL = index == 0 ? (*pointStorage + index)->XYXY[3] : (*pointStorage + index)->absPosY;
+                float yR = (*pointStorage + index)->absPosY;
+
+                (*pointStorage + index)->curveCenterPosYMod = (*pointStorage + index)->curveCenterPosY;
+                (*pointStorage + index)->curveCenterAbsPosYMod = yL + (*pointStorage + index)->curveCenterPosY * (yL - yR);
+                (*pointStorage + index)->power = getPowerFromYCenter((*pointStorage + index)->curveCenterPosY);
+                (*pointStorage + index)->updateCurveCenter(index == 0 ? nullptr : *pointStorage + index - 1);
+                break;
+            }
+            case modPosY:
+            {
+                (*pointStorage + index)->modulatePositionRelative((*pointStorage + index)->posX, (*pointStorage + index)->posY, index == 0 ? nullptr : *pointStorage + index - 1);
+                (*pointStorage + index)->updateCurveCenter(index == 0 ? nullptr : *pointStorage + index - 1);
                 break;
             }
         }
@@ -579,8 +648,8 @@ class Envelope : public ShapeEditor {
     public:
         Envelope(uint16_t size[4]) : ShapeEditor(size) {};
 
-        void addControlledParameter(ShapePoint *pPoint, ShapePoint *pPrevious, float amount, modulationMode mode){
-            modulatedParameters.push_back(ModulatedParameter(pPoint, pPrevious, amount, mode));
+        void addControlledParameter(ShapePoint **point, int index, float amount, modulationMode mode){
+            modulatedParameters.push_back(ModulatedParameter(point, index, amount, mode));
         }
 
         void removeControlledParameter(int index){
@@ -592,6 +661,30 @@ class Envelope : public ShapeEditor {
 
             for (ModulatedParameter parameter : modulatedParameters){
                 parameter.modulate(modOffset);
+            }
+        }
+
+        void resetModulatedParameters(){
+            for (ModulatedParameter parameter : modulatedParameters){
+                parameter.reset();
+            }
+        }
+
+        // TODO there should be area from which a connection can be dragged to the corresponding parameter to be modulated.
+        void processMousePressMod(int32_t x, int32_t y);
+
+        void processRightClickMod(int32_t x, int32_t y){
+            if ((x < XYXY[0]) | (x > XYXY[2]) | (y < XYXY[3]) | (y > XYXY[1])){
+                return;
+            }
+
+        }
+
+        void updateIndexAfterPointAdded(int addedIndex){
+            for (ModulatedParameter *parameter = &modulatedParameters.at(0); parameter <= &modulatedParameters.back(); parameter++){
+                if (parameter->index >= addedIndex){
+                    parameter->index ++;
+                }
             }
         }
 };
