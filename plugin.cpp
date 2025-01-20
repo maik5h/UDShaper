@@ -269,17 +269,11 @@ static void PluginProcessMouseRelease(MyPlugin *plugin) {
 
 void PluginProcessDoubleClick(MyPlugin *plugin, uint32_t x, uint32_t y){
 	// TODO i feel like this is very very much not elegant
-	int previousNumberPoints = plugin->shapeEditor1.shapePoints.size();
-	int idx = plugin->shapeEditor1.processDoubleClick(x, y);
+	plugin->shapeEditor1.processDoubleClick(x, y);
 	plugin->shapeEditor2.processDoubleClick(x, y);
 	Envelope *envelope = &plugin->envelopes.front();
 	while (envelope <= &plugin->envelopes.back()){
 		envelope->processDoubleClick(x, y);
-
-		if (previousNumberPoints < plugin->shapeEditor1.shapePoints.size()){
-			envelope->updateIndexAfterPointAdded(idx);
-		}
-
 		envelope++;
 	}
 }

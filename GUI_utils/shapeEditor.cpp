@@ -86,13 +86,16 @@ class ShapePoint{
         float sineOmega;
         Shapes mode = shapePower;
 
+        ShapePoint *previous = nullptr;
+        ShapePoint *next = nullptr;
+
     /*x, y are relative positions on the graph editor, e.g. they must be between 0 and 1
     editorSize is screen coordinates of parent shapeEditor in XYXY notation: {xMin, yMin, xMax, yMax}
     previousPoint is pointer to the next ShapePoint on the left hand side of the current point. If there is no point to the left, should be nullptr
     pow is parameter defining the shape of the curve segment, its role is dependent on the mode:
         shapePower: f(x) = x^parameter
     */
-    ShapePoint(float x, float y, uint16_t editorSize[4], ShapePoint *previous, float pow = 1, float omega = 0.5, Shapes initMode = shapePower){
+    ShapePoint(float x, float y, uint16_t editorSize[4], float pow = 1, float omega = 0.5, Shapes initMode = shapePower){
         assert ((0 <= x) && (x <= 1) && (0 <= y) && (y <= 1));
 
         // x and y are relative coordinates on the Graph 0 <= x, y <= 1
@@ -124,7 +127,7 @@ class ShapePoint{
     }
 
     /*Sets relative posXMod and posYMod to x and y respectively, sets absolute positions absPosX and absPosY accordingly and updates the curve center.*/
-    void modulatePositionRelative(float x, float y, ShapePoint *previous){
+    void modulatePositionRelative(float x, float y){
         // clamp to interval [0, 1]
         posXMod = x < 0 ? 0 : x > 1 ? 1 : x;
         posYMod = y < 0 ? 0 : y > 1 ? 1 : y;
@@ -132,11 +135,11 @@ class ShapePoint{
         absPosXMod = XYXY[0] + (int32_t)(posXMod * (XYXY[2] - XYXY[0]));
         absPosYMod = XYXY[3] - (int32_t)(posYMod * (XYXY[3] - XYXY[1]));
 
-        updateCurveCenter(previous);
+        updateCurveCenter();
     }
 
     /*Sets absolute absPosX and absPosY to x and y respectively, sets relative positions posX and posY accordingly and updates the curve center.*/
-    void updatePositionAbsolute(int32_t x, int32_t y, ShapePoint *previous){
+    void updatePositionAbsolute(int32_t x, int32_t y){
         // clamp to editor size
         absPosX = x < XYXY[0] ? XYXY[0] : x > XYXY[2] ? XYXY[2] : x;
         absPosY = y < XYXY[1] ? XYXY[1] : y > XYXY[3] ? XYXY[3] : y;
@@ -150,34 +153,34 @@ class ShapePoint{
         posXMod = posX;
         posYMod = posY;
 
-        updateCurveCenter(previous);
+        updateCurveCenter();
     }
 
     // updates the Curve center point in cases where curveCenter is not directly changed, as for example if the point is being moved.
-    void updateCurveCenter(ShapePoint *previous){
+    void updateCurveCenter(){
         // curve center x is always in the middle of neighbouring points
-        curveCenterAbsPosX = (int32_t)(absPosXMod + ((previous == nullptr) ? XYXY[0] : previous->absPosXMod)) / 2;
+        curveCenterAbsPosX = (int32_t)(absPosXMod + previous->absPosXMod) / 2;
 
         if (mode == shapePower){
-            int32_t yL = (previous == nullptr) ? XYXY[3] : previous->absPosYMod;
+            int32_t yL = previous->absPosYMod;
             curveCenterAbsPosY = (power > 0) ? yL - pow(0.5, power) * (yL - absPosYMod) : absPosYMod + pow(0.5, -power) * (yL - absPosYMod);
             // curveCenterAbsPosY = yL + curveCenterPosY * (yL - absPosY)
         } else if (mode == shapeSine){
-            curveCenterAbsPosY = (int32_t)(absPosYMod + ((previous == nullptr) ? XYXY[3] : previous->absPosYMod)) / 2;
+            curveCenterAbsPosY = (int32_t)(absPosYMod + previous->absPosYMod) / 2;
         }
     }
 
     // updates the Curve center point when manually dragging it
-    void updateCurveCenter(ShapePoint *previous, int x, int y){
+    void updateCurveCenter(int x, int y){
         // nothing to update if line is horizontal
-        if (((previous == nullptr) ? 0 : previous->absPosY) == absPosY){
+        if (previous->absPosY == absPosY){
             return;
         }
 
         switch (mode){
             case shapePower:
             {
-                int32_t yL = (previous == nullptr) ? XYXY[3] : previous->absPosY;
+                int32_t yL = previous->absPosY;
 
                 int32_t yMin = (yL > absPosY) ? absPosY : yL;
                 int32_t yMax = (yL < absPosY) ? absPosY : yL;
@@ -199,8 +202,8 @@ class ShapePoint{
                 Sine wave will always go through this point. When omega is smaller 0.5, the sine will smoothly connect the points, if larger 0.5,
                 it will be increased in discrete steps, such that always n + 1/2 cycles lay in the interval between the points.*/
 
-                curveCenterAbsPosX = (int32_t)(absPosX + ((previous == nullptr) ? XYXY[0] : previous->absPosX)) / 2;
-                curveCenterAbsPosY = (int32_t)(absPosY + ((previous == nullptr) ? XYXY[3] : previous->absPosY)) / 2;
+                curveCenterAbsPosX = (int32_t)(absPosX + previous->absPosX) / 2;
+                curveCenterAbsPosY = (int32_t)(absPosY + previous->absPosY) / 2;
 
                 if (sineOmega <= 0.5){
                     sineOmega = sineOmegaPrevious * pow(0.5, (float)(y - curveCenterAbsPosY) / 50);
@@ -222,42 +225,66 @@ class ShapePoint{
     }
 };
 
+void deleteShapePoint(ShapePoint *point){
+    if (point->previous == nullptr){
+        throw std::invalid_argument("Tried to delete the first shapePoint which can not be deleted.");
+    }
+    if (point->next == nullptr){
+        throw std::invalid_argument("Tried to delete the last shapePoint which can not be deleted.");
+    }
+
+    ShapePoint *previous = point->previous;
+    ShapePoint *next = point->next;
+
+    previous->next = next;
+    next->previous = previous;
+
+    delete point;
+    point = nullptr;
+}
+
+void insertPointBefore(ShapePoint *next, ShapePoint *point){
+    if (next->previous == nullptr){
+        throw std::invalid_argument("Tried to insert shapePoint before first point, which is not allowed.");
+    }
+
+    ShapePoint *previous = next->previous;
+
+    previous->next = point;
+    point->previous = previous;
+
+    point->next = next;
+    next->previous = point;
+}
+
 class ShapeEditor{
     private:
-        // square of the minimum distance the mouse needs to have from a point in order to connect any input to this point
-        // TODO why this cant be static const???
-        float requiredSquaredDistance = 200;
+    // square of the minimum distance the mouse needs to have from a point in order to connect any input to this point
+    // TODO why this cant be static const???
+    float requiredSquaredDistance = 200;
 
-        uint32_t *canvas;
+    uint32_t *canvas;
 
-        // this is only relevant for Linux since xlib does not feature automatic double click detection
-        // std::chrono::_V2::system_clock::time_point time = std::chrono::high_resolution_clock::now();
-        // long lastMousePress = std::chrono::duration_cast<std::chrono::milliseconds>(time.time_since_epoch()).count();
+    // this is only relevant for Linux since xlib does not feature automatic double click detection
+    // std::chrono::_V2::system_clock::time_point time = std::chrono::high_resolution_clock::now();
+    // long lastMousePress = std::chrono::duration_cast<std::chrono::milliseconds>(time.time_since_epoch()).count();
 
-        // place to store point which is currently edited and the edit mode
-        ShapePoint *currentlyDragging = nullptr;
-        draggingMode currentDraggingMode = none;
+    // place to store point which is currently edited and the edit mode
+    ShapePoint *currentlyDragging = nullptr;
+    draggingMode currentDraggingMode = none;
 
-        // TODO this and currentlyDragging could be combined to smth like "currentlyEdited" or "active" since only one point can be edited at a time.
-        ShapePoint *rightClicked = nullptr;
+    // TODO this and currentlyDragging could be combined to smth like "currentlyEdited" or "active" since only one point can be edited at a time.
+    ShapePoint *rightClicked = nullptr;
 
     public:
-        uint16_t XYXY[4];
-        // all points of this editor are stored in a vector, they must always be sorted by ther absolute x position
-        std::vector<ShapePoint> shapePoints;
-        // The memory address of the vector memory is stored here and updated every time an element is added or removed, so the correct memory block can always be accessed from outside the object through this value
-        ShapePoint *pointStorage;
+    uint16_t XYXY[4];
+    /* All points of this editor are stored in a doubly linked list and must always be sorted by ther absolute x position. The first point cannot be moved or deleted, it will always be at relative x=0, y=0. It will also not be displayed on the GUI. This sort of "ghost point" is there to ensure that the ".previous" memeber of every editable ShapePoint is always a pointer to an actual ShapePoint instance.
+    The last point can be edited (not moved in x-direction though) but not deleted.*/
+    ShapePoint shapePoints;
 
-    ShapeEditor(uint16_t position[4], std::vector<ShapePoint> points = {}){
-        if (points.empty()){
-            // if no points are given, use the default points which diagonally span across the whole Graph.
-            shapePoints = {ShapePoint(1., 1., position, nullptr)};
-        }
-        else{
-            shapePoints = points;
-        }
+    ShapeEditor(uint16_t position[4]) : shapePoints(0., 0., position){
 
-        pointStorage = &shapePoints.at(0);
+        shapePoints.next = new ShapePoint(1., 1., position);
 
         for (int i=0; i<4; i++){
             XYXY[i] = position[i];
@@ -273,42 +300,43 @@ class ShapeEditor{
         }
 
         // first draw all connections between points, then points on top
-        for (uint16_t i=0; i< shapePoints.size(); i++){
-            drawConnection(bits, i, colorCurve);
+        for (ShapePoint *point = shapePoints.next; point != nullptr; point = point->next){
+            drawConnection(bits, point, colorCurve);
         }
-        for (ShapePoint point : shapePoints){
-            drawPoint(bits, point.absPosXMod, point.absPosYMod, colorCurve, 20);
-            drawPoint(bits, point.curveCenterAbsPosX, point.curveCenterAbsPosY, colorCurve, 16);
+        for (ShapePoint *point = shapePoints.next; point != nullptr; point = point->next){
+            drawPoint(bits, point->absPosXMod, point->absPosYMod, colorCurve, 20);
+            drawPoint(bits, point->curveCenterAbsPosX, point->curveCenterAbsPosY, colorCurve, 16);
         }
 
     }
 
-    std::tuple<float, int> getClosestPoint(uint32_t x, uint32_t y){
+    std::tuple<float, ShapePoint*> getClosestPoint(uint32_t x, uint32_t y){
         // TODO i think it might be a better user experience if points always give visual feedback if the mouse is hovering over them.
         //   This would require every point to check mouse position at any time
         float closestDistance = 10E5;
-        int closestIndex;
+        ShapePoint *closestPoint;
 
         // check mouse distance to all points and find closest
         float distance;
-        for (uint16_t i=0; i<shapePoints.size(); i++){
+        // start with second point in linked list because first point is treated special, see comments at shapePoints declaration
+        for (ShapePoint *point = shapePoints.next; point != nullptr; point = point->next){
             // check for distance to point and set mode to position
-            distance = (shapePoints[i].absPosX - x)*(shapePoints[i].absPosX - x) + (shapePoints[i].absPosY - y)*(shapePoints[i].absPosY - y);
+            distance = (point->absPosX - x)*(point->absPosX - x) + (point->absPosY - y)*(point->absPosY - y);
             if (distance < closestDistance){
                 closestDistance = distance;
-                closestIndex = i;
+                closestPoint = point;
                 currentDraggingMode = position;
             }
             // check for distance to curve center and set mode to curveCenter
-            distance = (shapePoints[i].curveCenterAbsPosX - x)*(shapePoints[i].curveCenterAbsPosX - x) + (shapePoints[i].curveCenterAbsPosY - y)*(shapePoints[i].curveCenterAbsPosY - y);
+            distance = (point->curveCenterAbsPosX - x)*(point->curveCenterAbsPosX - x) + (point->curveCenterAbsPosY - y)*(point->curveCenterAbsPosY - y);
             if (distance < closestDistance){
                 closestDistance = distance;
-                closestIndex = i;
+                closestPoint = point;
                 currentDraggingMode = curveCenter;
             }
         }
 
-        return std::make_tuple(closestDistance, closestIndex);
+        return std::make_tuple(closestDistance, closestPoint);
     }
 
     void processMousePress(int32_t x, int32_t y){
@@ -326,43 +354,43 @@ class ShapeEditor{
         // lastMousePress = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
 
         float closestDistance;
-        int closestIndex;
-        std::tie(closestDistance, closestIndex) = getClosestPoint(x, y);
+        ShapePoint *closestPoint;
+        std::tie(closestDistance, closestPoint) = getClosestPoint(x, y);
 
         // if in proximity to point mark point as currentlyDragging
         if (closestDistance <= requiredSquaredDistance){
-            shapePoints.at(closestIndex).processMousePress();
-            currentlyDragging = &shapePoints.at(closestIndex);
+            closestPoint->processMousePress();
+            currentlyDragging = closestPoint;
         }
     }
 
-    int processDoubleClick(uint32_t x, uint32_t y){
+    ShapePoint* processDoubleClick(uint32_t x, uint32_t y){
         if ((x < XYXY[0]) | (x >= XYXY[2]) | (y < XYXY[1]) | (y >= XYXY[3])){
-            return -1;
+            return nullptr;
         }
 
         float closestDistance;
-        int closestIndex;
-        std::tie(closestDistance, closestIndex) = getClosestPoint(x, y);
+        ShapePoint *closestPoint;
+        std::tie(closestDistance, closestPoint) = getClosestPoint(x, y);
 
         if (closestDistance <= requiredSquaredDistance){
             // if close to point and point is not last, which cannot be removed, remmove point
-            if (currentDraggingMode == position && closestIndex != shapePoints.size()){
-                shapePoints.erase(shapePoints.begin() + closestIndex);
-                shapePoints.at(closestIndex).updateCurveCenter((closestIndex == 0) ? nullptr : &shapePoints.at(closestIndex - 1));
-                return closestIndex;
+            if (currentDraggingMode == position && closestPoint->next != nullptr){
+                deleteShapePoint(closestPoint);
+                closestPoint->updateCurveCenter();
+                return closestPoint;
             }
 
             // if double click on curve center, reset power
             else if (currentDraggingMode == curveCenter){
-                if (shapePoints.at(closestIndex).mode == shapePower){
-                    shapePoints.at(closestIndex).power = 1;
-                } else if (shapePoints.at(closestIndex).mode == shapeSine){
-                    shapePoints.at(closestIndex).sineOmega = 0.5;
-                    shapePoints.at(closestIndex).sineOmegaPrevious = 0.5;
+                if (closestPoint->mode == shapePower){
+                    closestPoint->power = 1;
+                } else if (closestPoint->mode == shapeSine){
+                    closestPoint->sineOmega = 0.5;
+                    closestPoint->sineOmegaPrevious = 0.5;
                 }
-                shapePoints.at(closestIndex).updateCurveCenter((closestIndex == 0) ? nullptr : &shapePoints.at(closestIndex - 1));
-                return -1;
+                closestPoint->updateCurveCenter();
+                return nullptr;
             }
         }
 
@@ -370,42 +398,39 @@ class ShapeEditor{
         if (closestDistance > requiredSquaredDistance){
             // points in shapePoints should be sorted by x-position, find correct index to insert
             uint16_t insertIdx = 0;
-            while (insertIdx < shapePoints.size()){
-                if (shapePoints.at(insertIdx).absPosX >= x){
+            ShapePoint *insertBefore = &shapePoints;
+            while (insertBefore != nullptr){
+                if (insertBefore->absPosX >= x){
                     break;
                 }
-                insertIdx ++;
+                insertBefore ++;
             }
 
-            ShapePoint *pPrevious = (insertIdx == 0) ? nullptr : &shapePoints.at(insertIdx - 1);
-            shapePoints.insert(shapePoints.begin() + insertIdx, ShapePoint((float)(x - XYXY[0]) / (XYXY[2] - XYXY[0]), (float)(XYXY[3] - y) / (XYXY[3] - XYXY[1]), XYXY, pPrevious));
-            // shapePoints memory might have been reallocated after the insert. Go through all ModulatedParameters and update their index
-            pointStorage = &shapePoints.at(0);
-            shapePoints.at(insertIdx + 1).updateCurveCenter(&shapePoints.at(insertIdx));
-            return insertIdx;
+            insertPointBefore(insertBefore, new ShapePoint((float)(x - XYXY[0]) / (XYXY[2] - XYXY[0]), (float)(XYXY[3] - y) / (XYXY[3] - XYXY[1]), XYXY));
+            (insertBefore + 1)->updateCurveCenter();
+            return insertBefore;
         }
-        return -1;
+        return nullptr;
     }
 
     ShapePoint* processRightClick(uint32_t x, uint32_t y){
         float closestDistance;
-        int closestIndex;
-        std::tie(closestDistance, closestIndex) = getClosestPoint(x, y);
+        ShapePoint *closestPoint;
+        std::tie(closestDistance, closestPoint) = getClosestPoint(x, y);
 
         // if rightclick on point, show shape menu to change function of curve segment
         if (closestDistance <= requiredSquaredDistance && currentDraggingMode == position){
-            rightClicked = &shapePoints.at(closestIndex);
-            return (currentDraggingMode == position) ? rightClicked : nullptr;
+            return closestPoint;
         }
         // if right click on curve center, reset power
         else if (closestDistance <= requiredSquaredDistance && currentDraggingMode == curveCenter){
-            if (shapePoints.at(closestIndex).mode == shapePower){
-                shapePoints.at(closestIndex).power = 1;
-            } else if (shapePoints.at(closestIndex).mode == shapeSine){
-                shapePoints.at(closestIndex).sineOmega = 0.5;
-                shapePoints.at(closestIndex).sineOmegaPrevious = 0.5;
+            if (closestPoint->mode == shapePower){
+                closestPoint->power = 1;
+            } else if (closestPoint->mode == shapeSine){
+                closestPoint->sineOmega = 0.5;
+                closestPoint->sineOmegaPrevious = 0.5;
             }
-            shapePoints.at(closestIndex).updateCurveCenter((closestIndex == 0) ? nullptr : &shapePoints.at(closestIndex - 1));
+            closestPoint->updateCurveCenter();
         }
         return nullptr;
     }
@@ -422,7 +447,7 @@ class ShapeEditor{
                 rightClicked->mode = shapeBezier;
                 break;
         }
-        rightClicked->updateCurveCenter((rightClicked == &shapePoints.front()) ? nullptr : rightClicked);
+        rightClicked->updateCurveCenter();
     }
 
     void processMouseRelease(){
@@ -431,24 +456,24 @@ class ShapeEditor{
     }
 
     /* TODO does it make sense to have a single function that transforms values according to the shape of all curve segments? This function could be used to transform x-pixel coordinates to get the y value and also to actually shape the input sound.*/
-    void drawConnection(uint32_t *bits, int index, uint32_t color = 0x000000, float thickness = 5){
+    void drawConnection(uint32_t *bits, ShapePoint *point, uint32_t color = 0x000000, float thickness = 5){
 
-        int xMin = ((index == 0) ? (float)XYXY[0] : shapePoints.at(index - 1).absPosXMod);
-        int xMax = shapePoints.at(index).absPosXMod;
+        int xMin = point->previous->absPosXMod;
+        int xMax = point->absPosXMod;
 
-        int yL = ((index == 0) ? (float)XYXY[3] : shapePoints.at(index - 1).absPosYMod);
-        int yR = shapePoints.at(index).absPosYMod;
+        int yL = point->previous->absPosYMod;
+        int yR = point->absPosYMod;
 
-        switch (shapePoints.at(index).mode){
+        switch (point->mode){
             case shapePower:
             {
                 // The curve is f(x) = x^power, where x is in [0, 1] and x and y intervals are stretched such that the curve connects this and previous point
                 for (int i = xMin; i < xMax; i++) {
                     // TODO: antialiasing/ width of curve
-                    if (shapePoints.at(index).power > 0){
-                        bits[i + (int)((yL - pow((float)(i - xMin) / (xMax - xMin), shapePoints.at(index).power) * (yL - yR))) * GUI_WIDTH] = color;
+                    if (point->power > 0){
+                        bits[i + (int)((yL - pow((float)(i - xMin) / (xMax - xMin), point->power) * (yL - yR))) * GUI_WIDTH] = color;
                     } else {
-                        bits[i + (int)((yR + pow((float)(xMax - i) / (xMax - xMin), -shapePoints.at(index).power) * (yL - yR))) * GUI_WIDTH] = color;
+                        bits[i + (int)((yR + pow((float)(xMax - i) / (xMax - xMin), -point->power) * (yL - yR))) * GUI_WIDTH] = color;
                     }
                 }
                 break;
@@ -459,9 +484,9 @@ class ShapeEditor{
                     // TODO: antialiasing/ width of curve
                     float pi = 3.141592654;
                     // normalize curve to one if if frequency is so low that segment is smaller than half a wavelength
-                    float ampCorrection = (shapePoints.at(index).sineOmega < 0.5) ? 1 / sin(shapePoints.at(index).sineOmega * pi) : 1;
+                    float ampCorrection = (point->sineOmega < 0.5) ? 1 / sin(point->sineOmega * pi) : 1;
                     // this works trust me
-                    bits[i + (int)(ampCorrection * sin((float)(i - xMin - (xMax - xMin)/2) / (xMax - xMin) * shapePoints.at(index).sineOmega * 2 * pi) * (yR - yL) / 2 - (yL - yR)/2 + yL) * GUI_WIDTH] = color;
+                    bits[i + (int)(ampCorrection * sin((float)(i - xMin - (xMax - xMin)/2) / (xMax - xMin) * point->sineOmega * 2 * pi) * (yR - yL) / 2 - (yL - yR)/2 + yL) * GUI_WIDTH] = color;
                 }
                 break;
             }
@@ -475,44 +500,32 @@ class ShapeEditor{
             return;
         }
 
-        ShapePoint *currentPrevious = (currentlyDragging == &shapePoints.front()) ? nullptr : (currentlyDragging - 1);
-
         if (currentDraggingMode == position){
             // point is not allowed to go beyond neighbouring points in x-direction or below 0 or above 1 if it first or last point.
             int32_t xLowerLim;
             int32_t xUpperLim;
 
-            if (currentlyDragging == &shapePoints.front()){
-                xLowerLim = XYXY[0];
-            }
-            else{
-                xLowerLim = (currentlyDragging - 1)->absPosX;
-            }
+            xLowerLim = currentlyDragging->previous->absPosX;
 
-            if (currentlyDragging == &shapePoints.back()){
-                xUpperLim = XYXY[2];
-            }
-            else{
-                xUpperLim = (currentlyDragging + 1)->absPosX;
-            }
+            xUpperLim = currentlyDragging->previous->absPosX;
 
             x = (x > xUpperLim) ? xUpperLim : (x < xLowerLim) ? xLowerLim : x;
             y = (y > XYXY[3]) ? XYXY[3] : (y < XYXY[1]) ? XYXY[1] : y;
 
             // the rightmost point must not move in x-direction
-            if (currentlyDragging == &shapePoints.back()){
+            if (currentlyDragging->next == nullptr){
                 x = XYXY[2];
             }
 
-            currentlyDragging->updatePositionAbsolute(x, y, currentPrevious);
+            currentlyDragging->updatePositionAbsolute(x, y);
 
-            if (currentlyDragging != &shapePoints.back()){
-                (currentlyDragging + 1)->updateCurveCenter(currentlyDragging);
+            if (currentlyDragging->next != nullptr){
+                currentlyDragging->next->updateCurveCenter();
             }
         }
 
         else if (currentDraggingMode == curveCenter){
-            currentlyDragging->updateCurveCenter(currentPrevious, x, y);
+            currentlyDragging->updateCurveCenter(x, y);
         }
     }
 
@@ -529,19 +542,17 @@ class ShapeEditor{
         // limit input to one
         input = (input > 1) ? 1 : input;
 
-        ShapePoint *point = &shapePoints.front();
-        ShapePoint *previous = nullptr;
+        ShapePoint *point = shapePoints.next;
 
         while(point->posXMod < input){
-            previous = point;
-            point ++;
+            point = point->next;
         }
 
         switch(point->mode){
             case shapePower:
             {
-                float xL = (previous == nullptr) ? 0 : previous->posXMod;
-                float yL = (previous == nullptr) ? 0 : previous->posYMod;
+                float xL = point->previous->posXMod;
+                float yL = point->previous->posYMod;
 
                 float relX = (point->posXMod == xL) ? xL : (input - xL) / (point->posXMod - xL);
                 float factor = (point->posYMod - yL);
@@ -570,18 +581,14 @@ class ModulatedParameter{
     // Points to memory address of the first element of vector, which is updated everytime the memory might be reallocated. Allows for correct referencing of the modulated point without having to update this value for each instance
     /*This is my first time using a pointer to a pointer. Here is my little essay on why it is reasonable to do this here:
     I want to keep track of an element (ShapePoint) in a dynamic structure (vector). To prevent my pointers from dangling, i have to somehow update them every time the vector is reallocated. I could store the pointers to the ShapePoint instances here and update them every time this happens, which would mean this updating step would happen for every ModulatedParameter instance. By using a pointer to a pointer to the first element in vector, i can do all this by only updating a single value: The pointer pointStorage points to. I still have to loop through all ModulatedParameters in order to correctly update the index though, which kind of makes this obsolete but i wont let that ruin my newly awakened enthusiasm. The double pointer will stay for now.*/
-    ShapePoint **pointStorage;
+    ShapePoint *point;
 
     float amount;
     modulationMode mode;
 
     public:
-    // index of the point in the vector. Might be updated if a point is added or removed from the vector
-    int index;
-
-    ModulatedParameter(ShapePoint **inPointStorage, int inIndex, float inAmount, modulationMode inMode){
-        pointStorage = inPointStorage;
-        index = inIndex;
+    ModulatedParameter(ShapePoint *inPoint, float inAmount, modulationMode inMode){
+        point = inPoint;
         amount = inAmount;
         mode = inMode;
     }
@@ -591,25 +598,25 @@ class ModulatedParameter{
             case modCurveCenterY:
             {
                 // TODO this works but it is not clear whats happening at all
-                float yL = index == 0 ? (*pointStorage + index)->XYXY[3] : (*pointStorage + index)->absPosY;
-                float yR = (*pointStorage + index)->absPosY;
+                float yL = point->previous->absPosY;
+                float yR = point->absPosY;
 
                 int32_t yMin = (yL > yR) ? yR : yL;
                 int32_t yMax = (yL < yR) ? yR : yL;
 
-                float newY = (*pointStorage + index)->curveCenterPosYMod + amount * modOffset;
+                float newY = point->curveCenterPosYMod + amount * modOffset;
                 newY = (newY >= 1) ? 1 - (float)1/(yMax - yMin) : (newY <= 0) ? (float)1/(yMax - yMin) : newY;
 
-                (*pointStorage + index)->curveCenterPosYMod = newY;
-                (*pointStorage + index)->curveCenterAbsPosYMod = yL + newY * (yL - yR);
-                (*pointStorage + index)->power = getPowerFromYCenter(newY);
-                (*pointStorage + index)->updateCurveCenter(index == 0 ? nullptr : *pointStorage + index - 1);
+                point->curveCenterPosYMod = newY;
+                point->curveCenterAbsPosYMod = yL + newY * (yL - yR);
+                point->power = getPowerFromYCenter(newY);
+                point->updateCurveCenter();
                 break;
             }
             case modPosY:
             {
-                (*pointStorage + index)->modulatePositionRelative((*pointStorage + index)->posXMod, (*pointStorage + index)->posYMod + amount * modOffset, index == 0 ? nullptr : *pointStorage + index - 1);
-                (*pointStorage + index)->updateCurveCenter(index == 0 ? nullptr : *pointStorage + index - 1);
+                point->modulatePositionRelative(point->posXMod, point->posYMod + amount * modOffset);
+                point->updateCurveCenter();
                 break;
             }
         }
@@ -620,19 +627,19 @@ class ModulatedParameter{
         switch (mode){
             case modCurveCenterY:
             {
-                float yL = index == 0 ? (*pointStorage + index)->XYXY[3] : (*pointStorage + index)->absPosY;
-                float yR = (*pointStorage + index)->absPosY;
+                float yL = point->previous->absPosY;
+                float yR = point->absPosY;
 
-                (*pointStorage + index)->curveCenterPosYMod = (*pointStorage + index)->curveCenterPosY;
-                (*pointStorage + index)->curveCenterAbsPosYMod = yL + (*pointStorage + index)->curveCenterPosY * (yL - yR);
-                (*pointStorage + index)->power = getPowerFromYCenter((*pointStorage + index)->curveCenterPosY);
-                (*pointStorage + index)->updateCurveCenter(index == 0 ? nullptr : *pointStorage + index - 1);
+                point->curveCenterPosYMod = point->curveCenterPosY;
+                point->curveCenterAbsPosYMod = yL + point->curveCenterPosY * (yL - yR);
+                point->power = getPowerFromYCenter(point->curveCenterPosY);
+                point->updateCurveCenter();
                 break;
             }
             case modPosY:
             {
-                (*pointStorage + index)->modulatePositionRelative((*pointStorage + index)->posX, (*pointStorage + index)->posY, index == 0 ? nullptr : *pointStorage + index - 1);
-                (*pointStorage + index)->updateCurveCenter(index == 0 ? nullptr : *pointStorage + index - 1);
+                point->modulatePositionRelative(point->posX, point->posY);
+                point->updateCurveCenter();
                 break;
             }
         }
@@ -643,48 +650,40 @@ class ModulatedParameter{
 controlled parameters */
 class Envelope : public ShapeEditor {
     private:
-        std::vector<ModulatedParameter> modulatedParameters;
+    std::vector<ModulatedParameter> modulatedParameters;
 
     public:
-        Envelope(uint16_t size[4]) : ShapeEditor(size) {};
+    Envelope(uint16_t size[4]) : ShapeEditor(size) {};
 
-        void addControlledParameter(ShapePoint **point, int index, float amount, modulationMode mode){
-            modulatedParameters.push_back(ModulatedParameter(point, index, amount, mode));
+    void addControlledParameter(ShapePoint *point, int index, float amount, modulationMode mode){
+        modulatedParameters.push_back(ModulatedParameter(point, amount, mode));
+    }
+
+    void removeControlledParameter(int index){
+        modulatedParameters.erase(modulatedParameters.begin() + index);
+    }
+
+    void updateModulatedParameters(double beatPosition){
+        float modOffset = forward(beatPosition / 4);
+
+        for (ModulatedParameter parameter : modulatedParameters){
+            parameter.modulate(modOffset);
+        }
+    }
+
+    void resetModulatedParameters(){
+        for (ModulatedParameter parameter : modulatedParameters){
+            parameter.reset();
+        }
+    }
+
+    // TODO there should be area from which a connection can be dragged to the corresponding parameter to be modulated.
+    void processMousePressMod(int32_t x, int32_t y);
+
+    void processRightClickMod(int32_t x, int32_t y){
+        if ((x < XYXY[0]) | (x > XYXY[2]) | (y < XYXY[3]) | (y > XYXY[1])){
+            return;
         }
 
-        void removeControlledParameter(int index){
-            modulatedParameters.erase(modulatedParameters.begin() + index);
-        }
-
-        void updateModulatedParameters(double beatPosition){
-            float modOffset = forward(beatPosition / 4);
-
-            for (ModulatedParameter parameter : modulatedParameters){
-                parameter.modulate(modOffset);
-            }
-        }
-
-        void resetModulatedParameters(){
-            for (ModulatedParameter parameter : modulatedParameters){
-                parameter.reset();
-            }
-        }
-
-        // TODO there should be area from which a connection can be dragged to the corresponding parameter to be modulated.
-        void processMousePressMod(int32_t x, int32_t y);
-
-        void processRightClickMod(int32_t x, int32_t y){
-            if ((x < XYXY[0]) | (x > XYXY[2]) | (y < XYXY[3]) | (y > XYXY[1])){
-                return;
-            }
-
-        }
-
-        void updateIndexAfterPointAdded(int addedIndex){
-            for (ModulatedParameter *parameter = &modulatedParameters.at(0); parameter <= &modulatedParameters.back(); parameter++){
-                if (parameter->index >= addedIndex){
-                    parameter->index ++;
-                }
-            }
-        }
+    }
 };
