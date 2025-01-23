@@ -225,6 +225,15 @@ class ShapePoint{
     }
 };
 
+void logad(const std::string comment, const ShapePoint *address){
+	std::ofstream logFile("C:/Users/mm/Desktop/log.txt", std::ios_base::app);
+    if (logFile.is_open()) {
+        logFile << comment << address << std::endl;
+    } else {
+        std::cerr << "Failed to open log file!" << std::endl;
+    }
+}
+
 void deleteShapePoint(ShapePoint *point){
     if (point->previous == nullptr){
         throw std::invalid_argument("Tried to delete the first shapePoint which can not be deleted.");
@@ -280,11 +289,13 @@ class ShapeEditor{
     uint16_t XYXY[4];
     /* All points of this editor are stored in a doubly linked list and must always be sorted by ther absolute x position. The first point cannot be moved or deleted, it will always be at relative x=0, y=0. It will also not be displayed on the GUI. This sort of "ghost point" is there to ensure that the ".previous" memeber of every editable ShapePoint is always a pointer to an actual ShapePoint instance.
     The last point can be edited (not moved in x-direction though) but not deleted.*/
-    ShapePoint shapePoints;
+    ShapePoint *shapePoints;
 
-    ShapeEditor(uint16_t position[4]) : shapePoints(0., 0., position){
+    ShapeEditor(uint16_t position[4]){
 
-        shapePoints.next = new ShapePoint(1., 1., position);
+        shapePoints = new ShapePoint(0., 0., position);
+        shapePoints->next = new ShapePoint(1., 1., position);
+        shapePoints->next->previous = shapePoints;
 
         for (int i=0; i<4; i++){
             XYXY[i] = position[i];
@@ -299,11 +310,12 @@ class ShapeEditor{
             }
         }
 
+        int count = 0;
         // first draw all connections between points, then points on top
-        for (ShapePoint *point = shapePoints.next; point != nullptr; point = point->next){
+        for (ShapePoint *point = shapePoints->next; point != nullptr; point = point->next){
             drawConnection(bits, point, colorCurve);
         }
-        for (ShapePoint *point = shapePoints.next; point != nullptr; point = point->next){
+        for (ShapePoint *point = shapePoints->next; point != nullptr; point = point->next){
             drawPoint(bits, point->absPosXMod, point->absPosYMod, colorCurve, 20);
             drawPoint(bits, point->curveCenterAbsPosX, point->curveCenterAbsPosY, colorCurve, 16);
         }
@@ -319,7 +331,7 @@ class ShapeEditor{
         // check mouse distance to all points and find closest
         float distance;
         // start with second point in linked list because first point is treated special, see comments at shapePoints declaration
-        for (ShapePoint *point = shapePoints.next; point != nullptr; point = point->next){
+        for (ShapePoint *point = shapePoints->next; point != nullptr; point = point->next){
             // check for distance to point and set mode to position
             distance = (point->absPosX - x)*(point->absPosX - x) + (point->absPosY - y)*(point->absPosY - y);
             if (distance < closestDistance){
@@ -376,8 +388,9 @@ class ShapeEditor{
         if (closestDistance <= requiredSquaredDistance){
             // if close to point and point is not last, which cannot be removed, remmove point
             if (currentDraggingMode == position && closestPoint->next != nullptr){
+                ShapePoint *nextPoint = closestPoint->next;
                 deleteShapePoint(closestPoint);
-                closestPoint->updateCurveCenter();
+                nextPoint->updateCurveCenter();
                 return closestPoint;
             }
 
@@ -398,16 +411,17 @@ class ShapeEditor{
         if (closestDistance > requiredSquaredDistance){
             // points in shapePoints should be sorted by x-position, find correct index to insert
             uint16_t insertIdx = 0;
-            ShapePoint *insertBefore = &shapePoints;
+            ShapePoint *insertBefore = shapePoints->next;
             while (insertBefore != nullptr){
                 if (insertBefore->absPosX >= x){
                     break;
                 }
-                insertBefore ++;
+                insertBefore = insertBefore->next;
             }
 
             insertPointBefore(insertBefore, new ShapePoint((float)(x - XYXY[0]) / (XYXY[2] - XYXY[0]), (float)(XYXY[3] - y) / (XYXY[3] - XYXY[1]), XYXY));
-            (insertBefore + 1)->updateCurveCenter();
+            insertBefore->updateCurveCenter();
+            insertBefore->previous->updateCurveCenter();
             return insertBefore;
         }
         return nullptr;
@@ -505,9 +519,9 @@ class ShapeEditor{
             int32_t xLowerLim;
             int32_t xUpperLim;
 
-            xLowerLim = currentlyDragging->previous->absPosX;
-
-            xUpperLim = currentlyDragging->previous->absPosX;
+            // The rightmost point must not move in x-direction. If point is last point set both limits to only allowed value, else choose positions of neighbouring points.
+            xLowerLim = currentlyDragging->next == nullptr ? XYXY[2] : currentlyDragging->previous->absPosX;
+            xUpperLim = currentlyDragging->next == nullptr ? XYXY[2] : currentlyDragging->next->absPosX;
 
             x = (x > xUpperLim) ? xUpperLim : (x < xLowerLim) ? xLowerLim : x;
             y = (y > XYXY[3]) ? XYXY[3] : (y < XYXY[1]) ? XYXY[1] : y;
@@ -542,7 +556,7 @@ class ShapeEditor{
         // limit input to one
         input = (input > 1) ? 1 : input;
 
-        ShapePoint *point = shapePoints.next;
+        ShapePoint *point = shapePoints->next;
 
         while(point->posXMod < input){
             point = point->next;

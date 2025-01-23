@@ -189,7 +189,6 @@ static void PluginPaintRectangle(MyPlugin *plugin, uint32_t *bits, uint32_t l, u
 
 static void PluginPaint(MyPlugin *plugin, uint32_t *bits) {
 	PluginPaintRectangle(plugin, bits, 0, GUI_WIDTH, 0, GUI_HEIGHT, 0xC0C0C0, 0xC0C0C0);
-
 	plugin->shapeEditor1.drawGraph(bits);
 	plugin->shapeEditor2.drawGraph(bits);
 	for (Envelope envelope : plugin->envelopes){
@@ -487,7 +486,7 @@ static const clap_plugin_t pluginClass = {
 		plugin->lastBufferLevelR = 0;
 		plugin->distortionMode = upDown;
 		plugin->envelopes = {Envelope(envelopeSize)};
-		// plugin->envelopes.at(0).addControlledParameter(&plugin->shapeEditor1.pointStorage, 0, 1, modCurveCenterY);
+		// plugin->envelopes.at(0).addControlledParameter(plugin->shapeEditor1.shapePoints->next, 0, 1, modCurveCenterY);
 
 		MutexInitialise(plugin->syncParameters);
 
