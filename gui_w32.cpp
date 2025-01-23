@@ -62,7 +62,7 @@ LRESULT CALLBACK GUIWindowProcedure(HWND window, UINT message, WPARAM wParam, LP
 		}
 		GUIPaint(plugin, true);
 	} else if (message == WM_COMMAND){
-		plugin->shapeEditor1.processMenuSelection(wParam);
+		// plugin->shapeEditor1.processMenuSelection(wParam);
 		GUIPaint(plugin, true);
 	}
 	else if (message == WM_LBUTTONUP) {

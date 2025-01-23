@@ -5,8 +5,10 @@
 #include <math.h>
 #include <fstream>
 #include <iostream>
+#include <vector>
 #include "clap/clap.h"
 #include "config.h"
+#include "GUI_utils/shapeEditor.cpp"
 
 enum distortionMode {
 	upDown,
@@ -25,34 +27,6 @@ void logToFile(const std::string& message) {
     }
 }
 
-// template <class T>
-// struct Array {
-// 	T *array;
-// 	size_t length, allocated;
-
-// 	void Insert(T newItem, uintptr_t index) {
-// 		if (length + 1 > allocated) {
-// 			allocated *= 2;
-// 			if (length + 1 > allocated) allocated = length + 1;
-// 			array = (T *) realloc(array, allocated * sizeof(T));
-// 		}
-
-// 		length++;
-// 		memmove(array + index + 1, array + index, (length - index - 1) * sizeof(T));
-// 		array[index] = newItem;
-// 	}
-
-// 	void Delete(uintptr_t index) { 
-// 		memmove(array + index, array + index + 1, (length - index - 1) * sizeof(T)); 
-// 		length--;
-// 	}
-
-// 	void Add(T item) { Insert(item, length); }
-// 	void Free() { free(array); array = nullptr; length = allocated = 0; }
-// 	int Length() { return length; }
-// 	T &operator[](uintptr_t index) { assert(index < length); return array[index]; }
-// };
-
 #ifdef _WIN32
 #include <windows.h>
 typedef HANDLE Mutex;
@@ -70,7 +44,7 @@ typedef pthread_mutex_t Mutex;
 #endif
 
 // TODO make makefile to compile this seperately and include only header.
-#include "GUI_utils/shapeEditor.cpp"
+// #include "GUI_utils/shapeEditor.cpp"
 
 struct MyPlugin {
 	clap_plugin_t plugin;
@@ -359,23 +333,23 @@ static const clap_plugin_params_t extensionParams = {
 	},
 };
 
-static const clap_plugin_state_t extensionState = {
-	.save = [] (const clap_plugin_t *_plugin, const clap_ostream_t *stream) -> bool {
-		MyPlugin *plugin = (MyPlugin *) _plugin->plugin_data;
-		// PluginSyncAudioToMain(plugin);
-		// return sizeof(float) * P_COUNT == stream->write(stream, plugin->mainParameters, sizeof(float) * P_COUNT);
-	},
+// static const clap_plugin_state_t extensionState = {
+// 	.save = [] (const clap_plugin_t *_plugin, const clap_ostream_t *stream) -> bool {
+// 		MyPlugin *plugin = (MyPlugin *) _plugin->plugin_data;
+// 		// PluginSyncAudioToMain(plugin);
+// 		// return sizeof(float) * P_COUNT == stream->write(stream, plugin->mainParameters, sizeof(float) * P_COUNT);
+// 	},
 
-	.load = [] (const clap_plugin_t *_plugin, const clap_istream_t *stream) -> bool {
-		MyPlugin *plugin = (MyPlugin *) _plugin->plugin_data;
-		MutexAcquire(plugin->syncParameters);
-		// bool success = sizeof(float) * P_COUNT == stream->read(stream, plugin->mainParameters, sizeof(float) * P_COUNT);
-		// bool success = sizeof(float) * plugin->mainParameters.size() == stream->read(stream, plugin->mainParameters.data(), sizeof(float) * plugin->mainParameters.size());
-		// for (uint32_t i = 0; i < P_COUNT; i++) plugin->mainChanged[i] = true;
-		// MutexRelease(plugin->syncParameters);
-		// return success;
-	},
-};
+// 	.load = [] (const clap_plugin_t *_plugin, const clap_istream_t *stream) -> bool {
+// 		MyPlugin *plugin = (MyPlugin *) _plugin->plugin_data;
+// 		MutexAcquire(plugin->syncParameters);
+// 		// bool success = sizeof(float) * P_COUNT == stream->read(stream, plugin->mainParameters, sizeof(float) * P_COUNT);
+// 		// bool success = sizeof(float) * plugin->mainParameters.size() == stream->read(stream, plugin->mainParameters.data(), sizeof(float) * plugin->mainParameters.size());
+// 		// for (uint32_t i = 0; i < P_COUNT; i++) plugin->mainChanged[i] = true;
+// 		// MutexRelease(plugin->syncParameters);
+// 		// return success;
+// 	},
+// };
 
 #if defined(_WIN32)
 #include "gui_w32.cpp"
@@ -570,7 +544,7 @@ static const clap_plugin_t pluginClass = {
 		if (0 == strcmp(id, CLAP_EXT_GUI             )) return &extensionGUI;
 		if (0 == strcmp(id, CLAP_EXT_POSIX_FD_SUPPORT)) return &extensionPOSIXFDSupport;
 		if (0 == strcmp(id, CLAP_EXT_TIMER_SUPPORT   )) return &extensionTimerSupport;
-		if (0 == strcmp(id, CLAP_EXT_STATE           )) return &extensionState;
+		// if (0 == strcmp(id, CLAP_EXT_STATE           )) return &extensionState;
 		return nullptr;
 	},
 
