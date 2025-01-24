@@ -190,15 +190,6 @@ class ShapePoint{
     }
 };
 
-void logad(const std::string comment, const ShapePoint *address){
-	std::ofstream logFile("C:/Users/mm/Desktop/log.txt", std::ios_base::app);
-    if (logFile.is_open()) {
-        logFile << comment << address << std::endl;
-    } else {
-        std::cerr << "Failed to open log file!" << std::endl;
-    }
-}
-
 void deleteShapePoint(ShapePoint *point){
     if (point->previous == nullptr){
         throw std::invalid_argument("Tried to delete the first shapePoint which can not be deleted.");
@@ -233,16 +224,10 @@ void insertPointBefore(ShapePoint *next, ShapePoint *point){
 
 float ShapeEditor::requiredSquaredDistance = 200;
 
-ShapeEditor::ShapeEditor(uint16_t position[4], std::vector<ShapePoint> points){
-    if (points.empty()){
-        // if no points are given, use the default points which diagonally span across the whole Graph.
-        shapePoints = {ShapePoint(1., 1., position, nullptr)};
-    }
-    else{
-        shapePoints = points;
-    }
-
-    pointStorage = &shapePoints.at(0);
+ShapeEditor::ShapeEditor(uint16_t position[4]){
+    shapePoints = new ShapePoint(0., 0., position);
+    shapePoints->next = new ShapePoint(1., 1., position);
+    shapePoints->next->previous = shapePoints;
 
     for (int i=0; i<4; i++){
         XYXY[i] = position[i];
@@ -417,7 +402,7 @@ void ShapeEditor::processMouseRelease(){
 }
 
 /* TODO does it make sense to have a single function that transforms values according to the shape of all curve segments? This function could be used to transform x-pixel coordinates to get the y value and also to actually shape the input sound.*/
-void ShapeEditor::drawConnection(uint32_t *bits, ShapePoint *point, uint32_t color = 0x000000, float thickness = 5){
+void ShapeEditor::drawConnection(uint32_t *bits, ShapePoint *point, uint32_t color, float thickness){
 
     int xMin = point->previous->absPosXMod;
     int xMax = point->absPosXMod;
@@ -490,11 +475,13 @@ void ShapeEditor::processMouseDrag(int32_t x, int32_t y){
     }
 }
 
+// Returns the value of the curve defined by this shapeEditor at the x position input. Input is clamped to [0, 1].
 float ShapeEditor::forward(float input){
     // Catching this case is important because due to quantization error, the function might return non-zero values for steep curves, which would result in an DC offset even when no input audio is given.
     if (input == 0){
         return 0;
     }
+    input = input < 0 ? 0 : input > 1 ? 1 : input;
 
     float out;
     // absolute value of input is processed, store information to flip sign after computing if necessary
@@ -534,84 +521,67 @@ float ShapeEditor::forward(float input){
 }
 
 
-/*Class that stores all information necessary to modulate a parameter, i.e. pointers to the affected shape points, amount of modulation and modulation mode.
-Every modulatable parameter has a counterpart called [parameter_name_here]Mod. This value is the "active" value of the parameter and is used for displaying on GUI and rendering audio. It is recalculated at every audio sample. The raw parameter value is the "default" to which the modulation offset is added.
+ModulatedParameter::ModulatedParameter(ShapePoint *inPoint, float inAmount, modulationMode inMode){
+    point = inPoint;
+    amount = inAmount;
+    mode = inMode;
+}
 
-The "modulation" im referring to here is conceptually a modulation, but not technically speaking. These parameters are NOT reported to the host as modulatable or automatable parameter. The modulation is exclusively handled inside the plugin.*/
-class ModulatedParameter{
-    // Points to memory address of the first element of vector, which is updated everytime the memory might be reallocated. Allows for correct referencing of the modulated point without having to update this value for each instance
-    /*This is my first time using a pointer to a pointer. Here is my little essay on why it is reasonable to do this here:
-    I want to keep track of an element (ShapePoint) in a dynamic structure (vector). To prevent my pointers from dangling, i have to somehow update them every time the vector is reallocated. I could store the pointers to the ShapePoint instances here and update them every time this happens, which would mean this updating step would happen for every ModulatedParameter instance. By using a pointer to a pointer to the first element in vector, i can do all this by only updating a single value: The pointer pointStorage points to. I still have to loop through all ModulatedParameters in order to correctly update the index though, which kind of makes this obsolete but i wont let that ruin my newly awakened enthusiasm. The double pointer will stay for now.*/
-    ShapePoint *point;
+void ModulatedParameter::modulate(float modOffset){
+    switch (mode){
+        case modCurveCenterY:
+        {
+            // TODO this works but it is not clear whats happening at all
+            float yL = point->previous->absPosY;
+            float yR = point->absPosY;
 
-    float amount;
-    modulationMode mode;
+            int32_t yMin = (yL > yR) ? yR : yL;
+            int32_t yMax = (yL < yR) ? yR : yL;
 
-    public:
-    ModulatedParameter(ShapePoint *inPoint, float inAmount, modulationMode inMode){
-        point = inPoint;
-        amount = inAmount;
-        mode = inMode;
-    }
+            float newY = point->curveCenterPosYMod + amount * modOffset;
+            newY = (newY >= 1) ? 1 - (float)1/(yMax - yMin) : (newY <= 0) ? (float)1/(yMax - yMin) : newY;
 
-    void modulate(float modOffset){
-        switch (mode){
-            case modCurveCenterY:
-            {
-                // TODO this works but it is not clear whats happening at all
-                float yL = point->previous->absPosY;
-                float yR = point->absPosY;
-
-                int32_t yMin = (yL > yR) ? yR : yL;
-                int32_t yMax = (yL < yR) ? yR : yL;
-
-                float newY = point->curveCenterPosYMod + amount * modOffset;
-                newY = (newY >= 1) ? 1 - (float)1/(yMax - yMin) : (newY <= 0) ? (float)1/(yMax - yMin) : newY;
-
-                point->curveCenterPosYMod = newY;
-                point->curveCenterAbsPosYMod = yL + newY * (yL - yR);
-                point->power = getPowerFromYCenter(newY);
-                point->updateCurveCenter();
-                break;
-            }
-            case modPosY:
-            {
-                point->modulatePositionRelative(point->posXMod, point->posYMod + amount * modOffset);
-                point->updateCurveCenter();
-                break;
-            }
+            point->curveCenterPosYMod = newY;
+            point->curveCenterAbsPosYMod = yL + newY * (yL - yR);
+            point->power = getPowerFromYCenter(newY);
+            point->updateCurveCenter();
+            break;
+        }
+        case modPosY:
+        {
+            point->modulatePositionRelative(point->posXMod, point->posYMod + amount * modOffset);
+            point->updateCurveCenter();
+            break;
         }
     }
+}
 
-    // sets all modulated values to their default unmodulated value
-    void reset(){
-        switch (mode){
-            case modCurveCenterY:
-            {
-                float yL = point->previous->absPosY;
-                float yR = point->absPosY;
+// sets all modulated values to their default unmodulated value
+void ModulatedParameter::reset(){
+    switch (mode){
+        case modCurveCenterY:
+        {
+            float yL = point->previous->absPosY;
+            float yR = point->absPosY;
 
-                point->curveCenterPosYMod = point->curveCenterPosY;
-                point->curveCenterAbsPosYMod = yL + point->curveCenterPosY * (yL - yR);
-                point->power = getPowerFromYCenter(point->curveCenterPosY);
-                point->updateCurveCenter();
-                break;
-            }
-            case modPosY:
-            {
-                point->modulatePositionRelative(point->posX, point->posY);
-                point->updateCurveCenter();
-                break;
-            }
+            point->curveCenterPosYMod = point->curveCenterPosY;
+            point->curveCenterAbsPosYMod = yL + point->curveCenterPosY * (yL - yR);
+            point->power = getPowerFromYCenter(point->curveCenterPosY);
+            point->updateCurveCenter();
+            break;
+        }
+        case modPosY:
+        {
+            point->modulatePositionRelative(point->posX, point->posY);
+            point->updateCurveCenter();
+            break;
         }
     }
-};
+}
 
-/* Envelopes inherit the graphical editing capabilities from ShapeEditor but include methods to add, remove and update
-controlled parameters */
 Envelope::Envelope(uint16_t size[4]) : ShapeEditor(size) {};
 
-void Envelope::addControlledParameter(ShapePoint **point, int index, float amount, modulationMode mode){
+void Envelope::addControlledParameter(ShapePoint *point, int index, float amount, modulationMode mode){
     modulatedParameters.push_back(ModulatedParameter(point, amount, mode));
 }
 
@@ -642,12 +612,3 @@ void Envelope::processRightClickMod(int32_t x, int32_t y){
     }
 
 }
-
-void Envelope::updateIndexAfterPointAdded(int addedIndex){
-    for (ModulatedParameter *parameter = &modulatedParameters.at(0); parameter <= &modulatedParameters.back(); parameter++){
-        if (parameter->index >= addedIndex){
-            parameter->index ++;
-        }
-    }
-}
-

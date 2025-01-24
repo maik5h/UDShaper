@@ -8,7 +8,7 @@
 #include <vector>
 #include "clap/clap.h"
 #include "config.h"
-#include "GUI_utils/shapeEditor.cpp"
+#include "GUI_utils/shapeEditor.h"
 
 enum distortionMode {
 	upDown,

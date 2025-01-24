@@ -21,7 +21,7 @@ Envelopes are shapeEditors that can be used to modulate certain parameters.
 #include <windows.h>
 #include "../config.h"
 
-// Function each curve segment between two points can follow
+// Shape for interpolating between two points
 enum Shapes{
     shapePower, // curve follows shape of f(x) = (x < 0.5) ? x^power : 1-(1-x)^power, for 0 <= x <= 1, streched to the corresponding x and y intervals
     shapeSine,
@@ -56,37 +56,49 @@ class ShapeEditor{
 
     public:
         uint16_t XYXY[4];
-        std::vector<ShapePoint> shapePoints; // All points of this editor are stored in a vector, they must always be sorted by ther absolute x-position.
-        ShapePoint *pointStorage; // The memory address of the vector memory is stored here and updated every time an element is added or removed, so the correct memory block can always be accessed from outside the object through this value.
 
+        ShapePoint *shapePoints;
 
-        ShapeEditor(uint16_t position[4], std::vector<ShapePoint> points = {});
+        ShapeEditor(uint16_t position[4]);
         void drawGraph(uint32_t *bits);
-        std::tuple<float, int> getClosestPoint(uint32_t x, uint32_t y);
+        std::tuple<float, ShapePoint*> getClosestPoint(uint32_t x, uint32_t y);
         void processMousePress(int32_t x, int32_t y);
-        int processDoubleClick(uint32_t x, uint32_t y);
+        ShapePoint* processDoubleClick(uint32_t x, uint32_t y);
         ShapePoint* processRightClick(uint32_t x, uint32_t y);
         void processMenuSelection(WPARAM wParam);
         void processMouseRelease();
-        void drawConnection(uint32_t *bits, int index, uint32_t color = 0x000000, float thickness = 5);
+        void drawConnection(uint32_t *bits, ShapePoint *point, uint32_t color = 0x000000, float thickness = 5);
         void processMouseDrag(int32_t x, int32_t y);
         float forward(float input);
 };
 
-class ModulatedParameter;
+/*Class that stores all information necessary to modulate a parameter, i.e. pointers to the affected shape points, amount of modulation and modulation mode.
+Every modulatable parameter has a counterpart called [parameter_name_here]Mod. This value is the "active" value of the parameter and is used for displaying on GUI and rendering audio. It is recalculated at every audio sample. The raw parameter value is the "default" to which the modulation offset is added.
 
+The "modulation" im referring to here is conceptually a modulation, but not technically speaking. These parameters are NOT reported to the host as modulatable or automatable parameter. The modulation is exclusively handled inside the plugin.*/
+class ModulatedParameter{
+    private:
+    ShapePoint *point; // The point which is modulated
+    float amount;
+    modulationMode mode; // The mode in which the point is modulated
+
+    public:
+    ModulatedParameter(ShapePoint *inPoint, float inAmount, modulationMode inMode);
+    void modulate(float modOffset);
+    void reset();
+};
+
+// Envelopes inherit the graphical editing capabilities from ShapeEditor but include methods to add, remove and update controlled parameters
 class Envelope : public ShapeEditor{
     private:
         std::vector<ModulatedParameter> modulatedParameters;
 
     public:
         Envelope(uint16_t size[4]);
-        void addControlledParameter(ShapePoint **point, int index, float amount, modulationMode mode);
+        void addControlledParameter(ShapePoint *point, int index, float amount, modulationMode mode);
         void removeControlledParameter(int index);
         void updateModulatedParameters(double beatPosition);
         void resetModulatedParameters();
         void processMousePressMod(int32_t x, int32_t y);
         void processRightClickMod(int32_t x, int32_t y);
-        void updateIndexAfterPointAdded(int addedIndex);
-
 };
