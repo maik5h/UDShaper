@@ -371,14 +371,16 @@ ShapePoint* ShapeEditor::processDoubleClick(uint32_t x, uint32_t y){
     return nullptr;
 }
 
-ShapePoint* ShapeEditor::processRightClick(uint32_t x, uint32_t y){
+// Process right click and return true if a shapePoint was clicked.
+bool ShapeEditor::processRightClick(uint32_t x, uint32_t y){
     float closestDistance;
     ShapePoint *closestPoint;
     std::tie(closestDistance, closestPoint) = getClosestPoint(x, y);
 
     // if rightclick on point, show shape menu to change function of curve segment
     if (closestDistance <= requiredSquaredDistance && currentDraggingMode == position){
-        return closestPoint;
+        rightClicked = closestPoint;
+        return true;
     }
     // if right click on curve center, reset power
     else if (closestDistance <= requiredSquaredDistance && currentDraggingMode == curveCenter){
@@ -390,10 +392,14 @@ ShapePoint* ShapeEditor::processRightClick(uint32_t x, uint32_t y){
         }
         closestPoint->updateCurveCenter();
     }
-    return nullptr;
+    return false;
 }
 
 void ShapeEditor::processMenuSelection(WPARAM wParam){
+    if (rightClicked == nullptr){
+        return;
+    }
+
     switch (wParam) {
         case shapePower:
             rightClicked->mode = shapePower;
@@ -406,6 +412,7 @@ void ShapeEditor::processMenuSelection(WPARAM wParam){
             break;
     }
     rightClicked->updateCurveCenter();
+    rightClicked = nullptr;
 }
 
 void ShapeEditor::processMouseRelease(){

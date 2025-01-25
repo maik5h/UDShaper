@@ -163,14 +163,14 @@ static void PluginPaintRectangle(MyPlugin *plugin, uint32_t *bits, uint32_t l, u
 }
 
 static void PluginPaint(MyPlugin *plugin, uint32_t *bits) {
-	PluginPaintRectangle(plugin, bits, 0, GUI_WIDTH, 0, GUI_HEIGHT, colorBackground, colorBackground);
+	// PluginPaintRectangle(plugin, bits, 0, GUI_WIDTH, 0, GUI_HEIGHT, colorBackground, colorBackground);
 
-	draw3DFrame(bits, plugin->shapeEditor1.XYXYFull, colorEditorBackground);
-	draw3DFrame(bits, plugin->shapeEditor2.XYXYFull, colorEditorBackground);
+	// draw3DFrame(bits, plugin->shapeEditor1.XYXYFull, colorEditorBackground);
+	// draw3DFrame(bits, plugin->shapeEditor2.XYXYFull, colorEditorBackground);
 
-	uint16_t outerFrameOffset = 28;
-	uint16_t outerFrame[4] = {plugin->shapeEditor1.XYXYFull[0] - outerFrameOffset, plugin->shapeEditor1.XYXYFull[1] - outerFrameOffset, plugin->shapeEditor2.XYXYFull[2] + outerFrameOffset, plugin->shapeEditor2.XYXYFull[3] + outerFrameOffset};
-	drawFrame(bits, outerFrame, 5, 0x000000, 0.45);
+	// uint16_t outerFrameOffset = 28;
+	// uint16_t outerFrame[4] = {plugin->shapeEditor1.XYXYFull[0] - outerFrameOffset, plugin->shapeEditor1.XYXYFull[1] - outerFrameOffset, plugin->shapeEditor2.XYXYFull[2] + outerFrameOffset, plugin->shapeEditor2.XYXYFull[3] + outerFrameOffset};
+	// drawFrame(bits, outerFrame, 5, 0x000000, 0.45);
 
 	plugin->shapeEditor1.drawGraph(bits);
 	plugin->shapeEditor2.drawGraph(bits);

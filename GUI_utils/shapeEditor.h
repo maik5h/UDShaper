@@ -65,7 +65,7 @@ class ShapeEditor{
         std::tuple<float, ShapePoint*> getClosestPoint(uint32_t x, uint32_t y);
         void processMousePress(int32_t x, int32_t y);
         ShapePoint* processDoubleClick(uint32_t x, uint32_t y);
-        ShapePoint* processRightClick(uint32_t x, uint32_t y);
+        bool processRightClick(uint32_t x, uint32_t y);
         void processMenuSelection(WPARAM wParam);
         void processMouseRelease();
         void drawConnection(uint32_t *bits, ShapePoint *point, uint32_t color = 0x000000, float thickness = 5);
