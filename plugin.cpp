@@ -9,6 +9,7 @@
 #include "clap/clap.h"
 #include "config.h"
 #include "GUI_utils/shapeEditor.h"
+#include "GUI_utils/assets.h"
 
 enum distortionMode {
 	upDown,
@@ -162,7 +163,15 @@ static void PluginPaintRectangle(MyPlugin *plugin, uint32_t *bits, uint32_t l, u
 }
 
 static void PluginPaint(MyPlugin *plugin, uint32_t *bits) {
-	PluginPaintRectangle(plugin, bits, 0, GUI_WIDTH, 0, GUI_HEIGHT, 0xC0C0C0, 0xC0C0C0);
+	PluginPaintRectangle(plugin, bits, 0, GUI_WIDTH, 0, GUI_HEIGHT, colorBackground, colorBackground);
+
+	draw3DFrame(bits, plugin->shapeEditor1.XYXYFull, colorEditorBackground);
+	draw3DFrame(bits, plugin->shapeEditor2.XYXYFull, colorEditorBackground);
+
+	uint16_t outerFrameOffset = 28;
+	uint16_t outerFrame[4] = {plugin->shapeEditor1.XYXYFull[0] - outerFrameOffset, plugin->shapeEditor1.XYXYFull[1] - outerFrameOffset, plugin->shapeEditor2.XYXYFull[2] + outerFrameOffset, plugin->shapeEditor2.XYXYFull[3] + outerFrameOffset};
+	drawFrame(bits, outerFrame, 5, 0x000000, 0.45);
+
 	plugin->shapeEditor1.drawGraph(bits);
 	plugin->shapeEditor2.drawGraph(bits);
 	for (Envelope envelope : plugin->envelopes){
@@ -452,7 +461,7 @@ static const clap_plugin_t pluginClass = {
 		plugin->hostParams = (const clap_host_params_t *) plugin->host->get_extension(plugin->host, CLAP_EXT_PARAMS);
 		
 		uint16_t editorSize1[4] = {50, 50, 450, 650};
-		uint16_t editorSize2[4] = {500, 50, 900, 650};
+		uint16_t editorSize2[4] = {495, 50, 895, 650};
 		uint16_t envelopeSize[4] = {950, 50, 1750, 350};
 		plugin->shapeEditor1 = ShapeEditor(editorSize1);
 		plugin->shapeEditor2 = ShapeEditor(editorSize2);
@@ -460,6 +469,7 @@ static const clap_plugin_t pluginClass = {
 		plugin->lastBufferLevelR = 0;
 		plugin->distortionMode = upDown;
 		plugin->envelopes = {Envelope(envelopeSize)};
+
 		// plugin->envelopes.at(0).addControlledParameter(plugin->shapeEditor1.shapePoints->next, 0, 1, modCurveCenterY);
 
 		MutexInitialise(plugin->syncParameters);

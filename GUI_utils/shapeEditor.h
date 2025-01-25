@@ -55,7 +55,8 @@ class ShapeEditor{
         ShapePoint *rightClicked = nullptr;
 
     public:
-        uint16_t XYXY[4];
+        uint16_t XYXY[4]; // Box coordinates of the area where the shapePoints are defined, in XYXY notation.
+        uint16_t XYXYFull[4]; // Box coordinates of the XYXY field extended by a margin
 
         ShapePoint *shapePoints;
 

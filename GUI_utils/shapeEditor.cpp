@@ -1,4 +1,5 @@
 #include "shapeEditor.h"
+#include "assets.h"
 
 // Draws a point of color and size at position x, y onto bits.
 void drawPoint(uint32_t *bits, float x, float y, uint32_t color = 0x000000, float size = 5){
@@ -225,33 +226,44 @@ void insertPointBefore(ShapePoint *next, ShapePoint *point){
 float ShapeEditor::requiredSquaredDistance = 200;
 
 ShapeEditor::ShapeEditor(uint16_t position[4]){
-    shapePoints = new ShapePoint(0., 0., position);
-    shapePoints->next = new ShapePoint(1., 1., position);
-    shapePoints->next->previous = shapePoints;
+
+    uint16_t margin = 16;
 
     for (int i=0; i<4; i++){
-        XYXY[i] = position[i];
+        XYXYFull[i] = position[i];
     }
+
+    XYXY[0] = position[0] + margin;
+    XYXY[1] = position[1] + margin;
+    XYXY[2] = position[2] - margin;
+    XYXY[3] = position[3] - margin;
+
+    shapePoints = new ShapePoint(0., 0., XYXY);
+    shapePoints->next = new ShapePoint(1., 1., XYXY);
+    shapePoints->next->previous = shapePoints;
 }
 
 void ShapeEditor::drawGraph(uint32_t *bits){
     // set whole area to background color
-    for (uint32_t i = XYXY[0]; i < XYXY[2]; i++) {
-        for (uint32_t j = XYXY[1]; j < XYXY[3]; j++) {
-            bits[i + j * GUI_WIDTH] = colorBackground;
+    for (uint32_t i = XYXYFull[0]; i < XYXYFull[2]; i++) {
+        for (uint32_t j = XYXYFull[1]; j < XYXYFull[3]; j++) {
+            bits[i + j * GUI_WIDTH] = colorEditorBackground;
         }
     }
 
-        int count = 0;
-        // first draw all connections between points, then points on top
-        for (ShapePoint *point = shapePoints->next; point != nullptr; point = point->next){
-            drawConnection(bits, point, colorCurve);
-        }
-        for (ShapePoint *point = shapePoints->next; point != nullptr; point = point->next){
-            drawPoint(bits, point->absPosXMod, point->absPosYMod, colorCurve, 20);
-            drawPoint(bits, point->curveCenterAbsPosX, point->curveCenterAbsPosY, colorCurve, 16);
-        }
+    // drawText(hwnd, 0, 0, LPCSTR("HELLO"), 0xFFFFFF);
 
+    drawGrid(bits, XYXY, 3, 2, 0xFFFFFF, alphaGrid);
+    drawFrame(bits, XYXY, 3, 0xFFFFFF);
+
+    // first draw all connections between points, then points on top
+    for (ShapePoint *point = shapePoints->next; point != nullptr; point = point->next){
+        drawConnection(bits, point, colorCurve);
+    }
+    for (ShapePoint *point = shapePoints->next; point != nullptr; point = point->next){
+        drawPoint(bits, point->absPosXMod, point->absPosYMod, colorCurve, 20);
+        drawPoint(bits, point->curveCenterAbsPosX, point->curveCenterAbsPosY, colorCurve, 16);
+    }
 }
 
 std::tuple<float, ShapePoint*> ShapeEditor::getClosestPoint(uint32_t x, uint32_t y){

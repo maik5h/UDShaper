@@ -4,8 +4,11 @@ The biggest and most noticeable TODOs of this project:
 
 - shapeSine is very buggy. Also add shapeArcsine.
 
-- Make makefile to compile files separately and link them, only include header into plugin.cpp.
-
 - Audio processing is automatically parallelized by CLAP, which makes some of the planned functionality impossible. 1. deciding whether the current sample is higher of lower than the previous one is not possible for the first sample in every batch. I "solved" that by comparing the first sample with the second one, which is a very good approximation but not perfectly accurate. 2. I want to normalize the distortion segment wise to each local maximum of the wave but again, the nearest local maximum might be outside of the current batch. Is there a way to get the whole buffer as list while still having the parallelization working?
 
 - Let user add, edit and remove modulation links.
+
+
+No functionality, only convenience:
+
+- When editing curveCenter, the center should not be set to the mouse position, but rather move slower the further from the center it is, to allow for more control. Also detach the exact position on the screen from the power value to allow for finer steps in power.
