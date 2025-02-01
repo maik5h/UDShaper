@@ -15,7 +15,7 @@ static void GUIPaint(MyPlugin *plugin, bool internal) {
 	RedrawWindow(plugin->gui->window, 0, 0, RDW_INVALIDATE);
 }
 
-void ShowShapeMenu(HWND hwnd, int xPos, int yPos) {
+void showShapeMenu(HWND hwnd, int xPos, int yPos) {
     HMENU hMenu = CreatePopupMenu();
 
     // title and separator
@@ -25,6 +25,17 @@ void ShowShapeMenu(HWND hwnd, int xPos, int yPos) {
     AppendMenu(hMenu, MF_STRING, shapePower, "Power");
     AppendMenu(hMenu, MF_STRING, shapeSine, "Sine");
     AppendMenu(hMenu, MF_STRING, shapeBezier, "Bezier");
+
+    TrackPopupMenu(hMenu, TPM_LEFTALIGN | TPM_TOPALIGN, xPos, yPos, 0, hwnd, NULL);
+
+    DestroyMenu(hMenu);
+}
+
+void showLinkKnobMenu(HWND hwnd, int xPos, int yPos) {
+    HMENU hMenu = CreatePopupMenu();
+
+    AppendMenu(hMenu, MF_STRING, removeLink, "Remove Link");
+    // AppendMenu(hMenu, MF_STRING, shapeSine, "Set value");
 
     TrackPopupMenu(hMenu, TPM_LEFTALIGN | TPM_TOPALIGN, xPos, yPos, 0, hwnd, NULL);
 
@@ -62,29 +73,32 @@ LRESULT CALLBACK GUIWindowProcedure(HWND window, UINT message, WPARAM wParam, LP
 		uint32_t y = GET_Y_LPARAM(lParam);
 
 		// check all ShapeEditors and Envelopes for rightclicked points
-		bool clickedOnPoint = plugin->shapeEditor1.processRightClick(x, y);
-		clickedOnPoint = clickedOnPoint | plugin->shapeEditor2.processRightClick(x, y);
-		for (Envelope env : plugin->envelopes){
-			clickedOnPoint = clickedOnPoint | env.processRightClick(x, y);
-		}
+		contextMenuType menuType = plugin->shapeEditor1.processRightClick(x, y);
+		menuType = menuType == menuNone ? plugin->shapeEditor2.processRightClick(x, y) : menuType;
+
+		menuType = menuType == menuNone ? plugin->envelopes.processRightClick(x, y) : menuType;
 		
 		// If any of the processRightClick functions returned true, open the context menu for points. Information about which point was rightclicked is handled inside the ShapeEditor and Envelope instances.
-		if (clickedOnPoint){
+		if (menuType != menuNone){
 			RECT *rect = new RECT(); // rect to store window coordinates
   			GetWindowRect(window, rect);
 			// Mouse coordinates are relative to window, so add window coordinates stored in rect
-			ShowShapeMenu(window, rect->left + GET_X_LPARAM(lParam), rect->top + GET_Y_LPARAM(lParam));
+			if (menuType == menuShapePoint){
+				showShapeMenu(window, rect->left + GET_X_LPARAM(lParam), rect->top + GET_Y_LPARAM(lParam));
+			}
+			else if (menuType == menuLinkKnob){
+				showLinkKnobMenu(window, rect->left + GET_X_LPARAM(lParam), rect->top + GET_Y_LPARAM(lParam));
+			}
 			delete rect;
 			rect = nullptr;
 		}
 		GUIPaint(plugin, true);
 	} else if (message == WM_COMMAND){
-		// process the menu selection for all ShapeEditor and Envelope instances, does only affect the point which has been rightclicked.
+		// Process the menu selection for all ShapeEditor and Envelope instances, does only affect the point which has been rightclicked.
 		plugin->shapeEditor1.processMenuSelection(wParam);
 		plugin->shapeEditor2.processMenuSelection(wParam);
-		for (Envelope env : plugin->envelopes){
-			env.processMenuSelection(wParam);
-		}
+		plugin->envelopes.processMenuSelection(wParam);
+
 		GUIPaint(plugin, true);
 	}
 	else if (message == WM_LBUTTONUP) {
@@ -118,13 +132,15 @@ static void GUICreate(MyPlugin *plugin) {
 	SetWindowLongPtr(plugin->gui->window, 0, (LONG_PTR) plugin);
 
 	// Set up elements that do not change over time. They will not be rerendered every frame.
-	PluginPaintRectangle(plugin, plugin->gui->bits, 0, GUI_WIDTH, 0, GUI_HEIGHT, colorBackground, colorBackground);
+	uint32_t pluginSize[4] = {0, 0, GUI_WIDTH, GUI_HEIGHT};
+	fillRectangle(plugin->gui->bits, pluginSize, colorBackground);
 
 	draw3DFrame(plugin->gui->bits, plugin->shapeEditor1.XYXYFull, colorEditorBackground);
 	draw3DFrame(plugin->gui->bits, plugin->shapeEditor2.XYXYFull, colorEditorBackground);
+	plugin->envelopes.setupFrames(plugin->gui->bits);
 
-	uint16_t outerFrameOffset = 28;
-	uint16_t outerFrame[4] = {plugin->shapeEditor1.XYXYFull[0] - outerFrameOffset, plugin->shapeEditor1.XYXYFull[1] - outerFrameOffset, plugin->shapeEditor2.XYXYFull[2] + outerFrameOffset, plugin->shapeEditor2.XYXYFull[3] + outerFrameOffset};
+	uint32_t outerFrameOffset = 28;
+	uint32_t outerFrame[4] = {plugin->shapeEditor1.XYXYFull[0] - outerFrameOffset, plugin->shapeEditor1.XYXYFull[1] - outerFrameOffset, plugin->shapeEditor2.XYXYFull[2] + outerFrameOffset, plugin->shapeEditor2.XYXYFull[3] + outerFrameOffset};
 	drawFrame(plugin->gui->bits, outerFrame, 5, 0x000000, 0.45);
 
 	PluginPaint(plugin, plugin->gui->bits);
