@@ -22,3 +22,5 @@ constexpr float REQUIRED_SQUARED_DISTANCE = 200;
 
 // Time in ms until GUI is rerendered.
 constexpr int GUI_REFRESH_INTERVAL = 15;
+
+constexpr int MAX_NUMBER_ENVELOPES = 10; // The maxmium number of Envelopes. Can not be dynamic or else ModulatedParameter.modulatingEnvelopes pointers would dangle after reallocation.

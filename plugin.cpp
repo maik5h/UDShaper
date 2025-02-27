@@ -6,10 +6,19 @@
 #include <fstream>
 #include <iostream>
 #include <vector>
+#include <chrono>
 #include "clap/clap.h"
 #include "config.h"
 #include "GUI_utils/shapeEditor.h"
 #include "GUI_utils/assets.h"
+
+// Returns the current time since Unix epoch in milliseconds.
+long getCurrentTime(){
+	auto time = std::chrono::system_clock::now();
+	auto since_epoch = time.time_since_epoch();
+	auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(since_epoch);
+	return millis.count();
+}
 
 enum distortionMode {
 	upDown,
@@ -44,15 +53,11 @@ typedef pthread_mutex_t Mutex;
 #define MutexDestroy(mutex) pthread_mutex_destroy(&(mutex))
 #endif
 
-// TODO make makefile to compile this seperately and include only header.
-// #include "GUI_utils/shapeEditor.cpp"
-
 struct MyPlugin {
 	clap_plugin_t plugin;
 	const clap_host_t *host;
 
 	Mutex syncParameters;
-	Mutex findInflectionPoints;
 	struct GUI *gui;
 	const clap_host_posix_fd_support_t *hostPOSIXFDSupport;
 	const clap_host_timer_support_t *hostTimerSupport;
@@ -66,16 +71,20 @@ struct MyPlugin {
 	ShapeEditor shapeEditor1;
 	ShapeEditor shapeEditor2;
 
-	// std::vector<Envelope> envelopes;
 	EnvelopeManager envelopes;
 
-	float lastBufferLevelL;
-	float lastBufferLevelR;
-
 	distortionMode distortionMode;
+
+	// I could not come up waith a more elegant solution yet, to get current beat position outside of audio thread, save time at playback was started and initial beat position.
+	long startedPlaying;
+	long stoppedPlaying;
+	double initBeatPosition;
+	Mutex setPlayingStartTime;
+
+	double currentTempo;
 };
 
-static void PluginRenderAudio(MyPlugin *plugin, uint32_t start, uint32_t end, float *inputL, float *inputR, float *outputL, float *outputR, double beatPosition, double tempo) {
+static void PluginRenderAudio(MyPlugin *plugin, uint32_t start, uint32_t end, float *inputL, float *inputR, float *outputL, float *outputR, double beatPosition, double tempo) {	
 	switch (plugin->distortionMode) {
 		/* TODO Buffer is parallelized into pieces of ~200 samples. I dont know how to access all of them in
 		one place so i can not properly decide which shape to choose.
@@ -91,17 +100,11 @@ static void PluginRenderAudio(MyPlugin *plugin, uint32_t start, uint32_t end, fl
 
 			// TODO get current samplerate
 			int samplerate = 44100;
-			double sampleTimeOffset;
 
 			for (uint32_t index = start; index < end; index++) {
-				// before each modulation step, reset mod values to true default values. Modulations will add up onto this value
-				plugin->envelopes.resetLinkedParameters();
-
 				// for modulation faster than buffer rate, modulate parameters with updated beatPosition for every sample
 				// tempo is beats per minute, so tempo / 60 is beats per second. samplerate is samples per second, so tempo/60 * samplerate is beats per sample.
-				sampleTimeOffset = tempo * index / samplerate / 60;
-				// TODO this might be sped up by moving the whole modulation part to the shapeEditor::forward() method, so parameters are only modulated when needed. ForGUI rendering it would still have to be modulated, but at a much slower rate. The two processes could be split up, maybe GUI rendering can be synced to framrate of screen?
-				plugin->envelopes.modulateLinkedParameters(beatPosition, sampleTimeOffset);
+				beatPosition += tempo / samplerate / 60;
 
 				// update active shape only if value has changed so for plateaus the current shape stays active
 				if (index > 0) {
@@ -113,8 +116,8 @@ static void PluginRenderAudio(MyPlugin *plugin, uint32_t start, uint32_t end, fl
 					// }
 				}
 
-				outputL[index] = processShape1L ? plugin->shapeEditor1.forward(inputL[index]) : plugin->shapeEditor2.forward(inputL[index]);
-				outputR[index] = processShape1R ? plugin->shapeEditor1.forward(inputR[index]) : plugin->shapeEditor2.forward(inputR[index]);
+				outputL[index] = processShape1L ? plugin->shapeEditor1.forward(inputL[index], beatPosition) : plugin->shapeEditor2.forward(inputL[index], beatPosition);
+				outputR[index] = processShape1R ? plugin->shapeEditor1.forward(inputR[index], beatPosition) : plugin->shapeEditor2.forward(inputR[index], beatPosition);
 
 				previousLevelL = inputL[index];
 				previousLevelR = inputR[index];
@@ -127,8 +130,8 @@ static void PluginRenderAudio(MyPlugin *plugin, uint32_t start, uint32_t end, fl
 			float side;
 
 			for (uint32_t index = start; index < end; index++) {
-				mid = plugin->shapeEditor1.forward((inputL[index] + inputR[index])/2);
-				side = plugin->shapeEditor2.forward((inputL[index] - inputR[index])/2);
+				mid = plugin->shapeEditor1.forward((inputL[index] + inputR[index])/2, beatPosition);
+				side = plugin->shapeEditor2.forward((inputL[index] - inputR[index])/2, beatPosition);
 
 				outputL[index] = mid + side;
 				outputR[index] = mid - side;
@@ -138,30 +141,33 @@ static void PluginRenderAudio(MyPlugin *plugin, uint32_t start, uint32_t end, fl
 		case leftRight:
 		{
 			for (uint32_t index = start; index < end; index++) {
-				outputL[index] = plugin->shapeEditor1.forward(inputL[index]);
-				outputR[index] = plugin->shapeEditor2.forward(inputR[index]);
+				outputL[index] = plugin->shapeEditor1.forward(inputL[index], beatPosition);
+				outputR[index] = plugin->shapeEditor2.forward(inputR[index], beatPosition);
 			}
 			break;
 		}
 		case positiveNegative:
 		{
 			for (uint32_t index = start; index < end; index++) {
-				outputL[index] = (inputL[index] > 0) ? plugin->shapeEditor1.forward(inputL[index]) : plugin->shapeEditor2.forward(inputL[index]);
-				outputR[index] = (inputR[index] > 0) ? plugin->shapeEditor1.forward(inputR[index]) : plugin->shapeEditor2.forward(inputR[index]);
+				outputL[index] = (inputL[index] > 0) ? plugin->shapeEditor1.forward(inputL[index], beatPosition) : plugin->shapeEditor2.forward(inputL[index], beatPosition);
+				outputR[index] = (inputR[index] > 0) ? plugin->shapeEditor1.forward(inputR[index], beatPosition) : plugin->shapeEditor2.forward(inputR[index], beatPosition);
 			}
 			break;
 		}
 	}
 }
 
-static void PluginPaint(MyPlugin *plugin, uint32_t *bits) {
-	plugin->shapeEditor1.drawGraph(bits);
-	plugin->shapeEditor2.drawGraph(bits);
-	plugin->envelopes.renderGUI(bits);
+static void PluginPaint(MyPlugin *plugin, uint32_t *canvas) {
 
+	// TODO how to get beatPosition on main thread???
+	double beatPosition = 0;
+
+	plugin->shapeEditor1.drawGraph(canvas, beatPosition);
+	plugin->shapeEditor2.drawGraph(canvas, beatPosition);
+	plugin->envelopes.renderGUI(canvas);
 }
 
-static void PluginProcessMouseDrag(MyPlugin *plugin, int32_t x, int32_t y) {
+static void PluginProcessMouseDrag(MyPlugin *plugin, uint32_t x, uint32_t y) {
 	if (plugin->mouseDragging) {
 		if (plugin->hostParams && plugin->hostParams->request_flush) {
 			plugin->hostParams->request_flush(plugin->host);
@@ -169,55 +175,29 @@ static void PluginProcessMouseDrag(MyPlugin *plugin, int32_t x, int32_t y) {
 
 		plugin->shapeEditor1.processMouseDrag(x, y);
 		plugin->shapeEditor2.processMouseDrag(x, y);
-		// Envelope *envelope = &plugin->envelopes.front();
-		// while (envelope <= &plugin->envelopes.back()){
-		// 	envelope->processMouseDrag(x, y);
-		// 	envelope++;
-		// }
+
 		plugin->envelopes.processMouseDrag(x, y);
 	}
 }
 
 static void PluginProcessMousePress(MyPlugin *plugin, int32_t x, int32_t y) {
-	// if (x >= 10 && x < 40 && y >= 10 && y < 40) {
-	// 	plugin->mouseDragging = true;
-	// 	plugin->mouseDraggingParameter = P_VOLUME;
-	// 	plugin->mouseDragOriginX = x;
-	// 	plugin->mouseDragOriginY = y;
-	// 	plugin->mouseDragOriginValue = plugin->mainParameters[P_VOLUME];
-
-	// 	MutexAcquire(plugin->syncParameters);
-	// 	plugin->gestureStart[plugin->mouseDraggingParameter] = true;
-	// 	MutexRelease(plugin->syncParameters);
-
-	// 	if (plugin->hostParams && plugin->hostParams->request_flush) {
-	// 		plugin->hostParams->request_flush(plugin->host);
-	// 	}
-	// }
 
 	plugin->shapeEditor1.processMouseClick(x, y);
 	plugin->shapeEditor2.processMouseClick(x, y);
-	// Envelope *envelope = &plugin->envelopes.front();
-	// while (envelope <= &plugin->envelopes.back()){
-	// 	envelope->processMouseClick(x, y);
-	// 	envelope++;
-	// }
+
 	plugin->envelopes.processMouseClick(x, y);
 	plugin->mouseDragging = true;
 }
 
-static void PluginProcessMouseRelease(MyPlugin *plugin) {
+static contextMenuType PluginProcessMouseRelease(MyPlugin *plugin) {
+	contextMenuType menu = menuNone; // The menu to show after processing the mouse release. Is menuPointPosMod if a new modulation link was added to a point, menuNone else.
 	if (plugin->mouseDragging) {
-		MutexAcquire(plugin->syncParameters);
-		// plugin->gestureEnd[plugin->mouseDraggingParameter] = true;
-		MutexRelease(plugin->syncParameters);
 
 		// TODO i dont know what this does
 		if (plugin->hostParams && plugin->hostParams->request_flush) {
 			plugin->hostParams->request_flush(plugin->host);
 		}
 
-		// TODO this should be moved into EnvelopeManager, since reference to ShapePoint is needed. Is possible to have it here but not optimal since forward declared
 		// If it was attempted to link the active Envelope to a modulatable parameter, check if a parameter was selected successfully and add a ModulatedParameter instance to the corresponding Envelope.
 		if (plugin->envelopes.currentDraggingMode == addLink){
 			// Get the closest points for both ShapeEditors to the position the mouse was dragged to
@@ -228,16 +208,24 @@ static void PluginProcessMouseRelease(MyPlugin *plugin) {
 
 			// check if a close point was found
 			if ((closestPoint1 != nullptr) | (closestPoint2 != nullptr)){
+				ShapePoint *closest = (closestPoint1 == nullptr) ? closestPoint2 : closestPoint1;
 				// Since getClosestPoint() was called on the ShapeEditor instances, their currentDraggingMode value has been set to either position or curveCenter and can be used to find the correct parameter to modulate.
-				ShapePoint *closest = closestPoint1 == nullptr ? closestPoint2 : closestPoint1;
-				draggingMode mode = closestPoint1 == nullptr ? plugin->shapeEditor2.currentDraggingMode : plugin->shapeEditor1.currentDraggingMode;
-				// TODO: this is a quick solution to make it work but not completed.
-				modulationMode modMode = (mode == position) ? modPosY : modCurveCenterY;
+				shapeEditorDraggingMode mode = (closestPoint1 == nullptr) ? plugin->shapeEditor2.currentDraggingMode : plugin->shapeEditor1.currentDraggingMode;
+				
+				// Find the correct parameter to modulate. There are the options curveCenter, posX and posY.
+				modulationMode modMode;
+				if (mode == curveCenter) {
+					modMode = modCurveCenterY;
+				}
+				// If the point position should be modulated, show context menu to select correct direction.
+				// Exception: last point is selected, which can only be modulated in y-direction. Do not show the menu in this case and directly add the ModulatedParameter.
+				else {
+					menu = menuPointPosMod;
+				}
 
 				// Add a ModulatedParameter to the active Envelope.
-				plugin->envelopes.addLinkedParameter(closest, 1, modMode);
+				plugin->envelopes.attemptedToModulate = closest;
 			}
-		
 		}
 		plugin->envelopes.processMouseRelease();
 
@@ -246,6 +234,7 @@ static void PluginProcessMouseRelease(MyPlugin *plugin) {
 
 		plugin->mouseDragging = false;
 	}
+	return menu;
 }
 
 void PluginProcessDoubleClick(MyPlugin *plugin, uint32_t x, uint32_t y){
@@ -253,7 +242,7 @@ void PluginProcessDoubleClick(MyPlugin *plugin, uint32_t x, uint32_t y){
 	ShapePoint *deletedPoint1 = plugin->shapeEditor1.processDoubleClick(x, y);
 	ShapePoint *deletedPoint2 = plugin->shapeEditor2.processDoubleClick(x, y);
 
-	// Clear all links to the deleted points to avoid dangling pointers.
+	// Clear all modulation links to the deleted points to avoid dangling pointers.
 	plugin->envelopes.clearLinksToPoint(deletedPoint1);
 	plugin->envelopes.clearLinksToPoint(deletedPoint2);
 
@@ -334,24 +323,6 @@ static const clap_plugin_params_t extensionParams = {
 		// PluginSyncMainToAudio(plugin, out);
 	},
 };
-
-// static const clap_plugin_state_t extensionState = {
-// 	.save = [] (const clap_plugin_t *_plugin, const clap_ostream_t *stream) -> bool {
-// 		MyPlugin *plugin = (MyPlugin *) _plugin->plugin_data;
-// 		// PluginSyncAudioToMain(plugin);
-// 		// return sizeof(float) * P_COUNT == stream->write(stream, plugin->mainParameters, sizeof(float) * P_COUNT);
-// 	},
-
-// 	.load = [] (const clap_plugin_t *_plugin, const clap_istream_t *stream) -> bool {
-// 		MyPlugin *plugin = (MyPlugin *) _plugin->plugin_data;
-// 		MutexAcquire(plugin->syncParameters);
-// 		// bool success = sizeof(float) * P_COUNT == stream->read(stream, plugin->mainParameters, sizeof(float) * P_COUNT);
-// 		// bool success = sizeof(float) * plugin->mainParameters.size() == stream->read(stream, plugin->mainParameters.data(), sizeof(float) * plugin->mainParameters.size());
-// 		// for (uint32_t i = 0; i < P_COUNT; i++) plugin->mainChanged[i] = true;
-// 		// MutexRelease(plugin->syncParameters);
-// 		// return success;
-// 	},
-// };
 
 #if defined(_WIN32)
 #include "gui_w32.cpp"
@@ -465,15 +436,11 @@ static const clap_plugin_t pluginClass = {
 		uint32_t envelopeSize[4] = {950, 50, 1900, 500};
 		plugin->shapeEditor1 = ShapeEditor(editorSize1);
 		plugin->shapeEditor2 = ShapeEditor(editorSize2);
-		plugin->lastBufferLevelL = 0;
-		plugin->lastBufferLevelR = 0;
 		plugin->distortionMode = upDown;
-		// plugin->envelopes = {Envelope(envelopeSize)};
 		plugin->envelopes = EnvelopeManager(envelopeSize);
 
-		// plugin->envelopes.at(0).addLinkedParameter(plugin->shapeEditor1.shapePoints->next, 0, 1, modCurveCenterY);
-
 		MutexInitialise(plugin->syncParameters);
+		MutexInitialise(plugin->setPlayingStartTime);
 
 		if (plugin->hostTimerSupport && plugin->hostTimerSupport->register_timer) {
 			plugin->hostTimerSupport->register_timer(plugin->host, GUI_REFRESH_INTERVAL, &plugin->timerID);
@@ -485,6 +452,7 @@ static const clap_plugin_t pluginClass = {
 	.destroy = [] (const clap_plugin *_plugin) {
 		MyPlugin *plugin = (MyPlugin *) _plugin->plugin_data;
 		MutexDestroy(plugin->syncParameters);
+		MutexDestroy(plugin->setPlayingStartTime);
 
 		if (plugin->hostTimerSupport && plugin->hostTimerSupport->register_timer) {
 			plugin->hostTimerSupport->unregister_timer(plugin->host, plugin->timerID);
@@ -522,20 +490,15 @@ static const clap_plugin_t pluginClass = {
 		const uint32_t inputEventCount = process->in_events->size(process->in_events);
 
 		const clap_event_transport_t *transport = process->transport;
-		clap_transport_flags flag = CLAP_TRANSPORT_IS_PLAYING;
+		clap_transport_flags isNotPlaying = CLAP_TRANSPORT_IS_PLAYING;
 		double beatPosition = (double)transport->song_pos_beats / CLAP_BEATTIME_FACTOR;
-		
-		// if host is currently playing, render audio
-		if (!transport->flags[&flag]){
 
-			PluginRenderAudio(plugin, 0, frameCount, process->audio_inputs[0].data32[0], process->audio_inputs[0].data32[1], process->audio_outputs[0].data32[0], process->audio_outputs[0].data32[1], beatPosition, transport->tempo);
-		
-		}
-		
-		// if not, reset all modulations so values snap back to the true unmodulated values
-		else{
-			plugin->envelopes.resetLinkedParameters();
-		}
+		// tempo is needed to calculate the exact beat position for every sample of the buffer. However, if the host is not playing, a tempo of zero is passed so all parameters stay constant.
+		double tempo = transport->flags[&isNotPlaying] ? transport->tempo : 0;
+
+		PluginRenderAudio(plugin, 0, frameCount, process->audio_inputs[0].data32[0], process->audio_inputs[0].data32[1], process->audio_outputs[0].data32[0], process->audio_outputs[0].data32[1], beatPosition, tempo);
+
+		plugin->currentTempo = transport->tempo;
 
 		return CLAP_PROCESS_CONTINUE;
 	},
@@ -546,7 +509,6 @@ static const clap_plugin_t pluginClass = {
 		if (0 == strcmp(id, CLAP_EXT_GUI             )) return &extensionGUI;
 		if (0 == strcmp(id, CLAP_EXT_POSIX_FD_SUPPORT)) return &extensionPOSIXFDSupport;
 		if (0 == strcmp(id, CLAP_EXT_TIMER_SUPPORT   )) return &extensionTimerSupport;
-		// if (0 == strcmp(id, CLAP_EXT_STATE           )) return &extensionState;
 		return nullptr;
 	},
 

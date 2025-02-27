@@ -1,43 +1,138 @@
 #include "shapeEditor.h"
 #include "assets.h"
 
-/*Returns the power p of a curve f(x) = x^p that goes through yCenter at x=0.5. User is able to deform curves by dragging the curve center. This function is used to get the power of the curve from the mouse position.
-If yCenter > 0.5, the power is negative, which does NOT mean f(x)=1/(x^power), but that the curve is flipped f(x)=1-(1-x)^power. This convention is always used for shapes with mode shapePower.*/
-float getPowerFromYCenter(float yCenter){
-    float power = (yCenter < 0.5) ? log(yCenter) / log(0.5) :  - log(1 - yCenter) / log(0.5);
+
+#include <fstream>
+#include <iostream>
+void logToFile2(const std::string& message) {
+    std::ofstream logFile("C:/Users/mm/Desktop/log.txt", std::ios_base::app);
+    if (logFile.is_open()) {
+        logFile << message << std::endl;
+    } else {
+        std::cerr << "Failed to open log file!" << std::endl;
+    }
+}
+
+// Claculates the power of the curve for the interpolation mode power from the y value at x=0.5.
+// Can be negative, which does NOT mean the curve is actually f(x) = 1 / (x^|power|) but that the curve is flipped vertically and horizontally.
+float getPowerFromPosY(float posY){
+    // Calculates the power p of a curve f(x) = x^p that goes through yCenter at x=0.5:
+    float power = (posY < 0.5) ? log(posY) / log(0.5) :  - log(1 - posY) / log(0.5);
+
+    // Clamp to allowed maximum power
     power = (power < 0) ? ((power < -SHAPE_MAX_POWER) ? -SHAPE_MAX_POWER : power) : ((power > SHAPE_MAX_POWER) ? SHAPE_MAX_POWER : power);
+        
     return power;
 }
 
+/*
+---NOTES ON MODULATION---
+Some parameters can be "modulated", which means they are changed by internal functions without explicit user input.
+The modulation is controlled by an Envelope, which is a graph editor that can be linked to any ModulatedParameter by
+the user.
 
-/* Class to store all information about a curve Segment. Curve segments are handled in a way that information about the function (e.g. type of interpolation and parameters) are stored together with the point next to the right, which marks the beginning of the next segment.
+ModulatedParameters are NOT reported to the host as modulatable or automatable parameters, they are only handled
+inside the plugin, which makes implementation a lot more straightforward, while not impacting the user experience
+too much. (TODO) Modulation managed by the host is possible by linking a macro to the phase of the Envelope curve.
+
+Each ModulatedParameter has a base value, to which it is reset whenever the host is not playing. There is a
+modulation offset, which is the accumulated offsets of all Envelopes that are linked to this parameter. The modulated
+value is clamped to a parameter specific interval after modulation.
+
+ModulatedParameters and Envelopes that are linked together reference each other. The adding and removing of links
+is handled inside of the Envelope.
+*/
+
+// Holds a base value, min and max values and a list of *Envelope, that are linked to this parameter. Also has the pointer to the parent ShapePoint.
+class ModulatedParameter{
+    private:
+    float base;     // Base value of this ModulatedParameter. This is the active value when no modulation offset is added. 
+    float minValue; // Minimum value this ModulatedParameter can take.
+    float maxValue; // Maximum value this ModulatedParameter can take.
+    ShapePoint *parent;
+
+    std::map<Envelope*, float> modulationAmounts; // Maps the pointer to an Envelope to its scaling factor for modulation.
+
+    public:
+    ModulatedParameter(ShapePoint *parentPoint, float inBase, float inMinValue=0, float inMaxValue=1){
+        base = inBase;
+        minValue = inMinValue;
+        maxValue = inMaxValue;
+        parent = parentPoint;
+    }
+
+    // Registeres the given envelope as a modulator to this parameter. This Envelope will now contribute to the modulation when calling .get() with the given amount.
+    void addModulator(Envelope *envelope, float amount){
+        // Envelopes can only be added once.
+        for (auto a : modulationAmounts){
+            if (a.first == envelope){
+                return;
+            }
+        }
+
+        modulationAmounts[envelope] = amount;
+    }
+
+    void removeModulator(Envelope *envelope){
+        modulationAmounts.erase(envelope);
+    }
+
+    // Returns the modulation amount of the Envelope at the given pointer.
+    float getAmount(Envelope *envelope){
+        return modulationAmounts.at(envelope);
+    }
+
+    // Sets the modulation amount of the Envelope at the given pointer to the given amount.
+    void setAmount(Envelope *envelope, float amount){
+        modulationAmounts.at(envelope) = amount;
+    }
+
+    // Return a pointer to the ShapePoint that uses this ModulatedParameter instance.
+    ShapePoint *getParentPoint(){
+        return parent;
+    }
+
+    // Moves the base value of this parameter to the input, should be used when the parameter is explicitly changed by the user.
+    void move(float newValue){
+        base = newValue < minValue ? minValue : newValue > maxValue ? maxValue : newValue;
+    }
+
+    // Returns the current value, i.e. the offsets added to the base clamped to the min and max values.
+    float get(double beatPosition = 0){
+        float currentValue = base;
+        // Iterate over modulationAmounts, first is pointer to Envelope, second is amount.
+        for (auto a : modulationAmounts){
+            currentValue += a.second * a.first->modForward(beatPosition);
+        }
+
+        currentValue = (currentValue > maxValue) ? maxValue : (currentValue < minValue) ? minValue : currentValue;
+        return currentValue;
+    }
+};
+
+
+/* Class to store all information about a curve Segment on a ShapeEditor. Curve segments are handled in a way that information about the function (e.g. type of interpolation and parameters) are stored in the point next to the right, which marks the beginning of the next segment.
 The reason for that is that curve has to always satisfy f(0) = 0 or else the plugin would generate a DC offset, so the left hand side of the first curve segment must stay at [0, 0] and can not be moved.*/
 class ShapePoint{
     public:
-    int32_t XYXY[4]; // Position and size of parent shapeEditor. Point must stay inside these coordinates.
+
+    // parameters of the parent ShapeEditor:
+
+    int32_t XYXY[4]; // Position and size of parent shapeEditor. Points must stay inside these coordinates.
+
 
     // Parameters of the point:
 
-    float posX; // Relative x-position on the graph, 0 <= posX <= 1.
-    float posY; // Relative y-position on the graph, 0 <= posY <= 1.
-    float posXMod; // Relative x-position on the graph, modulated value.
-    float posYMod; // Relative y-position on the graph, modulated value.
-    int32_t absPosX; // Absolute x-position on the window.
-    int32_t absPosY; // Absolute y-position on the window. By convention it is inversely related to the relative position.
-    int32_t	absPosXMod; // Absolute x-position on the window, modulated value.
-    int32_t absPosYMod; // Absolute y-position on the window, modulated value.
+    ModulatedParameter posX; // Relative x-position on the graph, 0 <= posX <= 1.
+    ModulatedParameter posY; // Relative y-position on the graph, 0 <= posX <= 1.
 
     ShapePoint *previous = nullptr; // Pointer to the previous ShapePont.
     ShapePoint *next = nullptr; // Pointer to the next ShapePoint.
 
-    // Parameters of the curve left to the point:
+    
+    // Parameters of the curve segment:
 
-    float curveCenterPosY; // Relative y-value of the curve at the x-center point between this and the previous point.
-    float curveCenterPosYMod; // Relative y-value of the curve at the x-center point between this and the previous point, modulated value.
-    uint32_t curveCenterAbsPosX; // Absolute x-center between this and the previous point.
-    uint32_t curveCenterAbsPosY; // Absolute y-position of the curve at the x-center point between this and the previous point.
-    uint32_t curveCenterAbsPosYMod; // Absolute y-position of the curve at the x-center point between this and the previous point, modulated value.
-    float power; // Exponent for the shapePower interpolation mode. Can be negative, which does NOT mean the curve is actually f(x) = 1 / (x^|power|) but that the curve is flipped vertically and horizontally
+    ModulatedParameter curveCenterPosY; // Relative y-value of the curve at the x-center point between this and the previous point.
     float sineOmegaPrevious; // Omega after last update.
     float sineOmega; // Omega for the shapeSine interpolation mode.
     Shapes mode = shapePower; // Interpolation mode between this and previous point.
@@ -48,104 +143,83 @@ class ShapePoint{
     pow is parameter defining the shape of the curve segment, its role is dependent on the mode:
         shapePower: f(x) = x^parameter
     */
-    ShapePoint(float x, float y, uint32_t editorSize[4], float pow = 1, float omega = 0.5, Shapes initMode = shapePower){
+    ShapePoint(float x, float y, uint32_t editorSize[4], float pow = 1, float omega = 0.5, Shapes initMode = shapePower): posX(this, x), posY(this, y), curveCenterPosY(this, 0.5) {
         assert ((0 <= x) && (x <= 1) && (0 <= y) && (y <= 1));
-
-        // x and y are relative coordinates on the Graph 0 <= x <= 1, 0 <= y <= 1
-        posX = x;
-        posY = y;
-
-        posXMod = posX;
-        posYMod = posY;
-
-        // in absolute coordinates y is mirrored
-        absPosX = editorSize[0] + (int32_t)(x * (editorSize[2] - editorSize[0]));
-        absPosY = editorSize[3] - (int32_t)(y * (editorSize[3] - editorSize[1]));
-
-        absPosXMod = absPosX;
-        absPosYMod = absPosY;
-
-        curveCenterPosY = 0.5;
-        curveCenterAbsPosX = (absPosX + ((previous == nullptr) ? editorSize[0] : previous->absPosX)) / 2;
-        curveCenterAbsPosY = (absPosY + ((previous == nullptr) ? editorSize[3] : previous->absPosY)) / 2;
-
+        
         for (int i=0; i<4; i++){
             XYXY[i] = editorSize[i];
         }
 
-        power = pow;
         mode = initMode;
         sineOmega = omega;
         sineOmegaPrevious = omega;
     }
 
-    // Sets relative posXMod and posYMod to x and y respectively, sets absolute positions absPosX and absPosY accordingly and updates the curve center.
-    void modulatePositionRelative(float x, float y){
-        // clamp to interval [0, 1]
-        posXMod = x < 0 ? 0 : x > 1 ? 1 : x;
-        posYMod = y < 0 ? 0 : y > 1 ? 1 : y;
-
-        absPosXMod = XYXY[0] + (int32_t)(posXMod * (XYXY[2] - XYXY[0]));
-        absPosYMod = XYXY[3] - (int32_t)(posYMod * (XYXY[3] - XYXY[1]));
-
-        updateCurveCenter();
-    }
-
-    // Sets absolute absPosX and absPosY to x and y respectively, sets relative positions posX and posY accordingly and updates the curve center.
+    // Sets relative positions posX and posY such that the absolute positions are equal to the input x and y. Updates the curve center.
     void updatePositionAbsolute(int32_t x, int32_t y){
-        // clamp to editor size
-        absPosX = x < XYXY[0] ? XYXY[0] : x > XYXY[2] ? XYXY[2] : x;
-        absPosY = y < XYXY[1] ? XYXY[1] : y > XYXY[3] ? XYXY[3] : y;
-
-        posX = (float)(x - XYXY[0]) / (XYXY[2] - XYXY[0]);
-        posY = (float)(XYXY[3] - y) / (XYXY[3] - XYXY[1]);
-
-        absPosXMod = absPosX;
-        absPosYMod = absPosY;
-
-        posXMod = posX;
-        posYMod = posY;
-
-        updateCurveCenter();
+        // Move the modulatable relative parameters to the corresponding positions.
+        posX.move((float)(x - XYXY[0]) / (XYXY[2] - XYXY[0]));
+        posY.move((float)(XYXY[3] - y) / (XYXY[3] - XYXY[1]));
     }
 
-    // updates the Curve center point in cases where curveCenter is not directly changed, as for example if the point is being moved.
-    void updateCurveCenter(){
-        // curve center x is always in the middle of neighbouring points
-        curveCenterAbsPosX = (int32_t)(absPosXMod + previous->absPosXMod) / 2;
+    /*---get-functions for parameters that are dependent on a ModulatedParameter and have to recalculated each time they are used---*/
 
-        if (mode == shapePower){
-            int32_t yL = previous->absPosYMod;
-            curveCenterAbsPosY = (power > 0) ? yL - pow(0.5, power) * (yL - absPosYMod) : absPosYMod + pow(0.5, -power) * (yL - absPosYMod);
-            // curveCenterAbsPosY = yL + curveCenterPosY * (yL - absPosY)
-        } else if (mode == shapeSine){
-            curveCenterAbsPosY = (int32_t)(absPosYMod + previous->absPosYMod) / 2;
+    // Returns the x-position of this point. Is limited by the position of the next point, meaning modulating a point to the left will push all other points on its way to the left. Mod to the right will stop on the next point.
+    float getPosX(double beatPosition = 0.){
+        if (next == nullptr){
+            return posX.get(beatPosition);
         }
+        else {
+            return (posX.get(beatPosition) > next->getPosX(beatPosition)) ? next->getPosX(beatPosition) : posX.get(beatPosition);
+        }
+    }
+
+    // Retunrs the current y-position of the point.
+    float getPosY(double beatPosition = 0.){
+        return posY.get(beatPosition);
+    }
+
+    // Calculates the absolute x-position of the point on the GUI from the relative position posX.
+    uint32_t getAbsPosX(double beatPosition = 0.){
+        return XYXY[0] + (uint32_t)(getPosX(beatPosition) * (XYXY[2] - XYXY[0]));
+    }
+
+    // Calculates the absolute y-position of the point on the GUI from the relative position posY. By convention, this value is inversely related to posY.
+    uint32_t getAbsPosY(double beatPosition = 0.){
+        return XYXY[3] - (uint32_t)(getPosY(beatPosition) * (XYXY[3] - XYXY[1]));
+    }
+
+    // Calculates the absolute x-position of the curve center associated with this point. Is always the center between this point and the previous.
+    uint32_t getCurveCenterAbsPosX(double beatPosition = 0.){
+        return (uint32_t)(getAbsPosX(beatPosition) + previous->getAbsPosX(beatPosition)) / 2;
+    }
+
+    // Calculates the absolute y-position of the curve center associated with this point.
+    uint32_t getCurveCenterAbsPosY(double beatPosition = 0.){
+        // Cast the absPosY to signed int, since the difference will be negative.
+        return previous->getAbsPosY(beatPosition) + (uint32_t)(curveCenterPosY.get(beatPosition) * ((int32_t)getAbsPosY(beatPosition) - (int32_t)previous->getAbsPosY(beatPosition)));
     }
 
     // updates the Curve center point when manually dragging it
     void updateCurveCenter(int x, int y){
         // nothing to update if line is horizontal
-        if (previous->absPosY == absPosY){
+        if (previous->getAbsPosY() == getAbsPosY()){
             return;
         }
 
         switch (mode){
             case shapePower:
             {
-                int32_t yL = previous->absPosY;
+                int32_t yL = previous->getAbsPosY(); // Absolute y-position of the previous point.
 
-                int32_t yMin = (yL > absPosY) ? absPosY : yL;
-                int32_t yMax = (yL < absPosY) ? absPosY : yL;
+                int32_t yMin = (yL > getAbsPosY()) ? getAbsPosY() : yL; // Lower absolute y-position from this and the previous point.
+                int32_t yMax = (yL < getAbsPosY()) ? getAbsPosY() : yL; // Higher absolute y-position from this and the previous point.
 
                 // y must not be yL or posY, else there will be a log(0). set y to be at least one pixel off of these values
                 y = (y >= yMax) ? yMax - 1 : (y <= yMin) ? yMin + 1 : y;
 
                 // find mouse position normalized to y extent
-                curveCenterPosY = (yL - (float)y) / (yL - absPosY);
-                power = getPowerFromYCenter(curveCenterPosY);
-                // find pixel coordinates corresponding to normalized mouse position
-                curveCenterAbsPosY = (power > 0) ? yL - pow(0.5, power) * (yL - absPosY) : absPosY + pow(0.5, -power) * (yL - absPosY);
+                curveCenterPosY.move((yL - (float)y) / (yL - (int32_t)getAbsPosY()));
                 break;
             }
 
@@ -155,38 +229,38 @@ class ShapePoint{
                 Sine wave will always go through this point. When omega is smaller 0.5, the sine will smoothly connect the points, if larger 0.5,
                 it will be increased in discrete steps, such that always n + 1/2 cycles lay in the interval between the points.*/
 
-                curveCenterAbsPosX = (int32_t)(absPosX + previous->absPosX) / 2;
-                curveCenterAbsPosY = (int32_t)(absPosY + previous->absPosY) / 2;
-
-                if (sineOmega <= 0.5){
-                    sineOmega = sineOmegaPrevious * pow(0.5, (float)(y - curveCenterAbsPosY) / 50);
-                    sineOmega = (sineOmega < SHAPE_MIN_OMEGA) ? SHAPE_MIN_OMEGA : sineOmega;
-                } else {
-                    // TODO if shift or strg or smth is pressed, be continuous
-                    sineOmega = sineOmegaPrevious + ((curveCenterAbsPosY - y) / 40);
-                    sineOmega -= (int32_t)sineOmega % 2;
-                }
+                // TODO fix this.
+                // if (sineOmega <= 0.5){
+                //     sineOmega = sineOmegaPrevious * pow(0.5, (float)(y - getCurveCenterAbsPosY()) / 50);
+                //     sineOmega = (sineOmega < SHAPE_MIN_OMEGA) ? SHAPE_MIN_OMEGA : sineOmega;
+                // } else {
+                //     // TODO if shift or strg or smth is pressed, be continuous
+                //     sineOmega = sineOmegaPrevious + ((getCurveCenterAbsPosY() - y) / 40);
+                //     sineOmega -= (int32_t)sineOmega % 2;
+                // }
                 break;
             }
-            case shapeBezier:
-            break;
         }
     }
 
     void processMouseClick(){
+        // Save the previous omega state.
         sineOmegaPrevious = sineOmega;
     }
 };
 
 // Deletes the given ShapePoint and connects this points previous and next point in the list.
 void deleteShapePoint(ShapePoint *point){
+    // The first and last point are special and must not be deleted, as a minimum of two points is necessary to
+    // have a curve.
     if (point->previous == nullptr){
-        throw std::invalid_argument("Tried to delete the first shapePoint which can not be deleted.");
+        throw std::invalid_argument("Tried to delete the first ShapePoint which can not be deleted.");
     }
     if (point->next == nullptr){
-        throw std::invalid_argument("Tried to delete the last shapePoint which can not be deleted.");
+        throw std::invalid_argument("Tried to delete the last ShapePoint which can not be deleted.");
     }
 
+    // Link the new neighboring points together.
     ShapePoint *previous = point->previous;
     ShapePoint *next = point->next;
 
@@ -196,6 +270,7 @@ void deleteShapePoint(ShapePoint *point){
     delete point;
 }
 
+// Inserts the ShapePoint *point into the linked list before next.
 void insertPointBefore(ShapePoint *next, ShapePoint *point){
     if (next->previous == nullptr){
         throw std::invalid_argument("Tried to insert shapePoint before first point, which is not allowed.");
@@ -210,6 +285,24 @@ void insertPointBefore(ShapePoint *next, ShapePoint *point){
     next->previous = point;
 }
 
+/*
+---SHAPE EDITORS---
+ShapeEditors are grapheditors that can be used to design functions on the user interface (effect plugins similar
+to this one are called waveshaper, hence the name ShapeEditor). They have two applications, firstly to shape
+the input sound and secondly to have a function that controls parameters of the graphs that are used for the
+audio processing. The function inside is a function from [0, 1] to some subset of [0, 1].
+
+They are built on ShapePoints, which are points that exist on the interface of the editor. The graph is interpolated
+between neighbouring points with one of a few possible interpolation functions. The default interpolation is linear.
+Points can be added, removed and moved freely between the neighbouring points.
+
+Since audio is forwarded to the function f(x) defined by the ShapeEditors, it is important to satisfy the condition
+f(0) = 0, or else the plugin would create a DC offset, even when no input audio is playing. It was decided to add a
+special ShapePoint at x=0, y=0, which can not be moved and is not displayed. The last ShapePoint at x=1
+may be moved, but only in y-direction. None of these points can be removed to assure that the function is always
+well defined on the interval [0, 1].
+*/
+
 ShapeEditor::ShapeEditor(uint32_t position[4]){
 
     for (int i=0; i<4; i++){
@@ -221,29 +314,30 @@ ShapeEditor::ShapeEditor(uint32_t position[4]){
     XYXY[2] = position[2] - FRAME_WIDTH;
     XYXY[3] = position[3] - FRAME_WIDTH;
 
+    // Set up first and last point and link them. These points will always stay first and last point.
     shapePoints = new ShapePoint(0., 0., XYXY);
     shapePoints->next = new ShapePoint(1., 1., XYXY);
     shapePoints->next->previous = shapePoints;
 }
 
-void ShapeEditor::drawGraph(uint32_t *bits){
+void ShapeEditor::drawGraph(uint32_t *canvas, double beatPosition){
     // set whole area to background color
     for (uint32_t i = XYXYFull[0]; i < XYXYFull[2]; i++) {
         for (uint32_t j = XYXYFull[1]; j < XYXYFull[3]; j++) {
-            bits[i + j * GUI_WIDTH] = colorEditorBackground;
+            canvas[i + j * GUI_WIDTH] = colorEditorBackground;
         }
     }
 
-    drawGrid(bits, XYXY, 3, 2, 0xFFFFFF, alphaGrid);
-    drawFrame(bits, XYXY, 3, 0xFFFFFF);
+    drawGrid(canvas, XYXY, 3, 2, 0xFFFFFF, alphaGrid);
+    drawFrame(canvas, XYXY, 3, 0xFFFFFF);
 
     // first draw all connections between points, then points on top
     for (ShapePoint *point = shapePoints->next; point != nullptr; point = point->next){
-        drawConnection(bits, point, colorCurve);
+        drawConnection(canvas, point, beatPosition, colorCurve);
     }
     for (ShapePoint *point = shapePoints->next; point != nullptr; point = point->next){
-        drawPoint(bits, point->absPosXMod, point->absPosYMod, colorCurve, 20);
-        drawPoint(bits, point->curveCenterAbsPosX, point->curveCenterAbsPosY, colorCurve, 16);
+        drawPoint(canvas, point->getAbsPosX(beatPosition), point->getAbsPosY(beatPosition), colorCurve, 20);
+        drawPoint(canvas, point->getCurveCenterAbsPosX(beatPosition), point->getCurveCenterAbsPosY(beatPosition), colorCurve, 16);
     }
 }
 
@@ -251,22 +345,24 @@ void ShapeEditor::drawGraph(uint32_t *bits){
 ShapePoint* ShapeEditor::getClosestPoint(uint32_t x, uint32_t y, float minimumDistance){
     // TODO i think it might be a better user experience if points always give visual feedback if the mouse is hovering over them.
     //   This would require every point to check mouse position at any time
-    float closestDistance = 10E6;
-    ShapePoint *closestPoint;
 
-    // check mouse distance to all points and find closest
+    float closestDistance = 10E6; // The distance to the closest point, initialized as an arbitrary big number.
+    ShapePoint *closestPoint; // Pointer to the closest ShapePoint.
+
+    // Check mouse distance to all points and find closest:
+
     float distance;
-    // start with second point in linked list because first point is treated special, see comments at shapePoints declaration
+    // start with second point in linked list because first point must always be skipped, see comments at shapePoints declaration
     for (ShapePoint *point = shapePoints->next; point != nullptr; point = point->next){
         // check for distance to point and set mode to position
-        distance = (point->absPosX - x)*(point->absPosX - x) + (point->absPosY - y)*(point->absPosY - y);
+        distance = (point->getAbsPosX() - x)*(point->getAbsPosX() - x) + (point->getAbsPosY() - y)*(point->getAbsPosY() - y);
         if (distance < closestDistance){
             closestDistance = distance;
             closestPoint = point;
             currentDraggingMode = position;
         }
         // check for distance to curve center and set mode to curveCenter
-        distance = (point->curveCenterAbsPosX - x)*(point->curveCenterAbsPosX - x) + (point->curveCenterAbsPosY - y)*(point->curveCenterAbsPosY - y);
+        distance = (point->getCurveCenterAbsPosX() - x)*(point->getCurveCenterAbsPosX() - x) + (point->getCurveCenterAbsPosY() - y)*(point->getCurveCenterAbsPosY() - y);
         if (distance < closestDistance){
             closestDistance = distance;
             closestPoint = point;
@@ -283,18 +379,12 @@ ShapePoint* ShapeEditor::getClosestPoint(uint32_t x, uint32_t y, float minimumDi
 }
 
 void ShapeEditor::processMouseClick(int32_t x, int32_t y){
-
     // check if mouse hovers over the graphical interface and return if not
     // check for slightly higher area to be able to grab point from outside the interface
     float offset = pow(REQUIRED_SQUARED_DISTANCE, 0.5);
     if ((x < XYXY[0] - offset) | (x >= XYXY[2] + offset) | (y < XYXY[1] - offset) | (y >= XYXY[3] + offset)){
         return;
     }
-
-    // Get time since last click and substract now. LastMousePress will be updated on Mouse release.
-    // long now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
-    // long timePassed = now - lastMousePress;
-    // lastMousePress = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
 
     ShapePoint *closestPoint;
     closestPoint = getClosestPoint(x, y);
@@ -320,19 +410,17 @@ ShapePoint* ShapeEditor::processDoubleClick(uint32_t x, uint32_t y){
         if (currentDraggingMode == position && closestPoint->next != nullptr){
             ShapePoint *nextPoint = closestPoint->next;
             deleteShapePoint(closestPoint);
-            nextPoint->updateCurveCenter();
             return closestPoint;
         }
 
         // if double click on curve center, reset power
         else if (currentDraggingMode == curveCenter){
             if (closestPoint->mode == shapePower){
-                closestPoint->power = 1;
+                closestPoint->curveCenterPosY.move(0.5);
             } else if (closestPoint->mode == shapeSine){
                 closestPoint->sineOmega = 0.5;
                 closestPoint->sineOmegaPrevious = 0.5;
             }
-            closestPoint->updateCurveCenter();
             return nullptr;
         }
     }
@@ -343,20 +431,18 @@ ShapePoint* ShapeEditor::processDoubleClick(uint32_t x, uint32_t y){
         uint32_t insertIdx = 0;
         ShapePoint *insertBefore = shapePoints->next;
         while (insertBefore != nullptr){
-            if (insertBefore->absPosX >= x){
+            if (insertBefore->getAbsPosX() >= x){
                 break;
             }
             insertBefore = insertBefore->next;
         }
 
         insertPointBefore(insertBefore, new ShapePoint((float)(x - XYXY[0]) / (XYXY[2] - XYXY[0]), (float)(XYXY[3] - y) / (XYXY[3] - XYXY[1]), XYXY));
-        insertBefore->updateCurveCenter();
-        insertBefore->previous->updateCurveCenter();
     }
     return nullptr;
 }
 
-// Process right click and return true if a shapePoint was clicked.
+// Process right click and return a contextMenuType if clicked onto a ShapePoint.
 contextMenuType ShapeEditor::processRightClick(uint32_t x, uint32_t y){
     ShapePoint *closestPoint;
     closestPoint = getClosestPoint(x, y);
@@ -369,12 +455,11 @@ contextMenuType ShapeEditor::processRightClick(uint32_t x, uint32_t y){
     // if right click on curve center, reset power
     else if (closestPoint != nullptr && currentDraggingMode == curveCenter){
         if (closestPoint->mode == shapePower){
-            closestPoint->power = 1;
+            closestPoint->curveCenterPosY.move(0.5);
         } else if (closestPoint->mode == shapeSine){
             closestPoint->sineOmega = 0.5;
             closestPoint->sineOmegaPrevious = 0.5;
         }
-        closestPoint->updateCurveCenter();
     }
     return menuNone;
 }
@@ -389,13 +474,9 @@ void ShapeEditor::processMenuSelection(WPARAM wParam){
             rightClicked->mode = shapePower;
             break;
         case shapeSine:
-            rightClicked->mode = shapeSine;
-            break;
-        case shapeBezier:
-            rightClicked->mode = shapeBezier;
+            // rightClicked->mode = shapeSine;
             break;
     }
-    rightClicked->updateCurveCenter();
     rightClicked = nullptr;
 }
 
@@ -406,24 +487,25 @@ void ShapeEditor::processMouseRelease(){
 }
 
 /* TODO does it make sense to have a single function that transforms values according to the shape of all curve segments? This function could be used to transform x-pixel coordinates to get the y value and also to actually shape the input sound.*/
-void ShapeEditor::drawConnection(uint32_t *bits, ShapePoint *point, uint32_t color, float thickness){
+void ShapeEditor::drawConnection(uint32_t *canvas, ShapePoint *point, double beatPosition, uint32_t color, float thickness){
 
-    int xMin = point->previous->absPosXMod;
-    int xMax = point->absPosXMod;
+    uint32_t xMin = point->previous->getAbsPosX();
+    uint32_t xMax = point->getAbsPosX();
 
-    int yL = point->previous->absPosYMod;
-    int yR = point->absPosYMod;
+    uint32_t yL = point->previous->getAbsPosY();
+    uint32_t yR = point->getAbsPosY();
 
     switch (point->mode){
         case shapePower:
         {
+            float power = getPowerFromPosY(point->curveCenterPosY.get(beatPosition));
             // The curve is f(x) = x^power, where x is in [0, 1] and x and y intervals are stretched such that the curve connects this and previous point
             for (int i = xMin; i < xMax; i++) {
                 // TODO: antialiasing/ width of curve
-                if (point->power > 0){
-                    bits[i + (int)((yL - pow((float)(i - xMin) / (xMax - xMin), point->power) * (yL - yR))) * GUI_WIDTH] = color;
+                if (power > 0){
+                    canvas[i + (uint32_t)((yL - pow((float)(i - xMin) / (xMax - xMin), power) * (int32_t)(yL - yR))) * GUI_WIDTH] = color;
                 } else {
-                    bits[i + (int)((yR + pow((float)(xMax - i) / (xMax - xMin), -point->power) * (yL - yR))) * GUI_WIDTH] = color;
+                    canvas[i + (uint32_t)((yR + pow((float)(xMax - i) / (xMax - xMin), -power) * (int32_t)(yL - yR))) * GUI_WIDTH] = color;
                 }
             }
             break;
@@ -436,19 +518,15 @@ void ShapeEditor::drawConnection(uint32_t *bits, ShapePoint *point, uint32_t col
                 // normalize curve to one if if frequency is so low that segment is smaller than half a wavelength
                 float ampCorrection = (point->sineOmega < 0.5) ? 1 / sin(point->sineOmega * pi) : 1;
                 // this works trust me
-                bits[i + (int)(ampCorrection * sin((float)(i - xMin - (xMax - xMin)/2) / (xMax - xMin) * point->sineOmega * 2 * pi) * (yR - yL) / 2 - (yL - yR)/2 + yL) * GUI_WIDTH] = color;
+                canvas[i + (int)(ampCorrection * sin((float)(i - xMin - (xMax - xMin)/2) / (xMax - xMin) * point->sineOmega * 2 * pi) * (yR - yL) / 2 - (yL - yR)/2 + yL) * GUI_WIDTH] = color;
             }
             break;
         }
-        case shapeBezier:
-        break;
     }
 }
 
 void ShapeEditor::processMouseDrag(int32_t x, int32_t y){
-    if (!currentlyDragging){
-        return;
-    }
+    if (!currentlyDragging) return;
 
     if (currentDraggingMode == position){
         // point is not allowed to go beyond neighbouring points in x-direction or below 0 or above 1 if it first or last point.
@@ -456,11 +534,11 @@ void ShapeEditor::processMouseDrag(int32_t x, int32_t y){
         int32_t xUpperLim;
 
         // The rightmost point must not move in x-direction. If point is last point set both limits to only allowed value, else choose positions of neighbouring points.
-        xLowerLim = currentlyDragging->next == nullptr ? XYXY[2] : currentlyDragging->previous->absPosX;
-        xUpperLim = currentlyDragging->next == nullptr ? XYXY[2] : currentlyDragging->next->absPosX;
+        xLowerLim = currentlyDragging->next == nullptr ? XYXY[2] : currentlyDragging->previous->getAbsPosX();
+        xUpperLim = currentlyDragging->next == nullptr ? XYXY[2] : currentlyDragging->next->getAbsPosX();
 
         x = (x > xUpperLim) ? xUpperLim : (x < xLowerLim) ? xLowerLim : x;
-        y = (y > XYXY[3]) ? XYXY[3] : (y < XYXY[1]) ? XYXY[1] : y;
+        y = (y > (int32_t)XYXY[3]) ? XYXY[3] : (y < XYXY[1]) ? XYXY[1] : y;
 
         // the rightmost point must not move in x-direction
         if (currentlyDragging->next == nullptr){
@@ -468,10 +546,6 @@ void ShapeEditor::processMouseDrag(int32_t x, int32_t y){
         }
 
         currentlyDragging->updatePositionAbsolute(x, y);
-
-        if (currentlyDragging->next != nullptr){
-            currentlyDragging->next->updateCurveCenter();
-        }
     }
 
     else if (currentDraggingMode == curveCenter){
@@ -480,181 +554,112 @@ void ShapeEditor::processMouseDrag(int32_t x, int32_t y){
 }
 
 // Returns the value of the curve defined by this shapeEditor at the x position input. Input is clamped to [0, 1].
-float ShapeEditor::forward(float input){
+float ShapeEditor::forward(float input, double beatPosition){
     // Catching this case is important because due to quantization error, the function might return non-zero values for steep curves, which would result in an DC offset even when no input audio is given.
-    if (input == 0){
-        return 0;
-    }
-    input = input < 0 ? 0 : input > 1 ? 1 : input;
+    if (input == 0) return 0;
 
     float out;
+
     // absolute value of input is processed, store information to flip sign after computing if necessary
     bool negativeInput = input < 0;
     input = (input < 0) ? -input : input;
+
     // limit input to one
     input = (input > 1) ? 1 : input;
 
     ShapePoint *point = shapePoints->next;
 
-    while(point->posXMod < input){
+    while(point->getPosX(beatPosition) < input){
         point = point->next;
     }
 
     switch(point->mode){
         case shapePower:
         {
-            float xL = point->previous->posXMod;
-            float yL = point->previous->posYMod;
+            float xL = point->previous->getPosX(beatPosition);
+            float yL = point->previous->getPosY(beatPosition);
 
-            float relX = (point->posXMod == xL) ? xL : (input - xL) / (point->posXMod - xL);
-            float factor = (point->posYMod - yL);
+            float relX = (point->getPosX(beatPosition) == xL) ? xL : (input - xL) / (point->getPosX(beatPosition) - xL);
+            float factor = (point->getPosY(beatPosition) - yL);
 
-            float power = point->power;
+            float power = getPowerFromPosY(point->curveCenterPosY.get(beatPosition));
 
-            power = power < -SHAPE_MAX_POWER ? -SHAPE_MAX_POWER : power > SHAPE_MAX_POWER ? SHAPE_MAX_POWER : power;
-
-            out = (power > 0) ? yL + pow(relX, power) * factor : point->posY - pow(1-relX, -power) * factor;
+            out = (power > 0) ? yL + pow(relX, power) * factor : point->posY.get(beatPosition) - pow(1-relX, -power) * factor;
         }
         case shapeSine:
-        break;
-
-        case shapeBezier:
         break;
     }
     return negativeInput ? -out : out;
 }
 
-
-LinkedParameter::LinkedParameter(ShapePoint *inPoint, float inAmount, modulationMode inMode){
-    point = inPoint;
-    amount = inAmount;
-    amountDragged = inAmount;
-    mode = inMode;
-}
-
-// Adds modOffset to the linked parameter.
-void LinkedParameter::modulate(float modOffset){
-    switch (mode){
-        case modCurveCenterY:
-        {
-            // TODO this works but it is not clear whats happening at all
-            float yL = point->previous->absPosY;
-            float yR = point->absPosY;
-
-            int32_t yMin = (yL > yR) ? yR : yL;
-            int32_t yMax = (yL < yR) ? yR : yL;
-
-            float newY = point->curveCenterPosYMod + amount * modOffset;
-            newY = (newY >= 1) ? 1 - (float)1/(yMax - yMin) : (newY <= 0) ? (float)1/(yMax - yMin) : newY;
-
-            point->curveCenterPosYMod = newY;
-            point->curveCenterAbsPosYMod = yL + newY * (yL - yR);
-            point->power = getPowerFromYCenter(newY);
-            point->updateCurveCenter();
-            break;
-        }
-        case modPosY:
-        {
-            point->modulatePositionRelative(point->posXMod, point->posYMod + amount * modOffset);
-            point->updateCurveCenter();
-            break;
-        }
-    }
-}
-
-void LinkedParameter::setAmount(float offset){
-    // Add offset to default value and clamp to boundaries
-    amountDragged = amount + offset;
-    amountDragged = amountDragged > 1 ? 1 : amountDragged < -1 ? -1 : amountDragged;
-}
-
-// Get current modulation amount.
-float LinkedParameter::getAmount(){
-    return amountDragged;
-}
-
-// Returns a pointer to the linked ShapePoint.
-ShapePoint *LinkedParameter::getLinkedPoint(){
-    return point;
-}
-
-// If amount has been changed, saves the changed value as default.
-void LinkedParameter::processMouseRelease(){
-    amount = amountDragged;
-}
-
-// Sets all modulated values to their default unmodulated value.
-void LinkedParameter::reset(){
-    switch (mode){
-        case modCurveCenterY:
-        {
-            float yL = point->previous->absPosY;
-            float yR = point->absPosY;
-
-            point->curveCenterPosYMod = point->curveCenterPosY;
-            point->curveCenterAbsPosYMod = yL + point->curveCenterPosY * (yL - yR);
-            point->power = getPowerFromYCenter(point->curveCenterPosY);
-            point->updateCurveCenter();
-            break;
-        }
-        case modPosY:
-        {
-            point->modulatePositionRelative(point->posX, point->posY);
-            point->updateCurveCenter();
-            break;
-        }
-    }
-}
-
 Envelope::Envelope(uint32_t size[4]) : ShapeEditor(size) {};
 
-void Envelope::addLinkedParameter(ShapePoint *point, float amount, modulationMode mode){
-    linkedParameters.push_back(LinkedParameter(point, amount, mode));
+void Envelope::addModulatedParameter(ShapePoint *point, float amount, modulationMode mode){
+    switch (mode) {
+        case modCurveCenterY:
+        {
+            // Add the ModulatedParameter to the list of ModulatedParameters controlled by this Envelope.
+            modulatedParameters.push_back(&point->curveCenterPosY);
+
+            // Add this Envelope to the list of modulating Envelopes of the parameter.
+            point->curveCenterPosY.addModulator(this, amount);
+            break;
+        }
+        case modPosY:
+        {
+            // Add the ModulatedParameter to the list of ModulatedParameters controlled by this Envelope.
+            modulatedParameters.push_back(&point->posY);
+
+            // Add this Envelope to the list of modulating Envelopes of the parameter.
+            point->posY.addModulator(this, amount);
+            break;
+        }
+        case modPosX:
+        {
+            // Add the ModulatedParameter to the list of ModulatedParameters controlled by this Envelope.
+            modulatedParameters.push_back(&point->posX);
+
+            // Add this Envelope to the list of modulating Envelopes of the parameter.
+            point->posX.addModulator(this, amount);
+            break;
+        }
+    }
 }
 
-// Sets the amount of the LinkedParameter at index to the given amount
-void Envelope::setLinkedParameterAmount(int index, float amount){
-    assert (index < linkedParameters.size());
-    linkedParameters.at(index).setAmount(amount);
+// Sets the amount of the ModulatedParameter at index to the given amount
+void Envelope::setModulatedParameterAmount(int index, float amount){
+    assert (index < modulatedParameters.size());
+    modulatedParameters.at(index)->setAmount(this, amount);
 }
 
-void Envelope::removeLinkedParameter(int index){
-    linkedParameters.erase(linkedParameters.begin() + index);
+void Envelope::removeModulatedParameter(int index){
+    // First remove this Envelope from the list of modulators of the parameter.
+    modulatedParameters.at(index)->removeModulator(this);
+
+    // Secondly remove the parameter from the list of modulated parameters of this Envelope.
+    modulatedParameters.erase(modulatedParameters.begin() + index);
 }
 
-int Envelope::getLinkedParameterNumber(){
-    return linkedParameters.size();
+int Envelope::getModulatedParameterNumber(){
+    return modulatedParameters.size();
 }
 
 float Envelope::getModAmount(int index){
-    return linkedParameters.at(index).getAmount();
+    return modulatedParameters.at(index)->getAmount(this);
 }
 
-void Envelope::modulateLinkedParameters(double beatPosition, double sampleTimeOffset){
-    float modOffset = forward((beatPosition + sampleTimeOffset) / 4);
-
-    for (LinkedParameter parameter : linkedParameters){
-        parameter.modulate(modOffset);
-    }
+// Works same as forward, but interprets the input as the beatPosition
+float Envelope::modForward(double beatPosition){
+    // TODO right now this does the same as forward but having this is important later when the speed of the Envelope can be set.
+    beatPosition = (float)(beatPosition) / 4;
+    return forward(beatPosition);
 }
 
-void Envelope::resetLinkedParameters(){
-    for (LinkedParameter parameter : linkedParameters){
-        parameter.reset();
-    }
-}
-
-// Reset currentlyDragging to nullptr and currentDraggingMode to none. Processes changes in knob positions for every LinkedParameter
+// Reset currentlyDragging to nullptr and currentDraggingMode to none. Processes changes in knob positions for every ModulatedParameter
 void Envelope::processMouseRelease(){
-    for (int i=0; i<linkedParameters.size(); i++){
-        linkedParameters.at(i).processMouseRelease();
-    }
     currentlyDragging = nullptr;
     currentDraggingMode = none;
 }
-
-// TODO there should be area from which a connection can be dragged to the corresponding parameter to be modulated.
-// void Envelope::processMousePressMod(int32_t x, int32_t y);
 
 void Envelope::processRightClickMod(int32_t x, int32_t y){
     if ((x < XYXY[0]) | (x > XYXY[2]) | (y < XYXY[3]) | (y > XYXY[1])){
@@ -667,6 +672,8 @@ EnvelopeManager::EnvelopeManager(uint32_t inXYXY[4]){
     for (int i=0; i<4; i++){
         XYXY[i] = inXYXY[i];
     }
+
+    envelopes.reserve(MAX_NUMBER_ENVELOPES);
 
     // 10% on left and bottom are reserved for other GUI elements, rest is for Envelopes
     uint32_t width = XYXY[2] - XYXY[0];
@@ -698,6 +705,10 @@ EnvelopeManager::EnvelopeManager(uint32_t inXYXY[4]){
 
 // Adds a new Envelope to the back of envelopes.
 void EnvelopeManager::addEnvelope(){
+    if (envelopes.size() == MAX_NUMBER_ENVELOPES){
+        return;
+    }
+
     envelopes.push_back(Envelope(envelopeXYXY));
     updateGUIElements = true;
 }
@@ -708,11 +719,6 @@ void EnvelopeManager::setActiveEnvelope(int index){
 
     updateGUIElements = true;
     toolsUpdated = true;
-}
-
-// Returns a pointer to the active Envelope object.
-Envelope *EnvelopeManager::getActiveEnvelope(){
-    return &envelopes.at(activeEnvelopeIndex);
 }
 
 // Draw the initial 3D frames around the displayed Envelope. Only has to be called when creating the GUI or the GUI contents have been changed by an user input.
@@ -737,7 +743,7 @@ void EnvelopeManager::setupFrames(uint32_t *canvas){
 
 // Draws the GUI of this EnvelopeManager to canvas. Always calls drawGraph on the active Envelope but renders 3D frames, Envelope selection panel and tool panel only if they have been changed.
 void EnvelopeManager::renderGUI(uint32_t *canvas){
-    envelopes.at(activeEnvelopeIndex).drawGraph(canvas);
+    envelopes[activeEnvelopeIndex].drawGraph(canvas);
 
     if (updateGUIElements){
         setupFrames(canvas);
@@ -749,13 +755,13 @@ void EnvelopeManager::renderGUI(uint32_t *canvas){
     }
 }
 
-// Draws the knobs for the LinkedParameters of the active Envelope to the tool panel. Knobs are positioned next to each other sorted by their index in the linkedParameters vector of the parent Envelope.
+// Draws the knobs for the ModulatedParameters of the active Envelope to the tool panel. Knobs are positioned next to each other sorted by their index in the modulatedParameters vector of the parent Envelope.
 void EnvelopeManager::drawKnobs(uint32_t *canvas){
     // first reset whole area
     fillRectangle(canvas, toolsXYXY);
 
-    for (int i=0; i<envelopes.at(activeEnvelopeIndex).getLinkedParameterNumber(); i++){
-        float amount = envelopes.at(activeEnvelopeIndex).getModAmount(i); // modulation amount of the ith LinkedParameter
+    for (int i=0; i<envelopes[activeEnvelopeIndex].getModulatedParameterNumber(); i++){
+        float amount = envelopes[activeEnvelopeIndex].getModAmount(i); // modulation amount of the ith ModulatedParameter
         drawLinkKnob(canvas, toolsXYXY[0] + LINK_KNOB_SPACING*i + LINK_KNOB_SPACING/2, toolsXYXY[1] + (int)(LINK_KNOB_SPACING/2), LINK_KNOB_SIZE, amount);
     }
 }
@@ -774,9 +780,10 @@ void EnvelopeManager::processMouseClick(uint32_t x, uint32_t y){
     }
 
     // check if it has been clicked on any of the LinkKnobs and set currentdragging mode to moveKnob if true
-    for (int i=0; i<envelopes.at(activeEnvelopeIndex).getLinkedParameterNumber(); i++){
+    for (int i=0; i<envelopes.at(activeEnvelopeIndex).getModulatedParameterNumber(); i++){
         if (isInPoint(x, y, toolsXYXY[0] + LINK_KNOB_SPACING*i + LINK_KNOB_SPACING/2, toolsXYXY[1] + (int)(LINK_KNOB_SPACING/2), LINK_KNOB_SIZE)){
             selectedKnob = i;
+            selectedKnobAmount = envelopes.at(activeEnvelopeIndex).getModAmount(i);
             currentDraggingMode = moveKnob;
         }
     }
@@ -791,7 +798,7 @@ void EnvelopeManager::processDoubleClick(uint32_t x, uint32_t y){
 
 contextMenuType EnvelopeManager::processRightClick(uint32_t x, uint32_t y){
     // check all knobs if they have been rightclicked
-    for (int i=0; i<envelopes.at(activeEnvelopeIndex).getLinkedParameterNumber(); i++){
+    for (int i=0; i<envelopes[activeEnvelopeIndex].getModulatedParameterNumber(); i++){
         if (isInPoint(x, y, toolsXYXY[0] + LINK_KNOB_SPACING*i + LINK_KNOB_SPACING/2, toolsXYXY[1] + (int)(LINK_KNOB_SPACING/2), LINK_KNOB_SIZE)){
             selectedKnob = i;
             return menuLinkKnob;
@@ -803,8 +810,21 @@ contextMenuType EnvelopeManager::processRightClick(uint32_t x, uint32_t y){
 
 void EnvelopeManager::processMenuSelection(WPARAM wParam){
     if (wParam == removeLink && selectedKnob != -1){
-        envelopes.at(activeEnvelopeIndex).removeLinkedParameter(selectedKnob);
+        envelopes.at(activeEnvelopeIndex).removeModulatedParameter(selectedKnob);
         toolsUpdated = true;
+    }
+    // If it was attempted to modulate a point position, add a ModulatedParameter based on the modulationMode.
+    // Set attemptedToModulate to nullptr afterwards to make sure no link is created by accident.
+    else if (wParam == modPosX){
+        if (attemptedToModulate != nullptr) {
+            addModulatedParameter(attemptedToModulate, 1, modPosX);
+        }
+        attemptedToModulate = nullptr;
+    } else if (wParam == modPosY) {
+        if (attemptedToModulate != nullptr) {
+            addModulatedParameter(attemptedToModulate, 1, modPosY);
+        }
+        attemptedToModulate = nullptr;
     }
 
     for (Envelope envelope : envelopes){
@@ -815,7 +835,7 @@ void EnvelopeManager::processMenuSelection(WPARAM wParam){
 // Resets currentDraggingMode, draggedToX, draggedToY and selectedKnob. Calls processMouseRelease() on the active Envelope.
 void EnvelopeManager::processMouseRelease(){
     currentDraggingMode = envNone;
-    envelopes.at(activeEnvelopeIndex).processMouseRelease();
+    envelopes[activeEnvelopeIndex].processMouseRelease();
 
     // reset dragging position to arbitrary value which is far from any points, so it will not accidentally connect to previously selected point 
     draggedToX = 0;
@@ -825,7 +845,7 @@ void EnvelopeManager::processMouseRelease(){
 }
 
 void EnvelopeManager::processMouseDrag(uint32_t x, uint32_t y){
-    envelopes.at(activeEnvelopeIndex).processMouseDrag(x, y);
+    envelopes[activeEnvelopeIndex].processMouseDrag(x, y);
 
     // If the user is trying to add a link, keep track of the mouse position in draggedToX and draggedToY.
     if (currentDraggingMode == addLink){
@@ -834,8 +854,10 @@ void EnvelopeManager::processMouseDrag(uint32_t x, uint32_t y){
     }
     // If a knob is moved, change the amount of modulation of this link.
     else if (currentDraggingMode == moveKnob){
-        float amount = (int)(clickedY - y) * KNOB_SENSITIVITY;
-        envelopes.at(activeEnvelopeIndex).setLinkedParameterAmount(selectedKnob, amount);
+        // Add the amount added by moving the mouse to the previous amount the knob was set to.
+        float amount = selectedKnobAmount + (int)(clickedY - y) * KNOB_SENSITIVITY;
+
+        envelopes.at(activeEnvelopeIndex).setModulatedParameterAmount(selectedKnob, amount);
 
         // Knob position has changed, so rerender them on the GUI
         toolsUpdated = true;
@@ -846,36 +868,24 @@ void EnvelopeManager::processMouseDrag(uint32_t x, uint32_t y){
 }
 
 // Adds the given point and mode as a ModulatedParameter to the active Envelope.
-void EnvelopeManager::addLinkedParameter(ShapePoint *point, float amount, modulationMode mode){
-    envelopes.at(activeEnvelopeIndex).addLinkedParameter(point, amount, mode);
+void EnvelopeManager::addModulatedParameter(ShapePoint *point, float amount, modulationMode mode){
+    envelopes[activeEnvelopeIndex].addModulatedParameter(point, amount, mode);
     toolsUpdated = true;
 }
 
 // Removes all links to the given ShapePoint. Must be called when a ShapePoint is deleted to avoid dangling pointers.
+// The pointer is already freed when this function is called, it is only used to erase entries in the modulatedParameters vector that use it.
 void EnvelopeManager::clearLinksToPoint(ShapePoint *point){
-    if (point == nullptr){
-        return;
-    }
+    if (point == nullptr) return;
 
     for (int i=0; i<envelopes.size(); i++){
-        // Loop backwards through the linkedParameters vector to not mess up the indicex when removing elements.
-        for (int j=envelopes.at(i).linkedParameters.size()-1; j>=0; j--){
-            if (envelopes.at(i).linkedParameters.at(j).getLinkedPoint() == point){
-                envelopes.at(i).removeLinkedParameter(j);
+        // Loop backwards through the modulatedParameters vector to not mess up the indices when removing elements.
+        for (int j=envelopes.at(i).modulatedParameters.size()-1; j>=0; j--){
+            // Remove the parameters referencing point from modulatedParameters of envelope i.
+            if (envelopes.at(i).modulatedParameters.at(j)->getParentPoint() == point){
+                envelopes.at(i).modulatedParameters.erase(envelopes.at(i).modulatedParameters.begin() + j);
             }
         }
     }
     toolsUpdated = true;
-}
-
-void EnvelopeManager::modulateLinkedParameters(double beatPosition, double sampleTimeOffset){
-    for (int i=0; i<envelopes.size(); i++){
-        envelopes.at(i).modulateLinkedParameters(beatPosition, sampleTimeOffset);
-    }
-}
-
-void EnvelopeManager::resetLinkedParameters(){
-    for (int i=0; i<envelopes.size(); i++){
-        envelopes.at(i).resetLinkedParameters();
-    }
 }

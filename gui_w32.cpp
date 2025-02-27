@@ -24,7 +24,6 @@ void showShapeMenu(HWND hwnd, int xPos, int yPos) {
 
     AppendMenu(hMenu, MF_STRING, shapePower, "Power");
     AppendMenu(hMenu, MF_STRING, shapeSine, "Sine");
-    AppendMenu(hMenu, MF_STRING, shapeBezier, "Bezier");
 
     TrackPopupMenu(hMenu, TPM_LEFTALIGN | TPM_TOPALIGN, xPos, yPos, 0, hwnd, NULL);
 
@@ -35,7 +34,19 @@ void showLinkKnobMenu(HWND hwnd, int xPos, int yPos) {
     HMENU hMenu = CreatePopupMenu();
 
     AppendMenu(hMenu, MF_STRING, removeLink, "Remove Link");
-    // AppendMenu(hMenu, MF_STRING, shapeSine, "Set value");
+
+    TrackPopupMenu(hMenu, TPM_LEFTALIGN | TPM_TOPALIGN, xPos, yPos, 0, hwnd, NULL);
+
+    DestroyMenu(hMenu);
+}
+
+void showPointPositionModMenu(HWND hwnd, int xPos, int yPos, bool hideX = false) {
+	HMENU hMenu = CreatePopupMenu();
+
+	if (!hideX) {
+		AppendMenu(hMenu, MF_STRING, modPosX, "X");
+	}
+	AppendMenu(hMenu, MF_STRING, modPosY, "Y");
 
     TrackPopupMenu(hMenu, TPM_LEFTALIGN | TPM_TOPALIGN, xPos, yPos, 0, hwnd, NULL);
 
@@ -103,7 +114,11 @@ LRESULT CALLBACK GUIWindowProcedure(HWND window, UINT message, WPARAM wParam, LP
 	}
 	else if (message == WM_LBUTTONUP) {
 		ReleaseCapture(); 
-		PluginProcessMouseRelease(plugin);
+		if (PluginProcessMouseRelease(plugin) == menuPointPosMod){
+			RECT *rect = new RECT(); // rect to store window coordinates
+			GetWindowRect(window, rect);
+			showPointPositionModMenu(window, rect->left + GET_X_LPARAM(lParam), rect->top + GET_Y_LPARAM(lParam));
+		}
 		GUIPaint(plugin, true);
 	} else {
 		return DefWindowProc(window, message, wParam, lParam);

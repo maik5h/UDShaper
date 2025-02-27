@@ -1,15 +1,14 @@
 The biggest and most noticeable TODOs of this project:
 
-- BUG when moving point on curve with modulated parameter and when modulating multiple parameters per curve, access violation occurs!
-
-- Currently, parameters can only be modulated by one envelope. The reason for that is that the envelopes add their offset to the parameterMod value, than clamp it, then the next envelope is processed. The correct way would be to add all offsets first and only then clamp it, or else there are weird jumps in the value when more than one envelope is modulating it. Doing this would require quite some changes in the modulation implementation and i think it is not urgent since modulation by one envelope should be fine in most cases.
-
 - shapeSine is very buggy. Also add shapeArcsine.
 
 - Audio processing is automatically parallelized by CLAP, which makes some of the planned functionality impossible. 1. deciding whether the current sample is higher of lower than the previous one is not possible for the first sample in every batch. I "solved" that by comparing the first sample with the second one, which is a very good approximation but not perfectly accurate. 2. I want to normalize the distortion segment wise to each local maximum of the wave but again, the nearest local maximum might be outside of the current batch. Is there a way to get the whole buffer as list while still having the parallelization working?
 
-- Let user edit and remove modulation links.
+- Envelopes are hardcoded to loop every 4 beats. There should be menu to change this speed and choose between beats and seconds.
 
+- All parameters depending on a ModulatedParameter are retrieved using a get-function which recalculates the parameter every time it is needed. This is probably more often than necessary. Can this be made more efficient?
+
+- I use my own (unparallelized) functions to create GUI visuals. By only updating elements that have changed their appereance this is still fast enough (on my machine). using a graphics library would probably be better.
 
 No functionality, only convenience:
 
