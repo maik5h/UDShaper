@@ -10,6 +10,7 @@
 #include <map>
 #include <windows.h>
 #include "../config.h"
+#include "assets.h"
 
 /*
 Everything concerning the shape editors.
@@ -67,13 +68,15 @@ enum menuLinkKnobOptions{
 
 class ShapePoint;
 
-class ShapeEditor{
+class ShapeEditor : public InteractiveGUIElement {
     protected:
-    uint32_t *canvas; // Array of pixel values on the window.
-
     ShapePoint *currentlyDragging = nullptr; // Pointer to the ShapePoint that is currently edited by the user.
     ShapePoint *rightClicked = nullptr; // Pointer to the ShapePoint that has been rightclicked by the user.
 
+    contextMenuType menuRequest = menuNone; // If any action requires a menu to be opened, the type of menu is stored here.
+    ShapePoint *deletedPoint = nullptr; // If a point was deleted, store a pointer to it here, so that the plugin can remove all Envelope links after the input is fully processed.
+
+    void drawConnection(uint32_t *canvas, ShapePoint *point, double beatPosition = 0., uint32_t color = 0x000000, float thickness = 5);
 
     public:
     uint32_t XYXY[4]; // Box coordinates of the area where the shapePoints are defined, in XYXY notation.
@@ -88,15 +91,19 @@ class ShapeEditor{
     ShapePoint *shapePoints;
 
     ShapeEditor(uint32_t position[4]);
-    void drawGraph(uint32_t *canvas, double beatPosition = 0.);
     ShapePoint* getClosestPoint(uint32_t x, uint32_t y, float minimumDistance = REQUIRED_SQUARED_DISTANCE);
-    void processMouseClick(int32_t x, int32_t y);
-    ShapePoint* processDoubleClick(uint32_t x, uint32_t y);
-    contextMenuType processRightClick(uint32_t x, uint32_t y);
+
+    void processLeftClick(uint32_t x, uint32_t y);
+    void processMouseDrag(uint32_t x, uint32_t y);
+    void processMouseRelease(uint32_t x, uint32_t y);
+    void processDoubleClick(uint32_t x, uint32_t y);
+    void processRightClick(uint32_t x, uint32_t y);
+    void renderGUI(uint32_t *canvas, double beatPosition = 0);
+
+    contextMenuType getMenuRequestType();
+    ShapePoint *getDeletedPoint();
+    
     void processMenuSelection(WPARAM wParam);
-    void processMouseRelease();
-    void drawConnection(uint32_t *canvas, ShapePoint *point, double beatPosition = 0., uint32_t color = 0x000000, float thickness = 5);
-    void processMouseDrag(int32_t x, int32_t y);
     float forward(float input, double beatPosition = 0.);
 };
 
@@ -114,11 +121,13 @@ class Envelope : public ShapeEditor{
     float getModAmount(int index);
     float modForward(double beatPosition = 0);
     void processRightClickMod(int32_t x, int32_t y);
-    void processMouseRelease();
 };
 
-// Class in which Envelopes can be edited and linked to Parameters of the ShapeEditors. Only one Envelope is displayed and editable, user inputs are forwarded to this Envelope.
-class EnvelopeManager{
+// Class in which Envelopes can be edited and linked to Parameters of the ShapeEditors.
+//
+// Consists of three parts: An Envelope, a selection panel left to the Envelope and a tool panel below Envelope and selection panel.
+// Only one Envelope is displayed and editable, the active Envelope can be switched on the selection panel. The tool panel shows knobs for all ModulatedParameters that are linked to the active Envelope. These knobs control the modulation amount of the corresponding parameter.
+class EnvelopeManager : public InteractiveGUIElement {
     private:
     std::vector<Envelope> envelopes; // Vector of Envelopes. To prevent reallocation and dangling pointers in ModulatedParameters, MAX_NUMBER_ENVELOPES spots is reserved and no more Envelopes can be added.
     uint32_t XYXY[4]; // Size and position of this EnvelopeManager in XYXY notation.
@@ -128,6 +137,8 @@ class EnvelopeManager{
     
     uint32_t clickedX; // x-position of last mouseclick
     uint32_t clickedY; // y-position of last mouseclick
+
+    contextMenuType menuRequest = menuNone;
     
     void setActiveEnvelope(int index);
     void addEnvelope();
@@ -141,20 +152,21 @@ class EnvelopeManager{
 
     public:
     envelopeManagerDraggingMode currentDraggingMode = envNone;
-    uint32_t draggedToX; // Last x-position the mouse was dragged to after clicking on the EnvelopeManager GUI. Is used to determine if it has been dragged to a ShapePoint for modulation. 
-    uint32_t draggedToY; // Last y-position the mouse was dragged to after clicking on the EnvelopeManager GUI. Is used to determine if it has been dragged to a ShapePoint for modulation. 
-
     ShapePoint *attemptedToModulate = nullptr; // Points to a ShapePoint that was linked to the active Envelope by the user, but is waiting for the user to select the X or Y direction in the menu before it can actually be added as a ModulatedParameter.
 
     EnvelopeManager(uint32_t XYXY[4]);
     void setupFrames(uint32_t *canvas);
-    void renderGUI(uint32_t	*canvas);
-    void processMouseClick(uint32_t x, uint32_t y);
-    void processDoubleClick(uint32_t x, uint32_t y);
-    contextMenuType processRightClick(uint32_t x, uint32_t y);
-    void processMenuSelection(WPARAM wParam);
-    void processMouseRelease();
+    
+    void processLeftClick(uint32_t x, uint32_t y);
     void processMouseDrag(uint32_t x, uint32_t y);
+    void processMouseRelease(uint32_t x, uint32_t y);
+    void processDoubleClick(uint32_t x, uint32_t y);
+    void processRightClick(uint32_t x, uint32_t y);
+    void renderGUI(uint32_t	*canvas, double beatPosition = 0);
+
+    void processMenuSelection(WPARAM wParam);
     void addModulatedParameter(ShapePoint *point, float amount, modulationMode mode);
     void clearLinksToPoint(ShapePoint *point);
+
+    contextMenuType getMenuRequestType();
 };

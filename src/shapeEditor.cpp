@@ -243,7 +243,7 @@ class ShapePoint{
         }
     }
 
-    void processMouseClick(){
+    void processLeftClick(){
         // Save the previous omega state.
         sineOmegaPrevious = sineOmega;
     }
@@ -320,27 +320,6 @@ ShapeEditor::ShapeEditor(uint32_t position[4]){
     shapePoints->next->previous = shapePoints;
 }
 
-void ShapeEditor::drawGraph(uint32_t *canvas, double beatPosition){
-    // set whole area to background color
-    for (uint32_t i = XYXYFull[0]; i < XYXYFull[2]; i++) {
-        for (uint32_t j = XYXYFull[1]; j < XYXYFull[3]; j++) {
-            canvas[i + j * GUI_WIDTH] = colorEditorBackground;
-        }
-    }
-
-    drawGrid(canvas, XYXY, 3, 2, 0xFFFFFF, alphaGrid);
-    drawFrame(canvas, XYXY, 3, 0xFFFFFF);
-
-    // first draw all connections between points, then points on top
-    for (ShapePoint *point = shapePoints->next; point != nullptr; point = point->next){
-        drawConnection(canvas, point, beatPosition, colorCurve);
-    }
-    for (ShapePoint *point = shapePoints->next; point != nullptr; point = point->next){
-        drawPoint(canvas, point->getAbsPosX(beatPosition), point->getAbsPosY(beatPosition), colorCurve, 20);
-        drawPoint(canvas, point->getCurveCenterAbsPosX(beatPosition), point->getCurveCenterAbsPosY(beatPosition), colorCurve, 16);
-    }
-}
-
 // Finds the closest ShapePoint or curve center point. Returns pointer to the corresponding point if it is closer than the squareroot of REQUIRED_SQUARED_DISTANCE, else nullptr. The field currentDraggingMode of this instance is set to either position or curveCenter.
 ShapePoint* ShapeEditor::getClosestPoint(uint32_t x, uint32_t y, float minimumDistance){
     // TODO i think it might be a better user experience if points always give visual feedback if the mouse is hovering over them.
@@ -378,7 +357,7 @@ ShapePoint* ShapeEditor::getClosestPoint(uint32_t x, uint32_t y, float minimumDi
     }
 }
 
-void ShapeEditor::processMouseClick(int32_t x, int32_t y){
+void ShapeEditor::processLeftClick(uint32_t x, uint32_t y){
     // check if mouse hovers over the graphical interface and return if not
     // check for slightly higher area to be able to grab point from outside the interface
     float offset = pow(REQUIRED_SQUARED_DISTANCE, 0.5);
@@ -391,15 +370,16 @@ void ShapeEditor::processMouseClick(int32_t x, int32_t y){
 
     // if in proximity to point mark point as currentlyDragging
     if (closestPoint != nullptr){
-        closestPoint->processMouseClick();
+        closestPoint->processLeftClick();
         currentlyDragging = closestPoint;
     }
 }
 
 // Processes double click. If a ShapePoint was deleted by the double click, a pointer to this ShapePoint is returned. If no point has been deleted, nullptr is returned.
-ShapePoint* ShapeEditor::processDoubleClick(uint32_t x, uint32_t y){
+void ShapeEditor::processDoubleClick(uint32_t x, uint32_t y){
     if ((x < XYXY[0]) | (x >= XYXY[2]) | (y < XYXY[1]) | (y >= XYXY[3])){
-        return nullptr;
+        deletedPoint = nullptr;
+        return;
     }
 
     ShapePoint *closestPoint;
@@ -410,7 +390,8 @@ ShapePoint* ShapeEditor::processDoubleClick(uint32_t x, uint32_t y){
         if (currentDraggingMode == position && closestPoint->next != nullptr){
             ShapePoint *nextPoint = closestPoint->next;
             deleteShapePoint(closestPoint);
-            return closestPoint;
+            deletedPoint = closestPoint;
+            return;
         }
 
         // if double click on curve center, reset power
@@ -421,7 +402,8 @@ ShapePoint* ShapeEditor::processDoubleClick(uint32_t x, uint32_t y){
                 closestPoint->sineOmega = 0.5;
                 closestPoint->sineOmegaPrevious = 0.5;
             }
-            return nullptr;
+            deletedPoint = nullptr;
+            return;
         }
     }
 
@@ -439,18 +421,19 @@ ShapePoint* ShapeEditor::processDoubleClick(uint32_t x, uint32_t y){
 
         insertPointBefore(insertBefore, new ShapePoint((float)(x - XYXY[0]) / (XYXY[2] - XYXY[0]), (float)(XYXY[3] - y) / (XYXY[3] - XYXY[1]), XYXY));
     }
-    return nullptr;
+    deletedPoint = nullptr;
 }
 
 // Process right click and return a contextMenuType if clicked onto a ShapePoint.
-contextMenuType ShapeEditor::processRightClick(uint32_t x, uint32_t y){
+void ShapeEditor::processRightClick(uint32_t x, uint32_t y){
     ShapePoint *closestPoint;
     closestPoint = getClosestPoint(x, y);
 
     // if rightclick on point, show shape menu to change function of curve segment
     if (closestPoint != nullptr && currentDraggingMode == position){
         rightClicked = closestPoint;
-        return menuShapePoint;
+        menuRequest = menuShapePoint;
+        return;
     }
     // if right click on curve center, reset power
     else if (closestPoint != nullptr && currentDraggingMode == curveCenter){
@@ -461,9 +444,46 @@ contextMenuType ShapeEditor::processRightClick(uint32_t x, uint32_t y){
             closestPoint->sineOmegaPrevious = 0.5;
         }
     }
-    return menuNone;
+    menuRequest = menuNone;
 }
 
+void ShapeEditor::renderGUI(uint32_t *canvas, double beatPosition){
+    // set whole area to background color
+    for (uint32_t i = XYXYFull[0]; i < XYXYFull[2]; i++) {
+        for (uint32_t j = XYXYFull[1]; j < XYXYFull[3]; j++) {
+            canvas[i + j * GUI_WIDTH] = colorEditorBackground;
+        }
+    }
+
+    drawGrid(canvas, XYXY, 3, 2, 0xFFFFFF, alphaGrid);
+    drawFrame(canvas, XYXY, 3, 0xFFFFFF);
+
+    // first draw all connections between points, then points on top
+    for (ShapePoint *point = shapePoints->next; point != nullptr; point = point->next){
+        drawConnection(canvas, point, beatPosition, colorCurve);
+    }
+    for (ShapePoint *point = shapePoints->next; point != nullptr; point = point->next){
+        drawPoint(canvas, point->getAbsPosX(beatPosition), point->getAbsPosY(beatPosition), colorCurve, 20);
+        drawPoint(canvas, point->getCurveCenterAbsPosX(beatPosition), point->getCurveCenterAbsPosY(beatPosition), colorCurve, 16);
+    }
+}
+
+// Returns the type of menu requested by the ShapeEditor to open. The type is reset to menuNone when called.
+contextMenuType ShapeEditor::getMenuRequestType() {
+    contextMenuType requested = menuRequest;
+    menuRequest = menuNone;
+    return requested;
+}
+
+// Returns the pointer to the ShapePoint that was most recently deleted and resets the deletedPoint attribute to nullptr. Returns nullptr, when no point was deleted.
+ShapePoint *ShapeEditor::getDeletedPoint() {
+    ShapePoint *deleted = deletedPoint;
+    deletedPoint = nullptr;
+    return deleted;
+}
+
+// Is called when an option on any context menu was selected. Changes the interpolation mode between points if this option was one of shapePower, shapeSine, etc.
+// Resets rightClicked to nullptr.
 void ShapeEditor::processMenuSelection(WPARAM wParam){
     if (rightClicked == nullptr){
         return;
@@ -481,12 +501,12 @@ void ShapeEditor::processMenuSelection(WPARAM wParam){
 }
 
 // Reset currentlyDragging to nullptr and currentDraggingMode to none.
-void ShapeEditor::processMouseRelease(){
+void ShapeEditor::processMouseRelease(uint32_t x, uint32_t y){
     currentlyDragging = nullptr;
     currentDraggingMode = none;
 }
 
-/* TODO does it make sense to have a single function that transforms values according to the shape of all curve segments? This function could be used to transform x-pixel coordinates to get the y value and also to actually shape the input sound.*/
+// Draws the connection corresponding to ShapePoint *point (from the previous SHapePoint up to this one).
 void ShapeEditor::drawConnection(uint32_t *canvas, ShapePoint *point, double beatPosition, uint32_t color, float thickness){
 
     uint32_t xMin = point->previous->getAbsPosX();
@@ -525,7 +545,7 @@ void ShapeEditor::drawConnection(uint32_t *canvas, ShapePoint *point, double bea
     }
 }
 
-void ShapeEditor::processMouseDrag(int32_t x, int32_t y){
+void ShapeEditor::processMouseDrag(uint32_t x, uint32_t y){
     if (!currentlyDragging) return;
 
     if (currentDraggingMode == position){
@@ -655,19 +675,6 @@ float Envelope::modForward(double beatPosition){
     return forward(beatPosition);
 }
 
-// Reset currentlyDragging to nullptr and currentDraggingMode to none. Processes changes in knob positions for every ModulatedParameter
-void Envelope::processMouseRelease(){
-    currentlyDragging = nullptr;
-    currentDraggingMode = none;
-}
-
-void Envelope::processRightClickMod(int32_t x, int32_t y){
-    if ((x < XYXY[0]) | (x > XYXY[2]) | (y < XYXY[3]) | (y > XYXY[1])){
-        return;
-    }
-
-}
-
 EnvelopeManager::EnvelopeManager(uint32_t inXYXY[4]){
     for (int i=0; i<4; i++){
         XYXY[i] = inXYXY[i];
@@ -741,9 +748,9 @@ void EnvelopeManager::setupFrames(uint32_t *canvas){
     }
 }
 
-// Draws the GUI of this EnvelopeManager to canvas. Always calls drawGraph on the active Envelope but renders 3D frames, Envelope selection panel and tool panel only if they have been changed.
-void EnvelopeManager::renderGUI(uint32_t *canvas){
-    envelopes[activeEnvelopeIndex].drawGraph(canvas);
+// Draws the GUI of this EnvelopeManager to canvas. Always calls renderGUI on the active Envelope but renders 3D frames, Envelope selection panel and tool panel only if they have been changed.
+void EnvelopeManager::renderGUI(uint32_t *canvas, double beatPosition){
+    envelopes[activeEnvelopeIndex].renderGUI(canvas);
 
     if (updateGUIElements){
         setupFrames(canvas);
@@ -766,7 +773,11 @@ void EnvelopeManager::drawKnobs(uint32_t *canvas){
     }
 }
 
-void EnvelopeManager::processMouseClick(uint32_t x, uint32_t y){
+// Depending on the mouse position, this method does different things:
+//  mouse on Envelope: forwards left click to active Envelope.
+//  mouse on selection panel: switches active Envelope and attempts to connect it to a parameter, if the mouse is later released close to a point or curveCenter.
+//  mouse on tool panel: If over knob, start tracking mouse drag to move knob position.
+void EnvelopeManager::processLeftClick(uint32_t x, uint32_t y){
     clickedX = x;
     clickedY = y;
 
@@ -789,23 +800,29 @@ void EnvelopeManager::processMouseClick(uint32_t x, uint32_t y){
     }
 
     // always forward input to active Envelope
-    envelopes.at(activeEnvelopeIndex).processMouseClick(x, y);
+    envelopes.at(activeEnvelopeIndex).processLeftClick(x, y);
 }
 
+// Forwards double click to the active Envelope.
 void EnvelopeManager::processDoubleClick(uint32_t x, uint32_t y){
     envelopes.at(activeEnvelopeIndex).processDoubleClick(x, y);
 }
 
-contextMenuType EnvelopeManager::processRightClick(uint32_t x, uint32_t y){
+// Depending on the mouse position, this method does different things:
+//  mouse on Envelope: forwards right click to active Envelope.
+//  mouse on tool panel: If over knob, open menu to delete the link to the ModulatedParameter.
+void EnvelopeManager::processRightClick(uint32_t x, uint32_t y){
     // check all knobs if they have been rightclicked
     for (int i=0; i<envelopes[activeEnvelopeIndex].getModulatedParameterNumber(); i++){
         if (isInPoint(x, y, toolsXYXY[0] + LINK_KNOB_SPACING*i + LINK_KNOB_SPACING/2, toolsXYXY[1] + (int)(LINK_KNOB_SPACING/2), LINK_KNOB_SIZE)){
             selectedKnob = i;
-            return menuLinkKnob;
+            menuRequest = menuLinkKnob;
+            return;
         }
     }
     
-    return envelopes.at(activeEnvelopeIndex).processRightClick(x, y);
+    envelopes.at(activeEnvelopeIndex).processRightClick(x, y);
+    menuRequest = envelopes.at(activeEnvelopeIndex).getMenuRequestType();
 }
 
 void EnvelopeManager::processMenuSelection(WPARAM wParam){
@@ -832,28 +849,22 @@ void EnvelopeManager::processMenuSelection(WPARAM wParam){
     }
 }
 
-// Resets currentDraggingMode, draggedToX, draggedToY and selectedKnob. Calls processMouseRelease() on the active Envelope.
-void EnvelopeManager::processMouseRelease(){
+// Resets currentDraggingMode and selectedKnob. Calls processMouseRelease() on the active Envelope.
+void EnvelopeManager::processMouseRelease(uint32_t x, uint32_t y){
     currentDraggingMode = envNone;
-    envelopes[activeEnvelopeIndex].processMouseRelease();
-
-    // reset dragging position to arbitrary value which is far from any points, so it will not accidentally connect to previously selected point 
-    draggedToX = 0;
-    draggedToY = 0;
+    envelopes[activeEnvelopeIndex].processMouseRelease(x, y);
 
     selectedKnob = -1;
 }
 
+// Depending on the mouse position, this method does different things:
+//  mouse was clicked on Envelope: forwards mouse drag to active Envelope.
+//  mouse was clicked on tool panel: If clicked on knob, start to move knob position.
 void EnvelopeManager::processMouseDrag(uint32_t x, uint32_t y){
     envelopes[activeEnvelopeIndex].processMouseDrag(x, y);
 
-    // If the user is trying to add a link, keep track of the mouse position in draggedToX and draggedToY.
-    if (currentDraggingMode == addLink){
-        draggedToX = x;
-        draggedToY = y;
-    }
     // If a knob is moved, change the amount of modulation of this link.
-    else if (currentDraggingMode == moveKnob){
+    if (currentDraggingMode == moveKnob){
         // Add the amount added by moving the mouse to the previous amount the knob was set to.
         float amount = selectedKnobAmount + (int)(clickedY - y) * KNOB_SENSITIVITY;
 
@@ -888,4 +899,11 @@ void EnvelopeManager::clearLinksToPoint(ShapePoint *point){
         }
     }
     toolsUpdated = true;
+}
+
+// Returns the type of menu requested by the EnvelopeManager to open. The type is reset to menuNone when called.
+contextMenuType EnvelopeManager::getMenuRequestType() {
+    contextMenuType requested = menuRequest;
+    menuRequest = menuNone;
+    return requested;
 }

@@ -6,6 +6,16 @@
 #include <windows.h>
 #include "../config.h"
 
+// Abstract base class for all elements that contribute to the plugin GUI and react to user inputs.
+class InteractiveGUIElement {
+    virtual void processLeftClick(uint32_t x, uint32_t y) = 0;
+    virtual void processMouseDrag(uint32_t x, uint32_t y) = 0;
+    virtual void processMouseRelease(uint32_t x, uint32_t y) = 0;
+    virtual void processDoubleClick(uint32_t x, uint32_t y) = 0;
+    virtual void processRightClick(uint32_t x, uint32_t y) = 0;
+    virtual void renderGUI(uint32_t *canvas, double beatPosition) = 0;
+};
+
 // Checks if the coordinates x, y are in the given box.
 inline bool isInBox(int x, int y, uint32_t box[4]){
     return (x > box[0]) && (x < box[2]) && (y > box[1]) && (y < box[3]);
