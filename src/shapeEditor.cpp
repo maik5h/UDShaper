@@ -509,11 +509,11 @@ void ShapeEditor::processMouseRelease(uint32_t x, uint32_t y){
 // Draws the connection corresponding to ShapePoint *point (from the previous SHapePoint up to this one).
 void ShapeEditor::drawConnection(uint32_t *canvas, ShapePoint *point, double beatPosition, uint32_t color, float thickness){
 
-    uint32_t xMin = point->previous->getAbsPosX();
-    uint32_t xMax = point->getAbsPosX();
+    uint32_t xMin = point->previous->getAbsPosX(beatPosition);
+    uint32_t xMax = point->getAbsPosX(beatPosition);
 
-    uint32_t yL = point->previous->getAbsPosY();
-    uint32_t yR = point->getAbsPosY();
+    uint32_t yL = point->previous->getAbsPosY(beatPosition);
+    uint32_t yR = point->getAbsPosY(beatPosition);
 
     switch (point->mode){
         case shapePower:

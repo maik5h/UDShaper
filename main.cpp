@@ -13,14 +13,6 @@
 #include "src/assets.h"
 #include "src/UDShaper.h"
 
-// Returns the current time since Unix epoch in milliseconds.
-long getCurrentTime(){
-	auto time = std::chrono::system_clock::now();
-	auto since_epoch = time.time_since_epoch();
-	auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(since_epoch);
-	return millis.count();
-}
-
 // for debugging
 void logToFile(const std::string& message) {
     std::ofstream logFile("C:/Users/mm/Desktop/log.txt", std::ios_base::app);
@@ -29,6 +21,38 @@ void logToFile(const std::string& message) {
     } else {
         std::cerr << "Failed to open log file!" << std::endl;
     }
+}
+
+// GUI is rendered on the main thread, while the song position is only available on the audio threads.
+// This function compares the process corresponding to the thread it is called in with the last process written to the UDShaper object.
+// It will overwrite the saved start time if the start time of this process is earlier, this way the true starting time of the audio buffer can be determined. The initial beatPosition is saved together with the start time.
+// From this information, the beatPosition can be calculated on the main thread.
+//
+// Uses Mutex but should be fast enough to not cause major delays in processing. 
+void reportPlaybackStatusToMain(UDShaper *plugin, const clap_process_t *process) {
+	int samplerate = 44100; // TODO how to get actual sr????
+
+	long processStartTime = getCurrentTime(); // The time at sample 0 of this process.
+	long processStopTime = processStartTime + (long)(1000 * process->frames_count / samplerate); // The time at the last sample of this process.
+	double processStartPosition = (double)process->transport->song_pos_beats / CLAP_BEATTIME_FACTOR; // The beatPosition at sample 0 of this process.
+	bool isPlaying = (process->transport->flags & CLAP_TRANSPORT_IS_PLAYING);
+
+	WaitForSingleObject(plugin->synchProcessStartTime, INFINITE);
+
+	plugin->initBeatPosition = processStartPosition;
+
+	// If this process is earlier than the one that previously wrote to plugin->processStartTime, overwrite the value.
+	if (isPlaying && (plugin->startedPlaying > processStartTime || plugin->startedPlaying == 0)) {
+		plugin->startedPlaying = processStartTime;
+		plugin->currentTempo = process->transport->tempo;
+		plugin->hostPlaying = true;
+	}
+	if (!isPlaying) {
+		plugin->startedPlaying = 0;
+		plugin->hostPlaying = false;
+	}
+
+	ReleaseMutex(plugin->synchProcessStartTime);
 }
 
 #ifdef _WIN32
@@ -214,7 +238,6 @@ static const clap_plugin_timer_support_t extensionTimerSupport = {
 
 		// repaint plugin so Modulation is also visible when user is not giving input
 		GUIPaint(plugin, true);
-
 	},
 };
 
@@ -268,6 +291,9 @@ static const clap_plugin_t pluginClass = {
 
 	.process = [] (const clap_plugin *_plugin, const clap_process_t *process) -> clap_process_status {
 		UDShaper *plugin = (UDShaper *) _plugin->plugin_data;
+
+		// Firstly report start and end of the process to the main thread
+		reportPlaybackStatusToMain(plugin, process);
 
 		plugin->renderAudio(process);
 

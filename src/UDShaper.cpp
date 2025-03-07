@@ -1,5 +1,13 @@
 #include "UDShaper.h"
 
+// Returns the current time since Unix epoch in milliseconds.
+long getCurrentTime(){
+	auto time = std::chrono::system_clock::now();
+	auto since_epoch = time.time_since_epoch();
+	auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(since_epoch);
+	return millis.count();
+}
+
 // Initializes the two ShapeEditors and the EnvelopeManager at positions at with sizes according to the input window size.
 UDShaper::UDShaper(uint32_t windowWidth, uint32_t windowHieght) {
     // TODO select the sizes based on the window size.
@@ -62,7 +70,7 @@ void UDShaper::processMouseRelease(uint32_t x, uint32_t y) {
                 // Find the correct parameter to modulate. There are the options curveCenter, posX and posY.
                 modulationMode modMode;
                 if (mode == curveCenter) {
-                    modMode = modCurveCenterY;
+                    envelopes->addModulatedParameter(closest, 1, modCurveCenterY);
                 }
                 // If the point position should be modulated, show context menu to select correct direction.
                 // Exception: last point is selected, which can only be modulated in y-direction. Do not show the menu in this case and directly add the ModulatedParameter.
@@ -115,10 +123,15 @@ void UDShaper::processRightClick(uint32_t x, uint32_t y) {
 // Renders the GUI of all InteractiveGUIElement members. beatPosition is used to sync animated graphics to the host playback position.
 void UDShaper::renderGUI(uint32_t *canvas, double beatPosition) {
     // TODO how to get beatPosition on main thread???
-    // double beatPosition = 0;
+    long now = getCurrentTime();
+    WaitForSingleObject(synchProcessStartTime, INFINITE);
 
-    shapeEditor1->renderGUI(canvas, beatPosition);
-    shapeEditor2->renderGUI(canvas, beatPosition);
+    double bp = hostPlaying ? (initBeatPosition + (now - startedPlaying) / 1000 / 60 * currentTempo) : initBeatPosition;
+
+    ReleaseMutex(synchProcessStartTime);
+
+    shapeEditor1->renderGUI(canvas, bp);
+    shapeEditor2->renderGUI(canvas, bp);
     envelopes->renderGUI(canvas);
 }
 
@@ -152,9 +165,9 @@ void UDShaper::renderAudio(const clap_process_t *process) {
     double tempo = transport->flags[&isNotPlaying] ? transport->tempo : 0;
 
     float *inputL = process->audio_inputs[0].data32[0];
-    float *inputR = process->audio_inputs[0].data32[0];
+    float *inputR = process->audio_inputs[0].data32[1];
     float *outputL = process->audio_outputs[0].data32[0];
-    float *outputR = process->audio_outputs[0].data32[0];
+    float *outputR = process->audio_outputs[0].data32[1];
 
     switch (distortionMode) {
         /* TODO Buffer is parallelized into pieces of ~200 samples. I dont know how to access all of them in

@@ -4,6 +4,8 @@
 #include "shapeEditor.h"
 #include "assets.h"
 
+long getCurrentTime();
+
 enum distortionMode {
 	upDown,
 	midSide,
@@ -48,6 +50,12 @@ class UDShaper : public InteractiveGUIElement {
 	EnvelopeManager *envelopes; // Manages Envelopes and links between Envelopes and parameters.
 
 	distortionMode distortionMode = upDown; // Defines the condition on which it is decided, which of the ShapeEditors to choose for each sample.
+
+	HANDLE synchProcessStartTime;
+	long startedPlaying = 0;
+	bool hostPlaying;
+	double initBeatPosition;
+	double currentTempo;
 
 	UDShaper(uint32_t windowWidth, uint32_t windowHeight);
 
