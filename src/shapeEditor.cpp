@@ -880,6 +880,10 @@ void EnvelopeManager::processMouseDrag(uint32_t x, uint32_t y){
 
 // Adds the given point and mode as a ModulatedParameter to the active Envelope.
 void EnvelopeManager::addModulatedParameter(ShapePoint *point, float amount, modulationMode mode){
+    // Dont modulate point in x-direction, if it is last point.
+    // TODO it would be better to not even show the option X in the context menu on attempted modulation, but it is not straightforward with the current implementation. This is easier even though slightly more confusing to the user.
+    if ((mode == modPosX) && (point->next == nullptr)) return;
+
     envelopes[activeEnvelopeIndex].addModulatedParameter(point, amount, mode);
     toolsUpdated = true;
 }

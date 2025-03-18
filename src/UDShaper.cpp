@@ -32,10 +32,6 @@ void UDShaper::processLeftClick(uint32_t x, uint32_t y) {
 // Forwards mouse drag to all InteractiveGUIElement members.
 void UDShaper::processMouseDrag(uint32_t x, uint32_t y) {
     if (mouseDragging) {
-        if (hostParams && hostParams->request_flush) {
-            hostParams->request_flush(host);
-        }
-
         shapeEditor1->processMouseDrag(x, y);
         shapeEditor2->processMouseDrag(x, y);
 
@@ -47,12 +43,6 @@ void UDShaper::processMouseDrag(uint32_t x, uint32_t y) {
 void UDShaper::processMouseRelease(uint32_t x, uint32_t y) {
     contextMenuType menu = menuNone; // The menu to show after processing the mouse release. Is menuPointPosMod if a new modulation link was added to a point, menuNone else.
     if (mouseDragging) {
-
-        // TODO i dont know what this does
-        if (hostParams && hostParams->request_flush) {
-            hostParams->request_flush(host);
-        }
-
         // If it was attempted to link the active Envelope to a modulatable parameter, check if a parameter was selected successfully and add a ModulatedParameter instance to the corresponding Envelope.
         if (envelopes->currentDraggingMode == addLink){
             // Get the closest points for both ShapeEditors to the position the mouse was dragged to
@@ -122,7 +112,7 @@ void UDShaper::processRightClick(uint32_t x, uint32_t y) {
 
 // Renders the GUI of all InteractiveGUIElement members. beatPosition is used to sync animated graphics to the host playback position.
 void UDShaper::renderGUI(uint32_t *canvas, double beatPosition) {
-    // TODO how to get beatPosition on main thread???
+    // TODO is there a better way to get the beatposition?
     long now = getCurrentTime();
     WaitForSingleObject(synchProcessStartTime, INFINITE);
 

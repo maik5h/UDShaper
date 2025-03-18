@@ -10,6 +10,7 @@
 #include "clap/clap.h"
 #include "config.h"
 #include "src/shapeEditor.h"
+#include "src/GUI.h"
 #include "src/assets.h"
 #include "src/UDShaper.h"
 
@@ -73,14 +74,14 @@ typedef pthread_mutex_t Mutex;
 
 static const clap_plugin_descriptor_t pluginDescriptor = {
 	.clap_version = CLAP_VERSION_INIT,
-	.id = "F.UDShaper",
+	.id = "maik5h.UDShaper",
 	.name = "UDShaper",
-	.vendor = "F",
-	.url = "",
+	.vendor = "maik5h",
+	.url = "https://github.com/maik5h",
 	.manual_url = "",
 	.support_url = "",
 	.version = "1.0.0",
-	.description = "Upwards-downwards distortion plugin.",
+	.description = "Upwards-downwards fully modulatable distortion plugin.",
 
 	.features = (const char *[]) {
 		CLAP_PLUGIN_FEATURE_AUDIO_EFFECT,
@@ -146,14 +147,6 @@ static const clap_plugin_params_t extensionParams = {
 	},
 };
 
-#if defined(_WIN32)
-#include "gui_w32.cpp"
-#elif defined(__linux__)
-#include "gui_x11.cpp"
-#elif defined(__APPLE__)
-#include "gui_mac.cpp"
-#endif
-
 static const clap_plugin_gui_t extensionGUI = {
 	.is_api_supported = [] (const clap_plugin_t *plugin, const char *api, bool isFloating) -> bool {
 		return 0 == strcmp(api, GUI_API) && !isFloating;
@@ -167,12 +160,12 @@ static const clap_plugin_gui_t extensionGUI = {
 
 	.create = [] (const clap_plugin_t *_plugin, const char *api, bool isFloating) -> bool {
 		if (!extensionGUI.is_api_supported(_plugin, api, isFloating)) return false;
-		GUICreate((UDShaper *) _plugin->plugin_data);
+		GUICreate((UDShaper *) _plugin->plugin_data, pluginDescriptor);
 		return true;
 	},
 
 	.destroy = [] (const clap_plugin_t *_plugin) {
-		GUIDestroy((UDShaper *) _plugin->plugin_data);
+		GUIDestroy((UDShaper *) _plugin->plugin_data, pluginDescriptor);
 	},
 
 	.set_scale = [] (const clap_plugin_t *plugin, double scale) -> bool {

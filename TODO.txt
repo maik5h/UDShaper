@@ -12,8 +12,8 @@ The biggest and most noticeable TODOs of this project:
 
 No functionality, only convenience:
 
-- Can gui_w32.cpp be compiled separately and linked to plugin.cpp? apparently it needs the MyPlugin struct but maybe this can be avoided?
+- Can gui_w32.cpp be compiled separately and linked to plugin.cpp?
 
 - When editing curveCenter, the center should not be set to the mouse position, but rather move slower the further from the center it is, to allow for more control. Also detach the exact position on the screen from the power value to allow for finer steps in power.
 
-- Draw the curves independently from the current state, since audio is parallelized and parameter values will jump randomly.
+- Symbols in shapeEditor windows to indicate mode (arrow up/down, L/R, M/S, +/-)
