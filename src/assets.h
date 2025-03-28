@@ -3,7 +3,6 @@
 #include <cstdint>
 #include <string>
 #include <cmath>
-#include <windows.h>
 #include "../config.h"
 
 // Abstract base class for all elements that contribute to the plugin GUI and react to user inputs.
@@ -13,7 +12,7 @@ class InteractiveGUIElement {
     virtual void processMouseRelease(uint32_t x, uint32_t y) = 0;
     virtual void processDoubleClick(uint32_t x, uint32_t y) = 0;
     virtual void processRightClick(uint32_t x, uint32_t y) = 0;
-    virtual void renderGUI(uint32_t *canvas, double beatPosition) = 0;
+    virtual void renderGUI(uint32_t *canvas, double beatPosition, double secondsPlayed) = 0;
 };
 
 // Checks if the coordinates x, y are in the given box.
@@ -40,4 +39,7 @@ void drawArrow(uint32_t *canvas, uint32_t box[4], bool up, float sizeFactor);
 
 void drawLinkKnob(uint32_t *canvas, uint32_t x, uint32_t y, uint32_t size, float value, uint32_t color = colorEditorBackground);
 
-void drawText(HWND hwnd, int x, int y, LPCSTR text, uint32_t color);
+// The following functions rely on platform dependent packages and are therefore not defined in assets.cpp
+// but win_gui32.cpp. They are declared here instead of GUI.h to avoid circular imports.
+
+void drawTextBox(uint32_t *canvas, const std::string text, uint32_t xMin, uint32_t yMin, uint32_t xMax, uint32_t yMax);

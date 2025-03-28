@@ -14,7 +14,7 @@
 #include "src/assets.h"
 #include "src/UDShaper.h"
 
-// for debugging
+// for debugging (FL Studio does not support logging)
 void logToFile(const std::string& message) {
     std::ofstream logFile("C:/Users/mm/Desktop/log.txt", std::ios_base::app);
     if (logFile.is_open()) {
@@ -208,6 +208,8 @@ static const clap_plugin_gui_t extensionGUI = {
 	},
 
 	.show = [] (const clap_plugin_t *_plugin) -> bool {
+		UDShaper *plugin = (UDShaper *) _plugin->plugin_data;
+		plugin->envelopes->setupForRerender();
 		GUISetVisible((UDShaper *) _plugin->plugin_data, true);
 		return true;
 	},

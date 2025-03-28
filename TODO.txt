@@ -4,15 +4,14 @@ The biggest and most noticeable TODOs of this project:
 
 - Audio processing is automatically parallelized by CLAP, which makes some of the planned functionality impossible. 1. deciding whether the current sample is higher of lower than the previous one is not possible for the first sample in every batch. I "solved" that by comparing the first sample with the second one, which is a very good approximation but not perfectly accurate. 2. I want to normalize the distortion segment wise to each local maximum of the wave but again, the nearest local maximum might be outside of the current batch. Is there a way to get the whole buffer as list while still having the parallelization working?
 
-- Envelopes are hardcoded to loop every 4 beats. There should be menu to change this speed and choose between beats and seconds.
-
 - All parameters depending on a ModulatedParameter are retrieved using a get-function which recalculates the parameter every time it is needed. This is probably more often than necessary. Can this be made more efficient?
 
 - I use my own (unparallelized) functions to create GUI visuals. By only updating elements that have changed their appereance this is still fast enough (on my machine). using a graphics library would probably be better.
 
-No functionality, only convenience:
+- The way "menu requests" are handled is unintuitive and confusing. Maybe it is possible to write and read the requested menu type directly from  a static class and avoid the pass through many getMenuRequestType() calls.
+- Bug with menus: comparison between wParam and values from different enums is ambiguous. It appears to work still, but this has to be changed. Should be easy to resolve when previous point is implememnted. + I realised ShapeEditor.h depends on windows.h (to use WPARAM). This can also be avoided with this change.
 
-- Can gui_w32.cpp be compiled separately and linked to plugin.cpp?
+No functionality, only convenience:
 
 - When editing curveCenter, the center should not be set to the mouse position, but rather move slower the further from the center it is, to allow for more control. Also detach the exact position on the screen from the power value to allow for finer steps in power.
 

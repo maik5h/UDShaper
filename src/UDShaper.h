@@ -1,3 +1,17 @@
+/*
+UDShaper is the main plugin class. It holds all parameters that define the current state of the plugin,
+as well as three main compartments contributing to the GUI: two ShapeEditors and one EnvelopeManager.
+
+Like the ShapeEditors and EnvelopeManager, UDShaper reacts to user inputs through the methods processLeftClick,
+processMouseDrag, processMouseRelease, processDoubleClick and processRightClick.
+These methods are called in the window procedure in gui_w32.cpp, all functions regarding windows.h are in this
+file only, to make integrating support for other operating systems as easy as possible. If an action requires a
+menu to open, the contexMenuType is stored in the attribute menuRequest, which is accessed through
+getMenuRequestType.
+
+renderAudio is the main method of this class, which changes the input audio depending on the state of the ShapeEditors.
+*/
+
 #pragma once
 
 #include "../clap/clap.h"
@@ -13,19 +27,7 @@ enum distortionMode {
 	positiveNegative
 };
 
-/*
-UDShaper is the main plugin class. It holds all parameters that define the current state as well as three main
-compartments contributing to the GUI: two ShapeEditors and one EnvelopeManager.
-Like the ShapeEditors and EnvelopeManager, UDShaper is an InteractiveGUIElement and reacts to user inputs through the
-methods processLeftClick, processMouseDrag, processMouseRelease, processDoubleClick and processRightClick. These
-methods are called in gui_w32.cpp, all functions regarding windows.h are in this file only, to make integrating
-support for other operating systems as easy as possible. If an action requires a menu to open, the contexMenuType is
-stored in the attribute menuRequest, which is accessed through getMenuRequestType in gui_win32.cpp.
-
-renderAudio is the main method of this class, which changes the input audio depending on the state of the ShapeEditors.
-*/
-
-class UDShaper : public InteractiveGUIElement {
+class UDShaper {
 
     private:
     contextMenuType menuRequest = menuNone; // If any action requires a menu to be opened, the type of menu is stored here.
@@ -64,7 +66,7 @@ class UDShaper : public InteractiveGUIElement {
     void processMouseRelease(uint32_t x, uint32_t y);
     void processDoubleClick(uint32_t x, uint32_t y);
     void processRightClick(uint32_t x, uint32_t y);
-    void renderGUI(uint32_t *canvas, double beatPosition = 0);
+    void renderGUI(uint32_t *canvas);
 
     contextMenuType getMenuRequestType();
 

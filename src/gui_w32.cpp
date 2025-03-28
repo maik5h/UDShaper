@@ -54,18 +54,31 @@ void showPointPositionModMenu(HWND hwnd, int xPos, int yPos, bool hideX = false)
     DestroyMenu(hMenu);
 }
 
-// Draws a textbox to plugin->gui->bits. xMin, yMin, xMax and yMax determine the size of the textbox. A frame is drawn outside of these coordinates.
+// Dropdown menu to select a Envelope loop mode.
+void showLoopModeMenu(HWND hwnd, int xPos, int yPos) {
+	HMENU hMenu = CreatePopupMenu();
+
+	AppendMenu(hMenu, MF_STRING, envelopeFrequencyTempo, "Tempo");
+	AppendMenu(hMenu, MF_STRING, envelopeFrequencySeconds, "Seconds");
+
+    TrackPopupMenu(hMenu, TPM_LEFTALIGN | TPM_TOPALIGN, xPos, yPos, 0, hwnd, NULL);
+
+    DestroyMenu(hMenu);
+}
+
+// Draws a textbox to canvas. xMin, yMin, xMax and yMax determine the size of the textbox. A frame is drawn outside of these coordinates.
 // The textsize is dependent on the height of the given box.
-void drawTextBox(UDShaper *plugin, uint32_t xMin, uint32_t yMin, uint32_t xMax, uint32_t yMax){
-	// Make compatible DC and bitmap to store current GUI bitmap in
-	HDC hdcWindow = GetDC(plugin->gui->window);
-	HDC hdcGUI = CreateCompatibleDC(hdcWindow);
-    HBITMAP hBitmap = CreateCompatibleBitmap(hdcWindow, GUI_WIDTH, GUI_HEIGHT);
-	HBITMAP oldBitmap = (HBITMAP)SelectObject(hdcGUI, hBitmap); // Select bitmap into memory DC
+void drawTextBox(uint32_t *canvas, const std::string text, uint32_t xMin, uint32_t yMin, uint32_t xMax, uint32_t yMax){
+	// Create new device context
+	HDC hdcGUI = CreateCompatibleDC(NULL);
 	BITMAPINFO info = { { sizeof(BITMAPINFOHEADER), GUI_WIDTH, -GUI_HEIGHT, 1, 32, BI_RGB } };
 
-	// load previous gui bitmap into hdcGUI
-	SetDIBits(hdcGUI, hBitmap, 0, GUI_HEIGHT, plugin->gui->bits, &info, DIB_RGB_COLORS);
+	void* pBits = nullptr;
+    HBITMAP hBitmap = CreateDIBSection(hdcGUI, &info, DIB_RGB_COLORS, &pBits, NULL, 0);
+    HBITMAP oldBitmap = (HBITMAP)SelectObject(hdcGUI, hBitmap);
+
+	// Load GUI bits from canavs to pBits
+	memcpy(pBits, canvas, GUI_WIDTH * GUI_HEIGHT * sizeof(uint32_t));
 
 	// draw text to hdcGUI
 	RECT rect{xMin, yMin, xMax, yMax};
@@ -77,10 +90,10 @@ void drawTextBox(UDShaper *plugin, uint32_t xMin, uint32_t yMin, uint32_t xMax, 
     SelectObject(hdcGUI, hFont);
 	SetTextColor(hdcGUI, RGB(255, 255, 255));
 	SetBkMode(hdcGUI, TRANSPARENT);
-    DrawText(hdcGUI, "Left/Right", -1, &rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    DrawText(hdcGUI, text.c_str(), -1, &rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
 
-	// Load updated gui bitmap back into plugin->gui->bits
-	GetDIBits(hdcGUI, hBitmap, 0, GUI_HEIGHT, plugin->gui->bits, &info, DIB_RGB_COLORS);
+	// Load updated gui bitmap back into canvas
+	memcpy(canvas, pBits, GUI_WIDTH * GUI_HEIGHT * sizeof(uint32_t));
 
     SelectObject(hdcGUI, oldBitmap);
     DeleteObject(hBitmap);
@@ -88,7 +101,7 @@ void drawTextBox(UDShaper *plugin, uint32_t xMin, uint32_t yMin, uint32_t xMax, 
 
 	// Draw a frame around the text.
 	uint32_t box[4] = {xMin, yMin, xMax, yMax};
-	drawFrame(plugin->gui->bits, box, 5, 0x000000, 0.45);
+	drawFrame(canvas, box, 5, 0x000000, 1);
 }
 
 LRESULT CALLBACK GUIWindowProcedure(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
@@ -126,8 +139,8 @@ LRESULT CALLBACK GUIWindowProcedure(HWND window, UINT message, WPARAM wParam, LP
 			break;
 		}
 		// Can open one of the following context menus:
-		// 	-menu to select curve shape, when rightclicked on a ShapePoint
-		// 	-menu with link knob options, when rightclicked on a link knob
+		// 	- menu to select curve shape, when rightclicked on a ShapePoint
+		// 	- menu with link knob options, when rightclicked on a link knob
 		case WM_RBUTTONUP: {
 			SetCapture(window);
 
@@ -157,15 +170,26 @@ LRESULT CALLBACK GUIWindowProcedure(HWND window, UINT message, WPARAM wParam, LP
 			GUIPaint(plugin, true);
 			break;
 		}
-		// Opens a context menu to select either X or Y direction, if mouse has dragged from an Envelope and was released on a ShapePoint.
+		// Can open one of the following context menus:
+		//	- Menu to select either X or Y direction, if mouse has dragged from an Envelope and was released on a ShapePoint.
+		//	- Menu to select a loopMode for the active Envelope.
 		case WM_LBUTTONUP: {
 			ReleaseCapture();
 			plugin->processMouseRelease(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
-			if (plugin->getMenuRequestType() == menuPointPosMod){
+
+			// After processing of mouse release, it might be necessary to open a context menu. Find out requested
+			// menu and open it.
+			contextMenuType requested = plugin->getMenuRequestType();
+			if (requested == menuPointPosMod) {
 				RECT rect;
 				GetWindowRect(window, &rect);
 				showPointPositionModMenu(window, rect.left + GET_X_LPARAM(lParam), rect.top + GET_Y_LPARAM(lParam));
 			}
+			else if (requested == menuEnvelopeLoopMode) {
+				RECT rect;
+				GetWindowRect(window, &rect);
+				showLoopModeMenu(window, rect.left + GET_X_LPARAM(lParam), rect.top + GET_Y_LPARAM(lParam));
+			};
 			GUIPaint(plugin, true);
 			break;
 		}

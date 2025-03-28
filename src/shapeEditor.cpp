@@ -1,6 +1,4 @@
 #include "shapeEditor.h"
-#include "assets.h"
-
 
 #include <fstream>
 #include <iostream>
@@ -54,7 +52,7 @@ class ModulatedParameter{
     std::map<Envelope*, float> modulationAmounts; // Maps the pointer to an Envelope to its scaling factor for modulation.
 
     public:
-    ModulatedParameter(ShapePoint *parentPoint, float inBase, float inMinValue=0, float inMaxValue=1){
+    ModulatedParameter(ShapePoint *parentPoint, float inBase, float inMinValue=-1, float inMaxValue=1){
         base = inBase;
         minValue = inMinValue;
         maxValue = inMaxValue;
@@ -84,6 +82,7 @@ class ModulatedParameter{
 
     // Sets the modulation amount of the Envelope at the given pointer to the given amount.
     void setAmount(Envelope *envelope, float amount){
+        amount = (amount < -1) ? -1 : (amount > 1) ? 1 : amount;
         modulationAmounts.at(envelope) = amount;
     }
 
@@ -97,12 +96,12 @@ class ModulatedParameter{
         base = newValue < minValue ? minValue : newValue > maxValue ? maxValue : newValue;
     }
 
-    // Returns the current value, i.e. the offsets added to the base clamped to the min and max values.
-    float get(double beatPosition = 0){
+    // Returns the current value, i.e. the modulation offsets added to the base clamped to the min and max values.
+    float get(double beatPosition = 0, double secondsPlayed = 0.){
         float currentValue = base;
         // Iterate over modulationAmounts, first is pointer to Envelope, second is amount.
         for (auto a : modulationAmounts){
-            currentValue += a.second * a.first->modForward(beatPosition);
+            currentValue += a.second * a.first->modForward(beatPosition, secondsPlayed);
         }
 
         currentValue = (currentValue > maxValue) ? maxValue : (currentValue < minValue) ? minValue : currentValue;
@@ -165,39 +164,39 @@ class ShapePoint{
     /*---get-functions for parameters that are dependent on a ModulatedParameter and have to recalculated each time they are used---*/
 
     // Returns the x-position of this point. Is limited by the position of the next point, meaning modulating a point to the left will push all other points on its way to the left. Mod to the right will stop on the next point.
-    float getPosX(double beatPosition = 0.){
+    float getPosX(double beatPosition = 0., double secondsPlayed = 0.){
         if (next == nullptr){
-            return posX.get(beatPosition);
+            return posX.get(beatPosition, secondsPlayed);
         }
         else {
-            return (posX.get(beatPosition) > next->getPosX(beatPosition)) ? next->getPosX(beatPosition) : posX.get(beatPosition);
+            return (posX.get(beatPosition, secondsPlayed) > next->getPosX(beatPosition, secondsPlayed)) ? next->getPosX(beatPosition, secondsPlayed) : posX.get(beatPosition, secondsPlayed);
         }
     }
 
     // Retunrs the current y-position of the point.
-    float getPosY(double beatPosition = 0.){
-        return posY.get(beatPosition);
+    float getPosY(double beatPosition = 0., double secondsPlayed = 0.){
+        return posY.get(beatPosition, secondsPlayed);
     }
 
     // Calculates the absolute x-position of the point on the GUI from the relative position posX.
-    uint32_t getAbsPosX(double beatPosition = 0.){
-        return XYXY[0] + (uint32_t)(getPosX(beatPosition) * (XYXY[2] - XYXY[0]));
+    uint32_t getAbsPosX(double beatPosition = 0., double secondsPlayed = 0.){
+        return XYXY[0] + (uint32_t)(getPosX(beatPosition, secondsPlayed) * (XYXY[2] - XYXY[0]));
     }
 
     // Calculates the absolute y-position of the point on the GUI from the relative position posY. By convention, this value is inversely related to posY.
-    uint32_t getAbsPosY(double beatPosition = 0.){
-        return XYXY[3] - (uint32_t)(getPosY(beatPosition) * (XYXY[3] - XYXY[1]));
+    uint32_t getAbsPosY(double beatPosition = 0., double secondsPlayed = 0.){
+        return XYXY[3] - (uint32_t)(getPosY(beatPosition, secondsPlayed) * (XYXY[3] - XYXY[1]));
     }
 
     // Calculates the absolute x-position of the curve center associated with this point. Is always the center between this point and the previous.
-    uint32_t getCurveCenterAbsPosX(double beatPosition = 0.){
-        return (uint32_t)(getAbsPosX(beatPosition) + previous->getAbsPosX(beatPosition)) / 2;
+    uint32_t getCurveCenterAbsPosX(double beatPosition = 0., double secondsPlayed = 0.){
+        return (uint32_t)(getAbsPosX(beatPosition, secondsPlayed) + previous->getAbsPosX(beatPosition, secondsPlayed)) / 2;
     }
 
     // Calculates the absolute y-position of the curve center associated with this point.
-    uint32_t getCurveCenterAbsPosY(double beatPosition = 0.){
+    uint32_t getCurveCenterAbsPosY(double beatPosition = 0., double secondsPlayed = 0.){
         // Cast the absPosY to signed int, since the difference will be negative.
-        return previous->getAbsPosY(beatPosition) + (uint32_t)(curveCenterPosY.get(beatPosition) * ((int32_t)getAbsPosY(beatPosition) - (int32_t)previous->getAbsPosY(beatPosition)));
+        return previous->getAbsPosY(beatPosition, secondsPlayed) + (uint32_t)(curveCenterPosY.get(beatPosition, secondsPlayed) * ((int32_t)getAbsPosY(beatPosition, secondsPlayed) - (int32_t)previous->getAbsPosY(beatPosition, secondsPlayed)));
     }
 
     // updates the Curve center point when manually dragging it
@@ -320,7 +319,7 @@ ShapeEditor::ShapeEditor(uint32_t position[4]){
     shapePoints->next->previous = shapePoints;
 }
 
-// Finds the closest ShapePoint or curve center point. Returns pointer to the corresponding point if it is closer than the squareroot of REQUIRED_SQUARED_DISTANCE, else nullptr. The field currentDraggingMode of this instance is set to either position or curveCenter.
+// Finds the closest ShapePoint or curve center point. Returns pointer to the corresponding point if it is closer than the squareroot of minimumDistance, else nullptr. The field currentDraggingMode of this ShapeEditor is set to either position or curveCenter.
 ShapePoint* ShapeEditor::getClosestPoint(uint32_t x, uint32_t y, float minimumDistance){
     // TODO i think it might be a better user experience if points always give visual feedback if the mouse is hovering over them.
     //   This would require every point to check mouse position at any time
@@ -447,7 +446,7 @@ void ShapeEditor::processRightClick(uint32_t x, uint32_t y){
     menuRequest = menuNone;
 }
 
-void ShapeEditor::renderGUI(uint32_t *canvas, double beatPosition){
+void ShapeEditor::renderGUI(uint32_t *canvas, double beatPosition, double secondsPlayed){
     // set whole area to background color
     for (uint32_t i = XYXYFull[0]; i < XYXYFull[2]; i++) {
         for (uint32_t j = XYXYFull[1]; j < XYXYFull[3]; j++) {
@@ -460,11 +459,11 @@ void ShapeEditor::renderGUI(uint32_t *canvas, double beatPosition){
 
     // first draw all connections between points, then points on top
     for (ShapePoint *point = shapePoints->next; point != nullptr; point = point->next){
-        drawConnection(canvas, point, beatPosition, colorCurve);
+        drawConnection(canvas, point, beatPosition, secondsPlayed, colorCurve);
     }
     for (ShapePoint *point = shapePoints->next; point != nullptr; point = point->next){
-        drawPoint(canvas, point->getAbsPosX(beatPosition), point->getAbsPosY(beatPosition), colorCurve, 20);
-        drawPoint(canvas, point->getCurveCenterAbsPosX(beatPosition), point->getCurveCenterAbsPosY(beatPosition), colorCurve, 16);
+        drawPoint(canvas, point->getAbsPosX(beatPosition, secondsPlayed), point->getAbsPosY(beatPosition, secondsPlayed), colorCurve, 20);
+        drawPoint(canvas, point->getCurveCenterAbsPosX(beatPosition, secondsPlayed), point->getCurveCenterAbsPosY(beatPosition, secondsPlayed), colorCurve, 16);
     }
 }
 
@@ -507,18 +506,18 @@ void ShapeEditor::processMouseRelease(uint32_t x, uint32_t y){
 }
 
 // Draws the connection corresponding to ShapePoint *point (from the previous SHapePoint up to this one).
-void ShapeEditor::drawConnection(uint32_t *canvas, ShapePoint *point, double beatPosition, uint32_t color, float thickness){
+void ShapeEditor::drawConnection(uint32_t *canvas, ShapePoint *point, double beatPosition, double secondsPlayed, uint32_t color, float thickness){
 
-    uint32_t xMin = point->previous->getAbsPosX(beatPosition);
-    uint32_t xMax = point->getAbsPosX(beatPosition);
+    uint32_t xMin = point->previous->getAbsPosX(beatPosition, secondsPlayed);
+    uint32_t xMax = point->getAbsPosX(beatPosition, secondsPlayed);
 
-    uint32_t yL = point->previous->getAbsPosY(beatPosition);
-    uint32_t yR = point->getAbsPosY(beatPosition);
+    uint32_t yL = point->previous->getAbsPosY(beatPosition, secondsPlayed);
+    uint32_t yR = point->getAbsPosY(beatPosition, secondsPlayed);
 
     switch (point->mode){
         case shapePower:
         {
-            float power = getPowerFromPosY(point->curveCenterPosY.get(beatPosition));
+            float power = getPowerFromPosY(point->curveCenterPosY.get(beatPosition, secondsPlayed));
             // The curve is f(x) = x^power, where x is in [0, 1] and x and y intervals are stretched such that the curve connects this and previous point
             for (int i = xMin; i < xMax; i++) {
                 // TODO: antialiasing/ width of curve
@@ -574,7 +573,7 @@ void ShapeEditor::processMouseDrag(uint32_t x, uint32_t y){
 }
 
 // Returns the value of the curve defined by this shapeEditor at the x position input. Input is clamped to [0, 1].
-float ShapeEditor::forward(float input, double beatPosition){
+float ShapeEditor::forward(float input, double beatPosition, double secondsPlayed){
     // Catching this case is important because due to quantization error, the function might return non-zero values for steep curves, which would result in an DC offset even when no input audio is given.
     if (input == 0) return 0;
 
@@ -589,22 +588,22 @@ float ShapeEditor::forward(float input, double beatPosition){
 
     ShapePoint *point = shapePoints->next;
 
-    while(point->getPosX(beatPosition) < input){
+    while(point->getPosX(beatPosition, secondsPlayed) < input){
         point = point->next;
     }
 
     switch(point->mode){
         case shapePower:
         {
-            float xL = point->previous->getPosX(beatPosition);
-            float yL = point->previous->getPosY(beatPosition);
+            float xL = point->previous->getPosX(beatPosition, secondsPlayed);
+            float yL = point->previous->getPosY(beatPosition, secondsPlayed);
 
-            float relX = (point->getPosX(beatPosition) == xL) ? xL : (input - xL) / (point->getPosX(beatPosition) - xL);
-            float factor = (point->getPosY(beatPosition) - yL);
+            float relX = (point->getPosX(beatPosition, secondsPlayed) == xL) ? xL : (input - xL) / (point->getPosX(beatPosition, secondsPlayed) - xL);
+            float factor = (point->getPosY(beatPosition, secondsPlayed) - yL);
 
-            float power = getPowerFromPosY(point->curveCenterPosY.get(beatPosition));
+            float power = getPowerFromPosY(point->curveCenterPosY.get(beatPosition, secondsPlayed));
 
-            out = (power > 0) ? yL + pow(relX, power) * factor : point->posY.get(beatPosition) - pow(1-relX, -power) * factor;
+            out = (power > 0) ? yL + pow(relX, power) * factor : point->posY.get(beatPosition, secondsPlayed) - pow(1-relX, -power) * factor;
         }
         case shapeSine:
         break;
@@ -612,7 +611,214 @@ float ShapeEditor::forward(float input, double beatPosition){
     return negativeInput ? -out : out;
 }
 
-Envelope::Envelope(uint32_t size[4]) : ShapeEditor(size) {};
+/*The phase of Envelopes is periodic and dependent on time. The frequency with which an Envelope oscillates
+can be cahnged by the user by adjusting a "counter" which displays a number. There are different modes
+determining how this number is interpreted:
+    -envelopeFrequencyTempo: the Envelope loops n times per beat, where n is a power of 2 or one over a power of 2.
+    -envelopeFrequencyTempoTriplets: similar to previous, except that it loops in a triplet pattern.
+    -envelopeFrequencySeconds: the period of the oscillation in seconds can be set directly using the counter.
+
+The FrequencyPanels that control these properties are stored in EnvelopeManager and only referenced in Envelope.
+*/
+
+// An InteractiveGUIElement that lets the user change the frequency with which the corresponding Envelope loops.
+// There is one FrequencyPanel for each Envelope in EnvelopeManager, of which only the one corresponding to the active Envelope is displayed.
+//
+// Consists of two elements that are drawn to the GUI: A "counter", which displays a number that corresponds to the frequency and a dropdown menu, that lets the user select the loop mode.
+class FrequencyPanel : InteractiveGUIElement {
+    private:
+    uint32_t XYXY[4]; // The size and position of this element in pixel in XYXY notation.
+    uint32_t counterXYXY[4]; // The size and position of the counter in pixel in XYXY notation.
+    uint32_t modeButtonXYXY[4]; // The size and position of the button to select the loop mode in pixel and XYXY notation.
+
+    uint32_t clickedX = 0;
+    uint32_t clickedY = 0;
+
+    contextMenuType menuRequest = menuNone;
+
+    bool currentlyDraggingCounter = false; // True if user is dragging on counter and value has to be updated.
+    bool updateCounter = true; // Indicates whether the counter has to be redrawn on the GUI. True if counter value has changed after dragging or switching currentLoopMode. Resets to false once renderGUI() is called.
+    bool updateButton = true; // Indicates whether the button should be rerendered in case of a switch between modes. Resets to false once renderGUI() is called.
+
+    std::map<envelopeLoopMode, double> counterValue =  {{envelopeFrequencyTempo, 0}, // Mapping between the loop mode and the corresponding counter value.
+                                                        {envelopeFrequencySeconds, 1.}};
+    double previousValue = 1.; // Is used to store the counter value of the currentLoopMode when the user changes the counter value. 
+
+    
+    public:
+    envelopeLoopMode currentLoopMode = envelopeFrequencyTempo; // The current looping mode, can be based on tempo, tempo triplets or seconds.
+
+    FrequencyPanel(uint32_t inXYXY[4], envelopeLoopMode initMode = envelopeFrequencyTempo, double initValue = 0.) {
+        currentLoopMode = initMode;
+        counterValue[initMode] = initValue;
+
+        for (int i=0; i<4; i++) {
+            XYXY[i] = inXYXY[i];
+        }
+
+        // TODO for now counter and button are just split in half. There is room for visual improvement
+        counterXYXY[0] = XYXY[0];
+        counterXYXY[1] = XYXY[1];
+        counterXYXY[2] = (uint32_t) (XYXY[2] + XYXY[0]) / 2;
+        counterXYXY[3] = XYXY[3];
+
+        modeButtonXYXY[0] = (uint32_t) (XYXY[2] + XYXY[0]) / 2;
+        modeButtonXYXY[1] = XYXY[1];
+        modeButtonXYXY[2] = XYXY[2];
+        modeButtonXYXY[3] = XYXY[3];
+    }
+
+    // Can either
+    //  - request context menu to select loop mode if clicked on the mode button
+    //  - start tracking mouse for changing counter value, if clicked on counter
+    void processLeftClick(uint32_t x, uint32_t y) {
+        clickedX = x;
+        clickedY = y;
+
+        if (isInBox(x, y, modeButtonXYXY)) {
+            menuRequest = menuEnvelopeLoopMode;
+            // TODO on menu selection, if currentLoopMode has changed, update previousValue
+        }
+
+        if (isInBox(x, y, counterXYXY)) {
+            currentlyDraggingCounter = true;
+        }
+    };
+
+    // If last left click was on counter, updates counter value based on y-position of mouse.
+    void processMouseDrag(uint32_t x, uint32_t y) {
+        if (!currentlyDraggingCounter) return;
+
+        switch (currentLoopMode) {
+            case envelopeFrequencyTempo: {
+                // In this case, the frequency is a power of two between 1/64 and 64.
+                // The counter value represents the power and doe stherefore take integer values between -6 and 6.
+                int newValue = (int) (previousValue + ((int) clickedY - (int) y) * COUNTER_SENSITIVITY);
+                counterValue[currentLoopMode] = (newValue < -6) ? -6 : (newValue > 6) ? 6 : newValue;
+                break;
+            }
+            case envelopeFrequencySeconds: {
+                double newValue = previousValue + ((int) clickedY - (int) y) * COUNTER_SENSITIVITY;
+                counterValue[currentLoopMode] = (newValue < 0) ? 0 : newValue;
+                break;
+            }
+        }
+    };
+
+    // Saves the current counter value as previousValue and stops mouse dragging.
+    void processMouseRelease(uint32_t x, uint32_t y) {
+        previousValue = counterValue[currentLoopMode];
+        currentlyDraggingCounter = false;
+    };
+
+    void processDoubleClick(uint32_t x, uint32_t y) {};
+    void processRightClick(uint32_t x, uint32_t y) {};
+
+    // Renders the counter based on the current counter value
+    void renderCounter(uint32_t *canvas) {
+        std::string counterText; // Counter value as string.
+
+        if (currentLoopMode == envelopeFrequencyTempo) {
+            // Convert counter value to index for FREQUENCY_COUNTER_STRINGS, where 0 is the lowest "64/1" and 12 the highest frequency "1/64".
+            int stringIdx = (int) counterValue[envelopeFrequencyTempo] + 6;
+            counterText = FREQUENCY_COUNTER_STRINGS[stringIdx];
+        }
+        else if (currentLoopMode == envelopeFrequencySeconds){
+            std::stringstream stream; // Counter value as string with two decimals.
+
+            // If value is less than a second, display in milliseconds.
+            if (counterValue[envelopeFrequencySeconds] >= 1){
+                stream << std::fixed << std::setprecision(2) << counterValue[envelopeFrequencySeconds];
+                counterText = stream.str();
+                counterText += " s";
+            }
+            else {
+                stream << std::fixed << std::setprecision(0) << 1000*counterValue[envelopeFrequencySeconds];
+                counterText = stream.str();
+                counterText += " ms";
+            }
+        }
+
+        // Draw the counter with the current value.
+        fillRectangle(canvas, counterXYXY);
+        drawTextBox(canvas, counterText, counterXYXY[0], counterXYXY[1], counterXYXY[2], counterXYXY[3]);
+    }
+
+    // Renders the button with the currentLoopMode.
+    void renderButton(uint32_t *canvas) {
+        // The appropriate text to display on the loop mode button.
+        std::string buttonText;
+        switch (currentLoopMode) {
+            case envelopeFrequencyTempo:
+                buttonText = "Tempo";
+                break;
+            case envelopeFrequencySeconds:
+                buttonText = "Seconds";
+                break;
+        }
+        fillRectangle(canvas, modeButtonXYXY);
+        drawTextBox(canvas, buttonText, modeButtonXYXY[0], modeButtonXYXY[1], modeButtonXYXY[2], modeButtonXYXY[3]);
+    }
+
+    // Renders two boxes:
+    // Left: a counter, which displays a number, right: a textbox displaying the currentLoopMode.
+    void renderGUI(uint32_t *canvas, double beatPosition, double secondsPlayed) {
+        // Rerender elements only if their content has changed.
+        if (currentlyDraggingCounter || updateCounter) {
+            renderCounter(canvas);
+            updateCounter = false;
+        }
+        if (updateButton) {
+            renderButton(canvas);
+            updateButton = false;
+        }
+    }
+
+    contextMenuType getMenuRequestType() {
+        contextMenuType requested = menuRequest;
+        menuRequest = menuNone;
+        return requested;
+    }
+
+    void processMenuSelection(WPARAM wParam) {
+        envelopeLoopMode previous = currentLoopMode;
+        if (wParam == envelopeFrequencyTempo) {
+            currentLoopMode = envelopeFrequencyTempo;
+        }
+        else if (wParam == envelopeFrequencySeconds) {
+            currentLoopMode = envelopeFrequencySeconds;
+        }
+        if (currentLoopMode != previous) {
+            updateButton = true;
+            updateCounter = true;
+            previousValue = counterValue[currentLoopMode];
+        }
+    }
+
+    // Returns the Envelope phase corresponding to the current beat position and loop mode.
+    double getEnvelopePhase(double beatPosition, double secondsPlayed) {
+        // Convert from beats to bars.
+        beatPosition /= 4;
+        if (currentLoopMode == envelopeFrequencyTempo) {
+            beatPosition = fmod(beatPosition, 1./pow(2, counterValue[envelopeFrequencyTempo]));
+            return beatPosition * std::pow(2, counterValue[envelopeFrequencyTempo]);
+        }
+        else if (currentLoopMode == envelopeFrequencySeconds) {
+            return fmod(secondsPlayed, counterValue[envelopeFrequencySeconds]) / counterValue[envelopeFrequencySeconds];
+        }
+        return 0.;
+    }
+
+    // After calling, the FrequencyPanel will be rerendered once in the next renderGUI() call.
+    void setupForRerender() {
+        updateButton = true;
+        updateCounter = true;
+    }
+};
+
+Envelope::Envelope(uint32_t size[4], FrequencyPanel *inPanel) : ShapeEditor(size) {
+    frequencyPanel = inPanel;
+};
 
 void Envelope::addModulatedParameter(ShapePoint *point, float amount, modulationMode mode){
     switch (mode) {
@@ -668,10 +874,10 @@ float Envelope::getModAmount(int index){
     return modulatedParameters.at(index)->getAmount(this);
 }
 
-// Works same as forward, but interprets the input as the beatPosition
-float Envelope::modForward(double beatPosition){
-    // TODO right now this does the same as forward but having this is important later when the speed of the Envelope can be set.
-    beatPosition = (float)(beatPosition) / 4;
+// Works same as forward, but interprets the input depending on the value and mode of the corresponding FrequencyPanel.
+float Envelope::modForward(double beatPosition, double secondsPlayed){
+    // Envelope phase is calculated by the corresponding FrequencyPanel.
+    beatPosition = frequencyPanel->getEnvelopePhase(beatPosition, secondsPlayed);
     return forward(beatPosition);
 }
 
@@ -681,23 +887,34 @@ EnvelopeManager::EnvelopeManager(uint32_t inXYXY[4]){
     }
 
     envelopes.reserve(MAX_NUMBER_ENVELOPES);
+    frequencyPanels.reserve(MAX_NUMBER_ENVELOPES);
 
-    // 10% on left and bottom are reserved for other GUI elements, rest is for Envelopes
+    // Width and height of the EnvelopeManager. 
+    // 10% on left and bottom are reserved for other GUI elements, rest is for Envelopes.
     uint32_t width = XYXY[2] - XYXY[0];
     uint32_t height = XYXY[3] - XYXY[1];
 
+    // The Envelope is positioned at the upper right of the EnvelopeManager.
     envelopeXYXY[0] = (uint32_t)(XYXY[0] + 0.1*width);
     envelopeXYXY[1] = XYXY[1];
     envelopeXYXY[2] = XYXY[2];
-    envelopeXYXY[3] = (uint32_t)(XYXY[3] - 0.2*height);
+    envelopeXYXY[3] = (uint32_t)(XYXY[3] - 0.4*height);
 
+    // The selector panel is positioned directly to the left of Envelope, with the same y-extent as the Envelope.
     selectorXYXY[0] = XYXY[0];
     selectorXYXY[1] = XYXY[1];
-    selectorXYXY[2] = (uint32_t)(XYXY[0] + 0.1*width);
-    selectorXYXY[3] = (uint32_t)(XYXY[3] - 0.2*height);
+    selectorXYXY[2] = envelopeXYXY[0];
+    selectorXYXY[3] = envelopeXYXY[3];
 
+    // The knobs are positioned below the Envelope, with the same x-extent as the Envelope.
     // For y-position, take width of the 3D frame around the active Envelope into account.
-    toolsXYXY[0] = (uint32_t)(XYXY[0] + 0.1*width);
+    knobsXYXY[0] = envelopeXYXY[0];
+    knobsXYXY[1] = (uint32_t)(XYXY[3] - 0.4*height) + FRAME_WIDTH;
+    knobsXYXY[2] = XYXY[2];
+    knobsXYXY[3] = (uint32_t)(XYXY[3] - 0.2*height);
+
+    // Tools are positioned below knobs.
+    toolsXYXY[0] = envelopeXYXY[0];
     toolsXYXY[1] = (uint32_t)(XYXY[3] - 0.2*height) + FRAME_WIDTH;
     toolsXYXY[2] = XYXY[2];
     toolsXYXY[3] = XYXY[3];
@@ -710,13 +927,15 @@ EnvelopeManager::EnvelopeManager(uint32_t inXYXY[4]){
     addEnvelope();
 }
 
-// Adds a new Envelope to the back of envelopes.
+// Adds a new Envelope to the back of envelopes and a FrequencyPanel to the back of frequencyPanels.
 void EnvelopeManager::addEnvelope(){
     if (envelopes.size() == MAX_NUMBER_ENVELOPES){
         return;
     }
+    // First add new FrequncyPanel so it can be referenced in the new Envelope.
+    frequencyPanels.push_back(FrequencyPanel(toolsXYXY));
 
-    envelopes.push_back(Envelope(envelopeXYXY));
+    envelopes.push_back(Envelope(envelopeXYXY, &frequencyPanels.back()));
     updateGUIElements = true;
 }
 
@@ -724,8 +943,10 @@ void EnvelopeManager::addEnvelope(){
 void EnvelopeManager::setActiveEnvelope(int index){
     activeEnvelopeIndex = index;
 
+    // Set update bools to true for all elements that have to be rerendered.
     updateGUIElements = true;
     toolsUpdated = true;
+    frequencyPanels.at(activeEnvelopeIndex).setupForRerender();
 }
 
 // Draw the initial 3D frames around the displayed Envelope. Only has to be called when creating the GUI or the GUI contents have been changed by an user input.
@@ -749,7 +970,7 @@ void EnvelopeManager::setupFrames(uint32_t *canvas){
 }
 
 // Draws the GUI of this EnvelopeManager to canvas. Always calls renderGUI on the active Envelope but renders 3D frames, Envelope selection panel and tool panel only if they have been changed.
-void EnvelopeManager::renderGUI(uint32_t *canvas, double beatPosition){
+void EnvelopeManager::renderGUI(uint32_t *canvas, double beatPosition, double secondsPlayed){
     envelopes[activeEnvelopeIndex].renderGUI(canvas);
 
     if (updateGUIElements){
@@ -760,16 +981,23 @@ void EnvelopeManager::renderGUI(uint32_t *canvas, double beatPosition){
         drawKnobs(canvas);
         toolsUpdated = false;
     }
+
+    frequencyPanels.at(activeEnvelopeIndex).renderGUI(canvas, beatPosition, secondsPlayed);
+}
+
+// Set ups the EnvelopeManager to fully rerender the next time renderGUI() is called. Use when plugin window is reopened after being closed.
+void EnvelopeManager::setupForRerender() {
+    frequencyPanels.at(activeEnvelopeIndex).setupForRerender();
 }
 
 // Draws the knobs for the ModulatedParameters of the active Envelope to the tool panel. Knobs are positioned next to each other sorted by their index in the modulatedParameters vector of the parent Envelope.
 void EnvelopeManager::drawKnobs(uint32_t *canvas){
     // first reset whole area
-    fillRectangle(canvas, toolsXYXY);
+    fillRectangle(canvas, knobsXYXY);
 
     for (int i=0; i<envelopes[activeEnvelopeIndex].getModulatedParameterNumber(); i++){
         float amount = envelopes[activeEnvelopeIndex].getModAmount(i); // modulation amount of the ith ModulatedParameter
-        drawLinkKnob(canvas, toolsXYXY[0] + LINK_KNOB_SPACING*i + LINK_KNOB_SPACING/2, toolsXYXY[1] + (int)(LINK_KNOB_SPACING/2), LINK_KNOB_SIZE, amount);
+        drawLinkKnob(canvas, knobsXYXY[0] + LINK_KNOB_SPACING*i + LINK_KNOB_SPACING/2, knobsXYXY[1] + (int)(LINK_KNOB_SPACING/2), LINK_KNOB_SIZE, amount);
     }
 }
 
@@ -792,7 +1020,7 @@ void EnvelopeManager::processLeftClick(uint32_t x, uint32_t y){
 
     // check if it has been clicked on any of the LinkKnobs and set currentdragging mode to moveKnob if true
     for (int i=0; i<envelopes.at(activeEnvelopeIndex).getModulatedParameterNumber(); i++){
-        if (isInPoint(x, y, toolsXYXY[0] + LINK_KNOB_SPACING*i + LINK_KNOB_SPACING/2, toolsXYXY[1] + (int)(LINK_KNOB_SPACING/2), LINK_KNOB_SIZE)){
+        if (isInPoint(x, y, knobsXYXY[0] + LINK_KNOB_SPACING*i + LINK_KNOB_SPACING/2, knobsXYXY[1] + (int)(LINK_KNOB_SPACING/2), LINK_KNOB_SIZE)){
             selectedKnob = i;
             selectedKnobAmount = envelopes.at(activeEnvelopeIndex).getModAmount(i);
             currentDraggingMode = moveKnob;
@@ -801,11 +1029,15 @@ void EnvelopeManager::processLeftClick(uint32_t x, uint32_t y){
 
     // always forward input to active Envelope
     envelopes.at(activeEnvelopeIndex).processLeftClick(x, y);
+    frequencyPanels.at(activeEnvelopeIndex).processLeftClick(x, y);
+    // FrequencyPanel might request opening a context menu
+    menuRequest = frequencyPanels.at(activeEnvelopeIndex).getMenuRequestType();
 }
 
 // Forwards double click to the active Envelope.
 void EnvelopeManager::processDoubleClick(uint32_t x, uint32_t y){
     envelopes.at(activeEnvelopeIndex).processDoubleClick(x, y);
+    frequencyPanels.at(activeEnvelopeIndex).processDoubleClick(x, y);
 }
 
 // Depending on the mouse position, this method does different things:
@@ -814,7 +1046,7 @@ void EnvelopeManager::processDoubleClick(uint32_t x, uint32_t y){
 void EnvelopeManager::processRightClick(uint32_t x, uint32_t y){
     // check all knobs if they have been rightclicked
     for (int i=0; i<envelopes[activeEnvelopeIndex].getModulatedParameterNumber(); i++){
-        if (isInPoint(x, y, toolsXYXY[0] + LINK_KNOB_SPACING*i + LINK_KNOB_SPACING/2, toolsXYXY[1] + (int)(LINK_KNOB_SPACING/2), LINK_KNOB_SIZE)){
+        if (isInPoint(x, y, knobsXYXY[0] + LINK_KNOB_SPACING*i + LINK_KNOB_SPACING/2, knobsXYXY[1] + (int)(LINK_KNOB_SPACING/2), LINK_KNOB_SIZE)){
             selectedKnob = i;
             menuRequest = menuLinkKnob;
             return;
@@ -823,6 +1055,7 @@ void EnvelopeManager::processRightClick(uint32_t x, uint32_t y){
     
     envelopes.at(activeEnvelopeIndex).processRightClick(x, y);
     menuRequest = envelopes.at(activeEnvelopeIndex).getMenuRequestType();
+    frequencyPanels.at(activeEnvelopeIndex).processRightClick(x, y);
 }
 
 void EnvelopeManager::processMenuSelection(WPARAM wParam){
@@ -837,22 +1070,23 @@ void EnvelopeManager::processMenuSelection(WPARAM wParam){
             addModulatedParameter(attemptedToModulate, 1, modPosX);
         }
         attemptedToModulate = nullptr;
-    } else if (wParam == modPosY) {
+    }
+    else if (wParam == modPosY) {
         if (attemptedToModulate != nullptr) {
             addModulatedParameter(attemptedToModulate, 1, modPosY);
         }
         attemptedToModulate = nullptr;
     }
 
-    for (Envelope envelope : envelopes){
-        envelope.processMenuSelection(wParam);
-    }
+    envelopes.at(activeEnvelopeIndex).processMenuSelection(wParam);
+    frequencyPanels.at(activeEnvelopeIndex).processMenuSelection(wParam);
 }
 
 // Resets currentDraggingMode and selectedKnob. Calls processMouseRelease() on the active Envelope.
 void EnvelopeManager::processMouseRelease(uint32_t x, uint32_t y){
     currentDraggingMode = envNone;
     envelopes[activeEnvelopeIndex].processMouseRelease(x, y);
+    frequencyPanels.at(activeEnvelopeIndex).processMouseRelease(x, y);
 
     selectedKnob = -1;
 }
@@ -876,6 +1110,7 @@ void EnvelopeManager::processMouseDrag(uint32_t x, uint32_t y){
         // TODO a visualization here would be nice, draw less opaque curve that indicates the shape at maximum modulation
     }
 
+    frequencyPanels.at(activeEnvelopeIndex).processMouseDrag(x, y);
 }
 
 // Adds the given point and mode as a ModulatedParameter to the active Envelope.
@@ -894,7 +1129,6 @@ void EnvelopeManager::clearLinksToPoint(ShapePoint *point){
     if (point == nullptr) return;
 
     for (int i=0; i<envelopes.size(); i++){
-        // Loop backwards through the modulatedParameters vector to not mess up the indices when removing elements.
         for (int j=envelopes.at(i).modulatedParameters.size()-1; j>=0; j--){
             // Remove the parameters referencing point from modulatedParameters of envelope i.
             if (envelopes.at(i).modulatedParameters.at(j)->getParentPoint() == point){

@@ -1,17 +1,3 @@
-#pragma once
-
-#include <vector>
-#include <cstdint>
-#include <chrono>
-#include <tuple>
-#include <cmath>
-#include <iostream>
-#include <assert.h>
-#include <map>
-#include <windows.h>
-#include "../config.h"
-#include "assets.h"
-
 /*
 Everything concerning the shape editors.
 A shape editor is a region on the UI that can be used to design a curve by adding, moving and deleting points between
@@ -23,6 +9,22 @@ curve.
 Envelopes are shapeEditors that can be used to modulate certain parameters, but are not intended to be modulated
 themself.
 */
+
+#pragma once
+
+#include <vector>
+#include <cstdint>
+#include <chrono>
+#include <tuple>
+#include <cmath>
+#include <sstream>
+#include <iomanip>
+#include <assert.h>
+#include <map>
+#include <windows.h>
+#include "../config.h"
+#include "assets.h"
+#include "string_presets.h"
 
 // Interpolation modes between two points.
 enum Shapes{
@@ -52,12 +54,13 @@ enum modulationMode{
     modPosY             // Modulation changes the y-position of the modulated ShapePoint.
 };
 
-// Types of context menus that can be displayed when righclicking the GUI.
+// Types of context menus that can be displayed when clicking on the GUI.
 enum contextMenuType{
-    menuNone,       // Dont show a menu.
-    menuShapePoint, // Show menu corresponding to a shapePoint, in which the point can be deleted and the interpolation mode can be changed.
-    menuLinkKnob,   // Show menu corresponding to a linkKnob, in which the link can be removed.
-    menuPointPosMod // Show menu to select either x or y-direction for point position modeulation.
+    menuNone,               // Dont show a menu.
+    menuShapePoint,         // Show menu corresponding to a shapePoint, in which the point can be deleted and the interpolation mode can be changed. Opens on rightclick on point.
+    menuLinkKnob,           // Show menu corresponding to a linkKnob, in which the link can be removed. Opens on rightclick on a link knob.
+    menuPointPosMod,        // Show menu to select either x or y-direction for point position modeulation. Opens on left buttom release after modulating a point by an Envelope.
+    menuEnvelopeLoopMode    // Show menu to select a loop mode for the current active Envelope. Opens on left click on the loop mode button of EnvelopeManager.
 };
 
 // Corresponds to the options showed in the context menu appearing when rightclicking onto the linkKnobs.
@@ -66,7 +69,15 @@ enum menuLinkKnobOptions{
     removeLink // Remove the rightclicked link.
 };
 
+// Modes which define the base to express the Envelope frequency.
+// TODO add Hz and maybe a mode where its an arbitrary integer multiple of the beats, not a power of 2.
+enum envelopeLoopMode{
+    envelopeFrequencyTempo,     // Envelope frequency is the multiple of a beat.
+    envelopeFrequencySeconds    // Envelope frequency is set in seconds.
+};
+
 class ShapePoint;
+class FrequencyPanel;
 
 class ShapeEditor : public InteractiveGUIElement {
     protected:
@@ -76,7 +87,7 @@ class ShapeEditor : public InteractiveGUIElement {
     contextMenuType menuRequest = menuNone; // If any action requires a menu to be opened, the type of menu is stored here.
     ShapePoint *deletedPoint = nullptr; // If a point was deleted, store a pointer to it here, so that the plugin can remove all Envelope links after the input is fully processed.
 
-    void drawConnection(uint32_t *canvas, ShapePoint *point, double beatPosition = 0., uint32_t color = 0x000000, float thickness = 5);
+    void drawConnection(uint32_t *canvas, ShapePoint *point, double beatPosition = 0., double secondsPlayed = 0, uint32_t color = 0x000000, float thickness = 5);
 
     public:
     uint32_t XYXY[4]; // Box coordinates of the area where the shapePoints are defined, in XYXY notation.
@@ -98,13 +109,13 @@ class ShapeEditor : public InteractiveGUIElement {
     void processMouseRelease(uint32_t x, uint32_t y);
     void processDoubleClick(uint32_t x, uint32_t y);
     void processRightClick(uint32_t x, uint32_t y);
-    void renderGUI(uint32_t *canvas, double beatPosition = 0);
+    void renderGUI(uint32_t *canvas, double beatPosition = 0, double secondsPlayed = 0);
 
     contextMenuType getMenuRequestType();
     ShapePoint *getDeletedPoint();
     
     void processMenuSelection(WPARAM wParam);
-    float forward(float input, double beatPosition = 0.);
+    float forward(float input, double beatPosition = 0, double secondsPlayed = 0);
 };
 
 class ModulatedParameter;
@@ -112,15 +123,17 @@ class ModulatedParameter;
 // Envelopes inherit the graphical editing capabilities from ShapeEditor but include methods to add, remove and update controlled parameters.
 class Envelope : public ShapeEditor{
     public:
-    std::vector<ModulatedParameter*> modulatedParameters;
-    Envelope(uint32_t size[4]);
+    std::vector<ModulatedParameter*> modulatedParameters; // Vector of all parameters modulated by this Envelope. 
+    FrequencyPanel *frequencyPanel; // Pointer to the InteractiveGUIElement FrequencyPanel, to set loop mode and frequency of this Envelope.
+    double tempo; // The song tempo. Is set by UDShaper during renderAudio() and used to retreive seconds passed from beatPosition in forward.
+
+    Envelope(uint32_t size[4], FrequencyPanel *inPanel);
     void addModulatedParameter(ShapePoint *point, float amount, modulationMode mode);
     void setModulatedParameterAmount(int index, float amount);
     void removeModulatedParameter(int index);
     int getModulatedParameterNumber();
     float getModAmount(int index);
-    float modForward(double beatPosition = 0);
-    void processRightClickMod(int32_t x, int32_t y);
+    float modForward(double beatPosition = 0, double secondsPlayed = 0);
 };
 
 // Class in which Envelopes can be edited and linked to Parameters of the ShapeEditors.
@@ -129,16 +142,21 @@ class Envelope : public ShapeEditor{
 // Only one Envelope is displayed and editable, the active Envelope can be switched on the selection panel. The tool panel shows knobs for all ModulatedParameters that are linked to the active Envelope. These knobs control the modulation amount of the corresponding parameter.
 class EnvelopeManager : public InteractiveGUIElement {
     private:
-    std::vector<Envelope> envelopes; // Vector of Envelopes. To prevent reallocation and dangling pointers in ModulatedParameters, MAX_NUMBER_ENVELOPES spots is reserved and no more Envelopes can be added.
     uint32_t XYXY[4]; // Size and position of this EnvelopeManager in XYXY notation.
     uint32_t envelopeXYXY[4]; // Size and position at which the active Envelope is displayed.
     uint32_t selectorXYXY[4]; // Size and position at which the Envelope selection panel is displayed.
-    uint32_t toolsXYXY[4]; // Size and position of the tool panel below the Envelope.
+    uint32_t knobsXYXY[4]; // Size an position of the panel on which link knobs are displayed. Placed below Envelope.
+    uint32_t toolsXYXY[4]; // Size and position of the tool panel below the link knobs.
     
     uint32_t clickedX; // x-position of last mouseclick
     uint32_t clickedY; // y-position of last mouseclick
 
     contextMenuType menuRequest = menuNone;
+
+    std::vector<Envelope> envelopes; // Vector of Envelopes. To prevent reallocation and dangling pointers in ModulatedParameters, MAX_NUMBER_ENVELOPES spots is reserved and no more Envelopes can be added.
+    std::vector<FrequencyPanel> frequencyPanels; // Vector of FrequencyPanels. Stores one FrequencyPanel for each Envelope, the panel at activeEnvelopeIndex is displayed and edited.
+    envelopeLoopMode loopMode = envelopeFrequencyTempo;
+    double loopFrequency = 1;
     
     void setActiveEnvelope(int index);
     void addEnvelope();
@@ -162,7 +180,8 @@ class EnvelopeManager : public InteractiveGUIElement {
     void processMouseRelease(uint32_t x, uint32_t y);
     void processDoubleClick(uint32_t x, uint32_t y);
     void processRightClick(uint32_t x, uint32_t y);
-    void renderGUI(uint32_t	*canvas, double beatPosition = 0);
+    void renderGUI(uint32_t	*canvas, double beatPosition = 0, double secondsPlayed = 0);
+    void setupForRerender();
 
     void processMenuSelection(WPARAM wParam);
     void addModulatedParameter(ShapePoint *point, float amount, modulationMode mode);

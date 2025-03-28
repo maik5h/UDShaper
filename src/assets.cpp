@@ -154,16 +154,3 @@ void drawLinkKnob(uint32_t *canvas, uint32_t posX, uint32_t posY, uint32_t size,
         }
     }
 }
-
-void drawText(HWND hwnd, int x, int y, LPCSTR text, uint32_t color){
-    // TODO does not work yet
-    RECT rect;
-    HDC wdc = GetWindowDC(hwnd);
-    GetClientRect(hwnd, &rect) ;
-    SetTextColor(wdc, color);
-    SetBkMode(wdc,TRANSPARENT);
-    rect.left=x;
-    rect.top=y;
-    DrawText(wdc, text, -1, &rect, DT_SINGLELINE | DT_NOCLIP) ;
-    DeleteDC(wdc);  
-}

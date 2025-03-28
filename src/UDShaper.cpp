@@ -8,6 +8,18 @@ long getCurrentTime(){
 	return millis.count();
 }
 
+/*
+Audio and GUI rendering:
+
+There are ModulatedParameters that can be modulated by any of the Envelopes. The Envelopes change the value of ModulatedParameters depending
+on the song position. There is a difference between audio and visual rendering, since visual rendering must happen on the main thread, while
+audio rendering runs parallel on audio threads.
+The exact song position in beats and seconds is available only on the audio threads (through clap_event_transport_t), so the time the host
+started playing and the inital position in beats are reported to the main thread using a mutex (see reportPlaybackStatusToMain() in main.cpp).
+UDShaper recalculates the correct song position from these values every time renderGUI() is called. This song position in beats and seconds
+is forwarded to the renderGUI() methods of all other InteractiveGUIElements.
+*/
+
 // Initializes the two ShapeEditors and the EnvelopeManager at positions at with sizes according to the input window size.
 UDShaper::UDShaper(uint32_t windowWidth, uint32_t windowHieght) {
     // TODO select the sizes based on the window size.
@@ -27,6 +39,10 @@ void UDShaper::processLeftClick(uint32_t x, uint32_t y) {
 
     envelopes->processLeftClick(x, y);
     mouseDragging = true;
+
+    // Left clicking on Envelope might result in a menu request, save menuRequestType if not menuNone.
+    contextMenuType requested = envelopes->getMenuRequestType();
+    menuRequest = (requested == menuNone) ? menuRequest : requested;
 }
 
 // Forwards mouse drag to all InteractiveGUIElement members.
@@ -79,7 +95,9 @@ void UDShaper::processMouseRelease(uint32_t x, uint32_t y) {
 
         mouseDragging = false;
     }
-    menuRequest = menu;
+
+    // Save menu type if a menu has been requested.
+    menuRequest = (menu == menuNone) ? menuRequest : menu;
 }
 
 // Forwards double click to all InteractiveGUImembers. If a ShapePoint was deleted by the double click, all Envelope links to this point are cleared.
@@ -103,25 +121,30 @@ void UDShaper::processRightClick(uint32_t x, uint32_t y) {
     shapeEditor2->processRightClick(x, y);
     envelopes->processRightClick(x, y);
 
-    contextMenuType requested = shapeEditor1->getMenuRequestType();
-    requested = (requested == menuNone) ? shapeEditor2->getMenuRequestType() : requested;
-    requested = (requested == menuNone) ? envelopes->getMenuRequestType() : requested;
+    // Check all sub elements for a requested context menu.
+    contextMenuType SE1Request = shapeEditor1->getMenuRequestType();
+    contextMenuType SE2Request = shapeEditor2->getMenuRequestType();
+    contextMenuType EnvRequest = envelopes->getMenuRequestType();
 
-    menuRequest = requested;
+    // If any of the requestst is not menuNone, save it in menuRequest.
+    menuRequest = (SE1Request != menuNone) ? SE1Request : (SE2Request != menuNone) ? SE2Request : (EnvRequest != menuNone) ? EnvRequest : menuRequest;
 }
 
 // Renders the GUI of all InteractiveGUIElement members. beatPosition is used to sync animated graphics to the host playback position.
-void UDShaper::renderGUI(uint32_t *canvas, double beatPosition) {
-    // TODO is there a better way to get the beatposition?
+void UDShaper::renderGUI(uint32_t *canvas) {
+    // The beatposition is, unlike on the audio threads, not taken from a clap_transport, but calculated for the point in time when this function is called.
     long now = getCurrentTime();
     WaitForSingleObject(synchProcessStartTime, INFINITE);
 
-    double bp = hostPlaying ? (initBeatPosition + (now - startedPlaying) / 1000 / 60 * currentTempo) : initBeatPosition;
-
+    // If the host is playing, add the beats that have past since it started playing to the initial beatPosition.
+    // The initBeatPosition and startedPlaying are set from the audio threads, where clap_transport is available.
+    double beatPosition = hostPlaying ? (initBeatPosition + (now - startedPlaying) / 1000 / 60 * currentTempo) : initBeatPosition;
+    // TODO init secondsPlayed has to be calculated from initBeatPosition
+    double secondsPlayed = hostPlaying ? (now - startedPlaying) / 1000. : 0;
     ReleaseMutex(synchProcessStartTime);
 
-    shapeEditor1->renderGUI(canvas, bp);
-    shapeEditor2->renderGUI(canvas, bp);
+    shapeEditor1->renderGUI(canvas, beatPosition, secondsPlayed);
+    shapeEditor2->renderGUI(canvas, beatPosition, secondsPlayed);
     envelopes->renderGUI(canvas);
 }
 
@@ -135,10 +158,10 @@ contextMenuType UDShaper::getMenuRequestType() {
 // Takes the input audio from the input process and writes the output audio into process->audio_outputs.
 //
 // The output is mainly dependent on two things: The state of both ShapeEditors (which depends on the host playback position if linked to an Envellope) and the distortion mode:
-//      upDown:             shapeEditor1 is used on all samples that are higher than the previous sample, shapeEditor 2 on samples that are lower than the previous one.
-//      leftRight:          shapeEditor1 is used on the left channel, shapeEditor2 on the right channel.
-//      midSide:            shapeEditor1 is used on the mid channel, shapeEditor2 on the side channel.
-//      positiveNegative:   shapeEditor1 is used on samples > 0, shapeEditor2 on samples < 0. samples = 0 stay 0.
+//  - upDown:             shapeEditor1 is used on all samples that are higher than the previous sample, shapeEditor 2 on samples that are lower than the previous one.
+//  - leftRight:          shapeEditor1 is used on the left channel, shapeEditor2 on the right channel.
+//  - midSide:            shapeEditor1 is used on the mid channel, shapeEditor2 on the side channel.
+//  - positiveNegative:   shapeEditor1 is used on samples > 0, shapeEditor2 on samples < 0. samples = 0 stay 0.
 void UDShaper::renderAudio(const clap_process_t *process) {
     assert(process->audio_outputs_count == 1);
     assert(process->audio_inputs_count == 1);
@@ -149,7 +172,8 @@ void UDShaper::renderAudio(const clap_process_t *process) {
 
     const clap_event_transport_t *transport = process->transport;
     clap_transport_flags isNotPlaying = CLAP_TRANSPORT_IS_PLAYING;
-    double beatPosition = (double)transport->song_pos_beats / CLAP_BEATTIME_FACTOR;
+    double beatPosition = (double) transport->song_pos_beats / CLAP_BEATTIME_FACTOR;
+    double secondsPlayed = (double) transport->song_pos_seconds / CLAP_SECTIME_FACTOR;
 
     // tempo is needed to calculate the exact beat position for every sample of the buffer. However, if the host is not playing, a tempo of zero is passed so all parameters stay constant.
     double tempo = transport->flags[&isNotPlaying] ? transport->tempo : 0;
@@ -179,6 +203,7 @@ void UDShaper::renderAudio(const clap_process_t *process) {
                 // for modulation faster than buffer rate, modulate parameters with updated beatPosition for every sample
                 // tempo is beats per minute, so tempo / 60 is beats per second. samplerate is samples per second, so tempo/60 * samplerate is beats per sample.
                 beatPosition += tempo / samplerate / 60;
+                secondsPlayed += 1. / samplerate;
 
                 // update active shape only if value has changed so for plateaus the current shape stays active
                 if (index > 0) {
@@ -190,8 +215,8 @@ void UDShaper::renderAudio(const clap_process_t *process) {
                     // }
                 }
 
-                outputL[index] = processShape1L ? shapeEditor1->forward(inputL[index], beatPosition) : shapeEditor2->forward(inputL[index], beatPosition);
-                outputR[index] = processShape1R ? shapeEditor1->forward(inputR[index], beatPosition) : shapeEditor2->forward(inputR[index], beatPosition);
+                outputL[index] = processShape1L ? shapeEditor1->forward(inputL[index], beatPosition, secondsPlayed) : shapeEditor2->forward(inputL[index], beatPosition, secondsPlayed);
+                outputR[index] = processShape1R ? shapeEditor1->forward(inputR[index], beatPosition, secondsPlayed) : shapeEditor2->forward(inputR[index], beatPosition, secondsPlayed);
 
                 previousLevelL = inputL[index];
                 previousLevelR = inputR[index];
