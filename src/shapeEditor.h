@@ -76,6 +76,19 @@ enum envelopeLoopMode{
     envelopeFrequencySeconds    // Envelope frequency is set in seconds.
 };
 
+// Stores the the type of menu that is supposed to be opened in the attribute requestedMenu. If any action reuires a context menu to open, this value is set to the required value. As soon as the menu is opened (by functions in gui_w32.cpp), the reset() method is called, which sets requestedMenu to menuNone and save the previous value in lastRequested. This attribute is used to process the menu selection and is reset as soon as it has been processed.
+class MenuRequest {
+    public:
+    static contextMenuType requestedMenu; // The type of menu to be displayed.
+    static contextMenuType lastRequested; // The type of menu that has been shown last.
+
+    // Resets the current requestedMenu to menuNone and writes its previous value to lastRequested.
+    static void reset() {
+        lastRequested = requestedMenu;
+        requestedMenu = menuNone;
+    }
+};
+
 class ShapePoint;
 class FrequencyPanel;
 
@@ -84,7 +97,6 @@ class ShapeEditor : public InteractiveGUIElement {
     ShapePoint *currentlyDragging = nullptr; // Pointer to the ShapePoint that is currently edited by the user.
     ShapePoint *rightClicked = nullptr; // Pointer to the ShapePoint that has been rightclicked by the user.
 
-    contextMenuType menuRequest = menuNone; // If any action requires a menu to be opened, the type of menu is stored here.
     ShapePoint *deletedPoint = nullptr; // If a point was deleted, store a pointer to it here, so that the plugin can remove all Envelope links after the input is fully processed.
 
     void drawConnection(uint32_t *canvas, ShapePoint *point, double beatPosition = 0., double secondsPlayed = 0, uint32_t color = 0x000000, float thickness = 5);
@@ -111,7 +123,6 @@ class ShapeEditor : public InteractiveGUIElement {
     void processRightClick(uint32_t x, uint32_t y);
     void renderGUI(uint32_t *canvas, double beatPosition = 0, double secondsPlayed = 0);
 
-    contextMenuType getMenuRequestType();
     ShapePoint *getDeletedPoint();
     
     void processMenuSelection(WPARAM wParam);
@@ -151,8 +162,6 @@ class EnvelopeManager : public InteractiveGUIElement {
     uint32_t clickedX; // x-position of last mouseclick
     uint32_t clickedY; // y-position of last mouseclick
 
-    contextMenuType menuRequest = menuNone;
-
     std::vector<Envelope> envelopes; // Vector of Envelopes. To prevent reallocation and dangling pointers in ModulatedParameters, MAX_NUMBER_ENVELOPES spots is reserved and no more Envelopes can be added.
     std::vector<FrequencyPanel> frequencyPanels; // Vector of FrequencyPanels. Stores one FrequencyPanel for each Envelope, the panel at activeEnvelopeIndex is displayed and edited.
     envelopeLoopMode loopMode = envelopeFrequencyTempo;
@@ -187,5 +196,4 @@ class EnvelopeManager : public InteractiveGUIElement {
     void addModulatedParameter(ShapePoint *point, float amount, modulationMode mode);
     void clearLinksToPoint(ShapePoint *point);
 
-    contextMenuType getMenuRequestType();
 };

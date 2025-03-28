@@ -8,9 +8,6 @@ The biggest and most noticeable TODOs of this project:
 
 - I use my own (unparallelized) functions to create GUI visuals. By only updating elements that have changed their appereance this is still fast enough (on my machine). using a graphics library would probably be better.
 
-- The way "menu requests" are handled is unintuitive and confusing. Maybe it is possible to write and read the requested menu type directly from  a static class and avoid the pass through many getMenuRequestType() calls.
-- Bug with menus: comparison between wParam and values from different enums is ambiguous. It appears to work still, but this has to be changed. Should be easy to resolve when previous point is implememnted. + I realised ShapeEditor.h depends on windows.h (to use WPARAM). This can also be avoided with this change.
-
 No functionality, only convenience:
 
 - When editing curveCenter, the center should not be set to the mouse position, but rather move slower the further from the center it is, to allow for more control. Also detach the exact position on the screen from the power value to allow for finer steps in power.

@@ -145,17 +145,20 @@ LRESULT CALLBACK GUIWindowProcedure(HWND window, UINT message, WPARAM wParam, LP
 			SetCapture(window);
 
 			plugin->processRightClick(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
-			contextMenuType menuType = plugin->getMenuRequestType();
 
 			// If any of the processRightClick functions returned true, open the context menu for points. Information about which point was rightclicked is handled inside the ShapeEditor and Envelope instances.
-			if (menuType != menuNone){
-				RECT rect; // rect to store window coordinates
-				GetWindowRect(window, &rect);
-				if (menuType == menuShapePoint){
+			if (MenuRequest::requestedMenu != menuNone){
+				if (MenuRequest::requestedMenu == menuShapePoint){
+					RECT rect; // rect to store window coordinates
+					GetWindowRect(window, &rect);
 					showShapeMenu(window, rect.left + GET_X_LPARAM(lParam), rect.top + GET_Y_LPARAM(lParam));
+					MenuRequest::reset();
 				}
-				else if (menuType == menuLinkKnob){
+				else if (MenuRequest::requestedMenu == menuLinkKnob){
+					RECT rect; // rect to store window coordinates
+					GetWindowRect(window, &rect);
 					showLinkKnobMenu(window, rect.left + GET_X_LPARAM(lParam), rect.top + GET_Y_LPARAM(lParam));
+					MenuRequest::reset();
 				}
 			}
 			GUIPaint(plugin, true);
@@ -179,16 +182,17 @@ LRESULT CALLBACK GUIWindowProcedure(HWND window, UINT message, WPARAM wParam, LP
 
 			// After processing of mouse release, it might be necessary to open a context menu. Find out requested
 			// menu and open it.
-			contextMenuType requested = plugin->getMenuRequestType();
-			if (requested == menuPointPosMod) {
+			if (MenuRequest::requestedMenu == menuPointPosMod) {
 				RECT rect;
 				GetWindowRect(window, &rect);
 				showPointPositionModMenu(window, rect.left + GET_X_LPARAM(lParam), rect.top + GET_Y_LPARAM(lParam));
+				MenuRequest::reset();
 			}
-			else if (requested == menuEnvelopeLoopMode) {
+			else if (MenuRequest::requestedMenu == menuEnvelopeLoopMode) {
 				RECT rect;
 				GetWindowRect(window, &rect);
 				showLoopModeMenu(window, rect.left + GET_X_LPARAM(lParam), rect.top + GET_Y_LPARAM(lParam));
+				MenuRequest::reset();
 			};
 			GUIPaint(plugin, true);
 			break;
@@ -196,7 +200,6 @@ LRESULT CALLBACK GUIWindowProcedure(HWND window, UINT message, WPARAM wParam, LP
 		default:
 			return DefWindowProc(window, message, wParam, lParam);
 	}
-
 	return 0;
 }
 

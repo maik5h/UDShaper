@@ -23,6 +23,9 @@ float getPowerFromPosY(float posY){
     return power;
 }
 
+contextMenuType MenuRequest::requestedMenu = menuNone;
+contextMenuType MenuRequest::lastRequested = menuNone;
+
 /*
 ---NOTES ON MODULATION---
 Some parameters can be "modulated", which means they are changed by internal functions without explicit user input.
@@ -431,7 +434,7 @@ void ShapeEditor::processRightClick(uint32_t x, uint32_t y){
     // if rightclick on point, show shape menu to change function of curve segment
     if (closestPoint != nullptr && currentDraggingMode == position){
         rightClicked = closestPoint;
-        menuRequest = menuShapePoint;
+        MenuRequest::requestedMenu = menuShapePoint;
         return;
     }
     // if right click on curve center, reset power
@@ -443,7 +446,7 @@ void ShapeEditor::processRightClick(uint32_t x, uint32_t y){
             closestPoint->sineOmegaPrevious = 0.5;
         }
     }
-    menuRequest = menuNone;
+    // menuRequest = menuNone;
 }
 
 void ShapeEditor::renderGUI(uint32_t *canvas, double beatPosition, double secondsPlayed){
@@ -467,13 +470,6 @@ void ShapeEditor::renderGUI(uint32_t *canvas, double beatPosition, double second
     }
 }
 
-// Returns the type of menu requested by the ShapeEditor to open. The type is reset to menuNone when called.
-contextMenuType ShapeEditor::getMenuRequestType() {
-    contextMenuType requested = menuRequest;
-    menuRequest = menuNone;
-    return requested;
-}
-
 // Returns the pointer to the ShapePoint that was most recently deleted and resets the deletedPoint attribute to nullptr. Returns nullptr, when no point was deleted.
 ShapePoint *ShapeEditor::getDeletedPoint() {
     ShapePoint *deleted = deletedPoint;
@@ -481,10 +477,16 @@ ShapePoint *ShapeEditor::getDeletedPoint() {
     return deleted;
 }
 
-// Is called when an option on any context menu was selected. Changes the interpolation mode between points if this option was one of shapePower, shapeSine, etc.
+// Is called when an option on a ShapePoint context menu was selected. Changes the interpolation mode between points if this option was one of shapePower, shapeSine, etc.
 // Resets rightClicked to nullptr.
 void ShapeEditor::processMenuSelection(WPARAM wParam){
+    // If no point was rightclicked, the menu selection does not concern this ShapeEditor instance.
     if (rightClicked == nullptr){
+        return;
+    }
+
+    // Only process menu selection if the last opened menu was corresponding to a ShapePoint.
+    if (MenuRequest::lastRequested != menuShapePoint) {
         return;
     }
 
@@ -496,7 +498,10 @@ void ShapeEditor::processMenuSelection(WPARAM wParam){
             // rightClicked->mode = shapeSine;
             break;
     }
+
+    // Reset right clicked point and last requested menu after they have been processed.
     rightClicked = nullptr;
+    MenuRequest::lastRequested = menuNone;
 }
 
 // Reset currentlyDragging to nullptr and currentDraggingMode to none.
@@ -634,8 +639,6 @@ class FrequencyPanel : InteractiveGUIElement {
     uint32_t clickedX = 0;
     uint32_t clickedY = 0;
 
-    contextMenuType menuRequest = menuNone;
-
     bool currentlyDraggingCounter = false; // True if user is dragging on counter and value has to be updated.
     bool updateCounter = true; // Indicates whether the counter has to be redrawn on the GUI. True if counter value has changed after dragging or switching currentLoopMode. Resets to false once renderGUI() is called.
     bool updateButton = true; // Indicates whether the button should be rerendered in case of a switch between modes. Resets to false once renderGUI() is called.
@@ -676,8 +679,7 @@ class FrequencyPanel : InteractiveGUIElement {
         clickedY = y;
 
         if (isInBox(x, y, modeButtonXYXY)) {
-            menuRequest = menuEnvelopeLoopMode;
-            // TODO on menu selection, if currentLoopMode has changed, update previousValue
+            MenuRequest::requestedMenu = menuEnvelopeLoopMode;
         }
 
         if (isInBox(x, y, counterXYXY)) {
@@ -774,13 +776,13 @@ class FrequencyPanel : InteractiveGUIElement {
         }
     }
 
-    contextMenuType getMenuRequestType() {
-        contextMenuType requested = menuRequest;
-        menuRequest = menuNone;
-        return requested;
-    }
-
+    // Processes a context menu selection if the last opened menu was a Envelope loop mode menu.
     void processMenuSelection(WPARAM wParam) {
+        // Only process if last menu was an Envelope loop mode menu.
+        if (MenuRequest::lastRequested != menuEnvelopeLoopMode) {
+            return;
+        }
+
         envelopeLoopMode previous = currentLoopMode;
         if (wParam == envelopeFrequencyTempo) {
             currentLoopMode = envelopeFrequencyTempo;
@@ -788,11 +790,14 @@ class FrequencyPanel : InteractiveGUIElement {
         else if (wParam == envelopeFrequencySeconds) {
             currentLoopMode = envelopeFrequencySeconds;
         }
+        // If the loopMode has changed, rerender both Button and counter on the next renderGUI() call.
         if (currentLoopMode != previous) {
             updateButton = true;
             updateCounter = true;
             previousValue = counterValue[currentLoopMode];
         }
+        // Reset lastRequested after selection has been processed.
+        MenuRequest::lastRequested = menuNone;
     }
 
     // Returns the Envelope phase corresponding to the current beat position and loop mode.
@@ -1030,8 +1035,6 @@ void EnvelopeManager::processLeftClick(uint32_t x, uint32_t y){
     // always forward input to active Envelope
     envelopes.at(activeEnvelopeIndex).processLeftClick(x, y);
     frequencyPanels.at(activeEnvelopeIndex).processLeftClick(x, y);
-    // FrequencyPanel might request opening a context menu
-    menuRequest = frequencyPanels.at(activeEnvelopeIndex).getMenuRequestType();
 }
 
 // Forwards double click to the active Envelope.
@@ -1048,34 +1051,41 @@ void EnvelopeManager::processRightClick(uint32_t x, uint32_t y){
     for (int i=0; i<envelopes[activeEnvelopeIndex].getModulatedParameterNumber(); i++){
         if (isInPoint(x, y, knobsXYXY[0] + LINK_KNOB_SPACING*i + LINK_KNOB_SPACING/2, knobsXYXY[1] + (int)(LINK_KNOB_SPACING/2), LINK_KNOB_SIZE)){
             selectedKnob = i;
-            menuRequest = menuLinkKnob;
+            MenuRequest::requestedMenu = menuLinkKnob;
             return;
         }
     }
     
     envelopes.at(activeEnvelopeIndex).processRightClick(x, y);
-    menuRequest = envelopes.at(activeEnvelopeIndex).getMenuRequestType();
     frequencyPanels.at(activeEnvelopeIndex).processRightClick(x, y);
 }
 
 void EnvelopeManager::processMenuSelection(WPARAM wParam){
-    if (wParam == removeLink && selectedKnob != -1){
-        envelopes.at(activeEnvelopeIndex).removeModulatedParameter(selectedKnob);
-        toolsUpdated = true;
+    // If the last menu was a LinkKnob menu and it was selected to remove the link, remove it.
+    if (MenuRequest::lastRequested == menuLinkKnob) {
+        if (wParam == removeLink && selectedKnob != -1){
+            envelopes.at(activeEnvelopeIndex).removeModulatedParameter(selectedKnob);
+            toolsUpdated = true;
+        }
+        MenuRequest::lastRequested = menuNone;
     }
+
     // If it was attempted to modulate a point position, add a ModulatedParameter based on the modulationMode.
     // Set attemptedToModulate to nullptr afterwards to make sure no link is created by accident.
-    else if (wParam == modPosX){
-        if (attemptedToModulate != nullptr) {
-            addModulatedParameter(attemptedToModulate, 1, modPosX);
+    if (MenuRequest::lastRequested == menuPointPosMod) {
+        if (wParam == modPosX){
+            if (attemptedToModulate != nullptr) {
+                addModulatedParameter(attemptedToModulate, 1, modPosX);
+            }
+            attemptedToModulate = nullptr;
         }
-        attemptedToModulate = nullptr;
-    }
-    else if (wParam == modPosY) {
-        if (attemptedToModulate != nullptr) {
-            addModulatedParameter(attemptedToModulate, 1, modPosY);
+        else if (wParam == modPosY) {
+            if (attemptedToModulate != nullptr) {
+                addModulatedParameter(attemptedToModulate, 1, modPosY);
+            }
+            attemptedToModulate = nullptr;
         }
-        attemptedToModulate = nullptr;
+        MenuRequest::lastRequested = menuNone;
     }
 
     envelopes.at(activeEnvelopeIndex).processMenuSelection(wParam);
@@ -1137,11 +1147,4 @@ void EnvelopeManager::clearLinksToPoint(ShapePoint *point){
         }
     }
     toolsUpdated = true;
-}
-
-// Returns the type of menu requested by the EnvelopeManager to open. The type is reset to menuNone when called.
-contextMenuType EnvelopeManager::getMenuRequestType() {
-    contextMenuType requested = menuRequest;
-    menuRequest = menuNone;
-    return requested;
 }

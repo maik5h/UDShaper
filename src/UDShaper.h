@@ -6,8 +6,7 @@ Like the ShapeEditors and EnvelopeManager, UDShaper reacts to user inputs throug
 processMouseDrag, processMouseRelease, processDoubleClick and processRightClick.
 These methods are called in the window procedure in gui_w32.cpp, all functions regarding windows.h are in this
 file only, to make integrating support for other operating systems as easy as possible. If an action requires a
-menu to open, the contexMenuType is stored in the attribute menuRequest, which is accessed through
-getMenuRequestType.
+menu to open, the contexMenuType is stored in the static attribute requesteMenu of the MenuRequest class.
 
 renderAudio is the main method of this class, which changes the input audio depending on the state of the ShapeEditors.
 */
@@ -28,10 +27,6 @@ enum distortionMode {
 };
 
 class UDShaper {
-
-    private:
-    contextMenuType menuRequest = menuNone; // If any action requires a menu to be opened, the type of menu is stored here.
-
     public:
 	clap_plugin_t plugin; // The PluginClass, which interacts with the host, to create, destroy, process, etc. the plugin.
 	const clap_host_t *host;
@@ -67,8 +62,6 @@ class UDShaper {
     void processDoubleClick(uint32_t x, uint32_t y);
     void processRightClick(uint32_t x, uint32_t y);
     void renderGUI(uint32_t *canvas);
-
-    contextMenuType getMenuRequestType();
 
     void renderAudio(const clap_process_t *process);
 };

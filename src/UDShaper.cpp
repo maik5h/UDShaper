@@ -39,10 +39,6 @@ void UDShaper::processLeftClick(uint32_t x, uint32_t y) {
 
     envelopes->processLeftClick(x, y);
     mouseDragging = true;
-
-    // Left clicking on Envelope might result in a menu request, save menuRequestType if not menuNone.
-    contextMenuType requested = envelopes->getMenuRequestType();
-    menuRequest = (requested == menuNone) ? menuRequest : requested;
 }
 
 // Forwards mouse drag to all InteractiveGUIElement members.
@@ -57,7 +53,6 @@ void UDShaper::processMouseDrag(uint32_t x, uint32_t y) {
 
 // Forwards mouse release to all InteractiveGUIElement members and keeps track if any of them requests a context menu to open. Stops tracking the mouse drag.
 void UDShaper::processMouseRelease(uint32_t x, uint32_t y) {
-    contextMenuType menu = menuNone; // The menu to show after processing the mouse release. Is menuPointPosMod if a new modulation link was added to a point, menuNone else.
     if (mouseDragging) {
         // If it was attempted to link the active Envelope to a modulatable parameter, check if a parameter was selected successfully and add a ModulatedParameter instance to the corresponding Envelope.
         if (envelopes->currentDraggingMode == addLink){
@@ -74,14 +69,13 @@ void UDShaper::processMouseRelease(uint32_t x, uint32_t y) {
                 shapeEditorDraggingMode mode = (closestPoint1 == nullptr) ? shapeEditor2->currentDraggingMode : shapeEditor1->currentDraggingMode;
                 
                 // Find the correct parameter to modulate. There are the options curveCenter, posX and posY.
-                modulationMode modMode;
                 if (mode == curveCenter) {
                     envelopes->addModulatedParameter(closest, 1, modCurveCenterY);
                 }
                 // If the point position should be modulated, show context menu to select correct direction.
                 // Exception: last point is selected, which can only be modulated in y-direction. Do not show the menu in this case and directly add the ModulatedParameter.
                 else {
-                    menu = menuPointPosMod;
+                    MenuRequest::requestedMenu = menuPointPosMod;
                 }
 
                 // Add a ModulatedParameter to the active Envelope.
@@ -95,9 +89,6 @@ void UDShaper::processMouseRelease(uint32_t x, uint32_t y) {
 
         mouseDragging = false;
     }
-
-    // Save menu type if a menu has been requested.
-    menuRequest = (menu == menuNone) ? menuRequest : menu;
 }
 
 // Forwards double click to all InteractiveGUImembers. If a ShapePoint was deleted by the double click, all Envelope links to this point are cleared.
@@ -120,14 +111,6 @@ void UDShaper::processRightClick(uint32_t x, uint32_t y) {
     shapeEditor1->processRightClick(x, y);
     shapeEditor2->processRightClick(x, y);
     envelopes->processRightClick(x, y);
-
-    // Check all sub elements for a requested context menu.
-    contextMenuType SE1Request = shapeEditor1->getMenuRequestType();
-    contextMenuType SE2Request = shapeEditor2->getMenuRequestType();
-    contextMenuType EnvRequest = envelopes->getMenuRequestType();
-
-    // If any of the requestst is not menuNone, save it in menuRequest.
-    menuRequest = (SE1Request != menuNone) ? SE1Request : (SE2Request != menuNone) ? SE2Request : (EnvRequest != menuNone) ? EnvRequest : menuRequest;
 }
 
 // Renders the GUI of all InteractiveGUIElement members. beatPosition is used to sync animated graphics to the host playback position.
@@ -146,13 +129,6 @@ void UDShaper::renderGUI(uint32_t *canvas) {
     shapeEditor1->renderGUI(canvas, beatPosition, secondsPlayed);
     shapeEditor2->renderGUI(canvas, beatPosition, secondsPlayed);
     envelopes->renderGUI(canvas);
-}
-
-// Returns the type of menu requested by the plugin to open. The type is reset to menuNone when called.
-contextMenuType UDShaper::getMenuRequestType() {
-    contextMenuType requested = menuRequest;
-    menuRequest = menuNone;
-    return requested;
 }
 
 // Takes the input audio from the input process and writes the output audio into process->audio_outputs.
