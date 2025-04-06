@@ -394,6 +394,18 @@ ShapeEditor::ShapeEditor(uint32_t position[4]){
     shapePoints->next->previous = shapePoints;
 }
 
+ShapeEditor::~ShapeEditor() {
+    // Loop through all ShapePoints and delete them.
+    ShapePoint *current = shapePoints;
+    ShapePoint *next;
+
+    while (current != nullptr) {
+        next = current->next;
+        delete current;
+        current = next;
+    }
+}
+
 // Finds the closest ShapePoint or curve center point. Returns pointer to the corresponding point if it is closer than the squareroot of minimumDistance, else nullptr. The field currentDraggingMode of this ShapeEditor is set to either position or curveCenter.
 ShapePoint* ShapeEditor::getClosestPoint(uint32_t x, uint32_t y, float minimumDistance){
     // TODO i think it might be a better user experience if points always give visual feedback if the mouse is hovering over them.
@@ -688,210 +700,175 @@ float ShapeEditor::forward(float input, double beatPosition, double secondsPlaye
     return negativeInput ? -out : out;
 }
 
-/*The phase of Envelopes is periodic and dependent on time. The frequency with which an Envelope oscillates
-can be cahnged by the user by adjusting a "counter" which displays a number. There are different modes
-determining how this number is interpreted:
-    -envelopeFrequencyTempo: the Envelope loops n times per beat, where n is a power of 2 or one over a power of 2.
-    -envelopeFrequencyTempoTriplets: similar to previous, except that it loops in a triplet pattern.
-    -envelopeFrequencySeconds: the period of the oscillation in seconds can be set directly using the counter.
+FrequencyPanel::FrequencyPanel(uint32_t inXYXY[4], envelopeLoopMode initMode, double initValue) {
+    currentLoopMode = initMode;
+    counterValue[initMode] = initValue;
 
-The FrequencyPanels that control these properties are stored in EnvelopeManager and only referenced in Envelope.
-*/
-
-// An InteractiveGUIElement that lets the user change the frequency with which the corresponding Envelope loops.
-// There is one FrequencyPanel for each Envelope in EnvelopeManager, of which only the one corresponding to the active Envelope is displayed.
-//
-// Consists of two elements that are drawn to the GUI: A "counter", which displays a number that corresponds to the frequency and a dropdown menu, that lets the user select the loop mode.
-class FrequencyPanel : InteractiveGUIElement {
-    private:
-    uint32_t XYXY[4]; // The size and position of this element in pixel in XYXY notation.
-    uint32_t counterXYXY[4]; // The size and position of the counter in pixel in XYXY notation.
-    uint32_t modeButtonXYXY[4]; // The size and position of the button to select the loop mode in pixel and XYXY notation.
-
-    uint32_t clickedX = 0;
-    uint32_t clickedY = 0;
-
-    bool currentlyDraggingCounter = false; // True if user is dragging on counter and value has to be updated.
-    bool updateCounter = true; // Indicates whether the counter has to be redrawn on the GUI. True if counter value has changed after dragging or switching currentLoopMode. Resets to false once renderGUI() is called.
-    bool updateButton = true; // Indicates whether the button should be rerendered in case of a switch between modes. Resets to false once renderGUI() is called.
-
-    std::map<envelopeLoopMode, double> counterValue =  {{envelopeFrequencyTempo, 0}, // Mapping between the loop mode and the corresponding counter value.
-                                                        {envelopeFrequencySeconds, 1.}};
-    double previousValue = 1.; // Is used to store the counter value of the currentLoopMode when the user changes the counter value. 
-
-    
-    public:
-    envelopeLoopMode currentLoopMode = envelopeFrequencyTempo; // The current looping mode, can be based on tempo, tempo triplets or seconds.
-
-    FrequencyPanel(uint32_t inXYXY[4], envelopeLoopMode initMode = envelopeFrequencyTempo, double initValue = 0.) {
-        currentLoopMode = initMode;
-        counterValue[initMode] = initValue;
-
-        for (int i=0; i<4; i++) {
-            XYXY[i] = inXYXY[i];
-        }
-
-        // TODO for now counter and button are just split in half. There is room for visual improvement
-        counterXYXY[0] = XYXY[0];
-        counterXYXY[1] = XYXY[1];
-        counterXYXY[2] = (uint32_t) (XYXY[2] + XYXY[0]) / 2;
-        counterXYXY[3] = XYXY[3];
-
-        modeButtonXYXY[0] = (uint32_t) (XYXY[2] + XYXY[0]) / 2;
-        modeButtonXYXY[1] = XYXY[1];
-        modeButtonXYXY[2] = XYXY[2];
-        modeButtonXYXY[3] = XYXY[3];
+    for (int i=0; i<4; i++) {
+        XYXY[i] = inXYXY[i];
     }
 
-    // Can either
-    //  - request context menu to select loop mode if clicked on the mode button
-    //  - start tracking mouse for changing counter value, if clicked on counter
-    void processLeftClick(uint32_t x, uint32_t y) {
-        clickedX = x;
-        clickedY = y;
+    // TODO for now counter and button are just split in half. There is room for visual improvement
+    counterXYXY[0] = XYXY[0];
+    counterXYXY[1] = XYXY[1];
+    counterXYXY[2] = (uint32_t) (XYXY[2] + XYXY[0]) / 2;
+    counterXYXY[3] = XYXY[3];
 
-        if (isInBox(x, y, modeButtonXYXY)) {
-            MenuRequest::requestedMenu = menuEnvelopeLoopMode;
-        }
+    modeButtonXYXY[0] = (uint32_t) (XYXY[2] + XYXY[0]) / 2;
+    modeButtonXYXY[1] = XYXY[1];
+    modeButtonXYXY[2] = XYXY[2];
+    modeButtonXYXY[3] = XYXY[3];
+}
 
-        if (isInBox(x, y, counterXYXY)) {
-            currentlyDraggingCounter = true;
-        }
-    };
+// Can either
+//  - request context menu to select loop mode if clicked on the mode button
+//  - start tracking mouse for changing counter value, if clicked on counter
+void FrequencyPanel::processLeftClick(uint32_t x, uint32_t y) {
+    clickedX = x;
+    clickedY = y;
 
-    // If last left click was on counter, updates counter value based on y-position of mouse.
-    void processMouseDrag(uint32_t x, uint32_t y) {
-        if (!currentlyDraggingCounter) return;
-
-        switch (currentLoopMode) {
-            case envelopeFrequencyTempo: {
-                // In this case, the frequency is a power of two between 1/64 and 64.
-                // The counter value represents the power and doe stherefore take integer values between -6 and 6.
-                int newValue = (int) (previousValue + ((int) clickedY - (int) y) * COUNTER_SENSITIVITY);
-                counterValue[currentLoopMode] = (newValue < -6) ? -6 : (newValue > 6) ? 6 : newValue;
-                break;
-            }
-            case envelopeFrequencySeconds: {
-                double newValue = previousValue + ((int) clickedY - (int) y) * COUNTER_SENSITIVITY;
-                counterValue[currentLoopMode] = (newValue < 0) ? 0 : newValue;
-                break;
-            }
-        }
-    };
-
-    // Saves the current counter value as previousValue and stops mouse dragging.
-    void processMouseRelease(uint32_t x, uint32_t y) {
-        previousValue = counterValue[currentLoopMode];
-        currentlyDraggingCounter = false;
-    };
-
-    void processDoubleClick(uint32_t x, uint32_t y) {};
-    void processRightClick(uint32_t x, uint32_t y) {};
-
-    // Renders the counter based on the current counter value
-    void renderCounter(uint32_t *canvas) {
-        std::string counterText; // Counter value as string.
-
-        if (currentLoopMode == envelopeFrequencyTempo) {
-            // Convert counter value to index for FREQUENCY_COUNTER_STRINGS, where 0 is the lowest "64/1" and 12 the highest frequency "1/64".
-            int stringIdx = (int) counterValue[envelopeFrequencyTempo] + 6;
-            counterText = FREQUENCY_COUNTER_STRINGS[stringIdx];
-        }
-        else if (currentLoopMode == envelopeFrequencySeconds){
-            std::stringstream stream; // Counter value as string with two decimals.
-
-            // If value is less than a second, display in milliseconds.
-            if (counterValue[envelopeFrequencySeconds] >= 1){
-                stream << std::fixed << std::setprecision(2) << counterValue[envelopeFrequencySeconds];
-                counterText = stream.str();
-                counterText += " s";
-            }
-            else {
-                stream << std::fixed << std::setprecision(0) << 1000*counterValue[envelopeFrequencySeconds];
-                counterText = stream.str();
-                counterText += " ms";
-            }
-        }
-
-        // Draw the counter with the current value.
-        fillRectangle(canvas, counterXYXY);
-        drawTextBox(canvas, counterText, counterXYXY[0], counterXYXY[1], counterXYXY[2], counterXYXY[3]);
+    if (isInBox(x, y, modeButtonXYXY)) {
+        MenuRequest::requestedMenu = menuEnvelopeLoopMode;
     }
 
-    // Renders the button with the currentLoopMode.
-    void renderButton(uint32_t *canvas) {
-        // The appropriate text to display on the loop mode button.
-        std::string buttonText;
-        switch (currentLoopMode) {
-            case envelopeFrequencyTempo:
-                buttonText = "Tempo";
-                break;
-            case envelopeFrequencySeconds:
-                buttonText = "Seconds";
-                break;
-        }
-        fillRectangle(canvas, modeButtonXYXY);
-        drawTextBox(canvas, buttonText, modeButtonXYXY[0], modeButtonXYXY[1], modeButtonXYXY[2], modeButtonXYXY[3]);
-    }
-
-    // Renders two boxes:
-    // Left: a counter, which displays a number, right: a textbox displaying the currentLoopMode.
-    void renderGUI(uint32_t *canvas, double beatPosition, double secondsPlayed) {
-        // Rerender elements only if their content has changed.
-        if (currentlyDraggingCounter || updateCounter) {
-            renderCounter(canvas);
-            updateCounter = false;
-        }
-        if (updateButton) {
-            renderButton(canvas);
-            updateButton = false;
-        }
-    }
-
-    // Processes a context menu selection if the last opened menu was a Envelope loop mode menu.
-    void processMenuSelection(WPARAM wParam) {
-        // Only process if last menu was an Envelope loop mode menu.
-        if (MenuRequest::lastRequested != menuEnvelopeLoopMode) {
-            return;
-        }
-
-        envelopeLoopMode previous = currentLoopMode;
-        if (wParam == envelopeFrequencyTempo) {
-            currentLoopMode = envelopeFrequencyTempo;
-        }
-        else if (wParam == envelopeFrequencySeconds) {
-            currentLoopMode = envelopeFrequencySeconds;
-        }
-        // If the loopMode has changed, rerender both Button and counter on the next renderGUI() call.
-        if (currentLoopMode != previous) {
-            updateButton = true;
-            updateCounter = true;
-            previousValue = counterValue[currentLoopMode];
-        }
-        // Reset lastRequested after selection has been processed.
-        MenuRequest::lastRequested = menuNone;
-    }
-
-    // Returns the Envelope phase corresponding to the current beat position and loop mode.
-    double getEnvelopePhase(double beatPosition, double secondsPlayed) {
-        // Convert from beats to bars.
-        beatPosition /= 4;
-        if (currentLoopMode == envelopeFrequencyTempo) {
-            beatPosition = fmod(beatPosition, 1./pow(2, counterValue[envelopeFrequencyTempo]));
-            return beatPosition * std::pow(2, counterValue[envelopeFrequencyTempo]);
-        }
-        else if (currentLoopMode == envelopeFrequencySeconds) {
-            return fmod(secondsPlayed, counterValue[envelopeFrequencySeconds]) / counterValue[envelopeFrequencySeconds];
-        }
-        return 0.;
-    }
-
-    // After calling, the FrequencyPanel will be rerendered once in the next renderGUI() call.
-    void setupForRerender() {
-        updateButton = true;
-        updateCounter = true;
+    if (isInBox(x, y, counterXYXY)) {
+        currentlyDraggingCounter = true;
     }
 };
+
+// If last left click was on counter, updates counter value based on y-position of mouse.
+void FrequencyPanel::processMouseDrag(uint32_t x, uint32_t y) {
+    if (!currentlyDraggingCounter) return;
+
+    switch (currentLoopMode) {
+        case envelopeFrequencyTempo: {
+            // In this case, the frequency is a power of two between 1/64 and 64.
+            // The counter value represents the power and doe stherefore take integer values between -6 and 6.
+            int newValue = (int) (previousValue + ((int) clickedY - (int) y) * COUNTER_SENSITIVITY);
+            counterValue[currentLoopMode] = (newValue < -6) ? -6 : (newValue > 6) ? 6 : newValue;
+            break;
+        }
+        case envelopeFrequencySeconds: {
+            double newValue = previousValue + ((int) clickedY - (int) y) * COUNTER_SENSITIVITY;
+            counterValue[currentLoopMode] = (newValue < 0) ? 0 : newValue;
+            break;
+        }
+    }
+};
+
+// Saves the current counter value as previousValue and stops mouse dragging.
+void FrequencyPanel::processMouseRelease(uint32_t x, uint32_t y) {
+    previousValue = counterValue[currentLoopMode];
+    currentlyDraggingCounter = false;
+};
+
+void FrequencyPanel::processDoubleClick(uint32_t x, uint32_t y) {};
+void FrequencyPanel::processRightClick(uint32_t x, uint32_t y) {};
+
+// Renders the counter based on the current counter value
+void FrequencyPanel::renderCounter(uint32_t *canvas) {
+    std::string counterText; // Counter value as string.
+
+    if (currentLoopMode == envelopeFrequencyTempo) {
+        // Convert counter value to index for FREQUENCY_COUNTER_STRINGS, where 0 is the lowest "64/1" and 12 the highest frequency "1/64".
+        int stringIdx = (int) counterValue[envelopeFrequencyTempo] + 6;
+        counterText = FREQUENCY_COUNTER_STRINGS[stringIdx];
+    }
+    else if (currentLoopMode == envelopeFrequencySeconds){
+        std::stringstream stream; // Counter value as string with two decimals.
+
+        // If value is less than a second, display in milliseconds.
+        if (counterValue[envelopeFrequencySeconds] >= 1){
+            stream << std::fixed << std::setprecision(2) << counterValue[envelopeFrequencySeconds];
+            counterText = stream.str();
+            counterText += " s";
+        }
+        else {
+            stream << std::fixed << std::setprecision(0) << 1000*counterValue[envelopeFrequencySeconds];
+            counterText = stream.str();
+            counterText += " ms";
+        }
+    }
+
+    // Draw the counter with the current value.
+    fillRectangle(canvas, counterXYXY);
+    drawTextBox(canvas, counterText, counterXYXY[0], counterXYXY[1], counterXYXY[2], counterXYXY[3]);
+}
+
+// Renders the button with the currentLoopMode.
+void FrequencyPanel::renderButton(uint32_t *canvas) {
+    // The appropriate text to display on the loop mode button.
+    std::string buttonText;
+    switch (currentLoopMode) {
+        case envelopeFrequencyTempo:
+            buttonText = "Tempo";
+            break;
+        case envelopeFrequencySeconds:
+            buttonText = "Seconds";
+            break;
+    }
+    fillRectangle(canvas, modeButtonXYXY);
+    drawTextBox(canvas, buttonText, modeButtonXYXY[0], modeButtonXYXY[1], modeButtonXYXY[2], modeButtonXYXY[3]);
+}
+
+// Renders two boxes:
+// Left: a counter, which displays a number, right: a textbox displaying the currentLoopMode.
+void FrequencyPanel::renderGUI(uint32_t *canvas, double beatPosition, double secondsPlayed) {
+    // Rerender elements only if their content has changed.
+    if (currentlyDraggingCounter || updateCounter) {
+        renderCounter(canvas);
+        updateCounter = false;
+    }
+    if (updateButton) {
+        renderButton(canvas);
+        updateButton = false;
+    }
+}
+
+// Processes a context menu selection if the last opened menu was a Envelope loop mode menu.
+void FrequencyPanel::processMenuSelection(WPARAM wParam) {
+    // Only process if last menu was an Envelope loop mode menu.
+    if (MenuRequest::lastRequested != menuEnvelopeLoopMode) {
+        return;
+    }
+
+    envelopeLoopMode previous = currentLoopMode;
+    if (wParam == envelopeFrequencyTempo) {
+        currentLoopMode = envelopeFrequencyTempo;
+    }
+    else if (wParam == envelopeFrequencySeconds) {
+        currentLoopMode = envelopeFrequencySeconds;
+    }
+    // If the loopMode has changed, rerender both Button and counter on the next renderGUI() call.
+    if (currentLoopMode != previous) {
+        updateButton = true;
+        updateCounter = true;
+        previousValue = counterValue[currentLoopMode];
+    }
+    // Reset lastRequested after selection has been processed.
+    MenuRequest::lastRequested = menuNone;
+}
+
+// Returns the Envelope phase corresponding to the current beat position and loop mode.
+double FrequencyPanel::getEnvelopePhase(double beatPosition, double secondsPlayed) {
+    // Convert from beats to bars.
+    beatPosition /= 4;
+    if (currentLoopMode == envelopeFrequencyTempo) {
+        beatPosition = fmod(beatPosition, 1./pow(2, counterValue[envelopeFrequencyTempo]));
+        return beatPosition * std::pow(2, counterValue[envelopeFrequencyTempo]);
+    }
+    else if (currentLoopMode == envelopeFrequencySeconds) {
+        return fmod(secondsPlayed, counterValue[envelopeFrequencySeconds]) / counterValue[envelopeFrequencySeconds];
+    }
+    return 0.;
+}
+
+// After calling, the FrequencyPanel will be rerendered once in the next renderGUI() call.
+void FrequencyPanel::setupForRerender() {
+    updateButton = true;
+    updateCounter = true;
+}
+
 
 Envelope::Envelope(uint32_t size[4], FrequencyPanel *inPanel) : ShapeEditor(size) {
     frequencyPanel = inPanel;
@@ -1010,8 +987,8 @@ void EnvelopeManager::addEnvelope(){
         return;
     }
     // First add new FrequncyPanel so it can be referenced in the new Envelope.
-    frequencyPanels.push_back(FrequencyPanel(toolsXYXY));
-    envelopes.push_back(Envelope(envelopeXYXY, &frequencyPanels.back()));
+    frequencyPanels.emplace_back(toolsXYXY);
+    envelopes.emplace_back(envelopeXYXY, &frequencyPanels.back());
     updateGUIElements = true;
 }
 

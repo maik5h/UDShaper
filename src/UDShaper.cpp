@@ -34,6 +34,13 @@ UDShaper::UDShaper(uint32_t windowWidth, uint32_t windowHeight) {
     envelopes = new EnvelopeManager(envelopeSize);
 }
 
+UDShaper::~UDShaper() {
+    delete topMenuBar;
+    delete shapeEditor1;
+    delete shapeEditor2;
+    delete envelopes;
+}
+
 // Forwards left click to all InteractiveGUIElement members and starts to track the mouse drag.
 void UDShaper::processLeftClick(uint32_t x, uint32_t y) {
     topMenuBar->processLeftClick(x, y);

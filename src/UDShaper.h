@@ -48,6 +48,7 @@ class UDShaper {
 	double currentTempo;
 
 	UDShaper(uint32_t windowWidth, uint32_t windowHeight);
+	~UDShaper();
 
     void processLeftClick(uint32_t x, uint32_t y);
     void processMouseDrag(uint32_t x, uint32_t y);

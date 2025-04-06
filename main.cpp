@@ -245,7 +245,6 @@ static const clap_plugin_t pluginClass = {
 	.init = [] (const clap_plugin *_plugin) -> bool {
 		UDShaper *plugin = (UDShaper *) _plugin->plugin_data;
 
-		plugin->hostPOSIXFDSupport = (const clap_host_posix_fd_support_t *) plugin->host->get_extension(plugin->host, CLAP_EXT_POSIX_FD_SUPPORT);
 		plugin->hostTimerSupport = (const clap_host_timer_support_t *) plugin->host->get_extension(plugin->host, CLAP_EXT_TIMER_SUPPORT);
 		plugin->hostParams = (const clap_host_params_t *) plugin->host->get_extension(plugin->host, CLAP_EXT_PARAMS);
 		plugin->hostLog = (const clap_host_log_t *) plugin->host->get_extension(plugin->host, CLAP_EXT_LOG);
@@ -263,8 +262,8 @@ static const clap_plugin_t pluginClass = {
 		if (plugin->hostTimerSupport && plugin->hostTimerSupport->register_timer) {
 			plugin->hostTimerSupport->unregister_timer(plugin->host, plugin->timerID);
 		}
-
-		free(plugin);
+		
+		delete plugin;
 	},
 
 	.activate = [] (const clap_plugin *_plugin, double sampleRate, uint32_t minimumFramesCount, uint32_t maximumFramesCount) -> bool {
@@ -324,7 +323,6 @@ static const clap_plugin_factory_t pluginFactory = {
 			return nullptr;
 		}
 
-		// UDShaper *plugin = (UDShaper *) calloc(1, sizeof(UDShaper));
 		UDShaper *plugin = new UDShaper(GUI_WIDTH, GUI_HEIGHT);
 		plugin->host = host;
 		plugin->plugin = pluginClass;

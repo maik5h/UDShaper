@@ -1,6 +1,6 @@
 The biggest and most noticeable TODOs of this project:
 
-- Host crashes sometimes if deleted. Probably because dynamic memeroy is not freed properly
+- Access violation occurs when plugin instance is cloned by host. This might be fixed by implementing the state extension.
 
 - Add function that assigns size and position to all elements depending on the plugin size and make window resizable.
 

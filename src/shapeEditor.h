@@ -124,7 +124,6 @@ class TopMenuBar: InteractiveGUIElement {
 };
 
 class ShapePoint;
-class FrequencyPanel;
 
 class ShapeEditor : public InteractiveGUIElement {
     protected:
@@ -148,6 +147,7 @@ class ShapeEditor : public InteractiveGUIElement {
     ShapePoint *shapePoints;
 
     ShapeEditor(uint32_t position[4]);
+    virtual ~ShapeEditor();
     ShapePoint* getClosestPoint(uint32_t x, uint32_t y, float minimumDistance = REQUIRED_SQUARED_DISTANCE);
 
     void processLeftClick(uint32_t x, uint32_t y);
@@ -164,6 +164,56 @@ class ShapeEditor : public InteractiveGUIElement {
 };
 
 class ModulatedParameter;
+
+/*The phase of Envelopes is periodic and dependent on time. The frequency with which an Envelope oscillates
+can be cahnged by the user by adjusting a "counter" which displays a number. There are different modes
+determining how this number is interpreted:
+    -envelopeFrequencyTempo: the Envelope loops n times per beat, where n is a power of 2 or one over a power of 2.
+    -envelopeFrequencyTempoTriplets: similar to previous, except that it loops in a triplet pattern.
+    -envelopeFrequencySeconds: the period of the oscillation in seconds can be set directly using the counter.
+
+The FrequencyPanels that control these properties are stored in EnvelopeManager and only referenced in Envelope.
+*/
+
+// An InteractiveGUIElement that lets the user change the frequency with which the corresponding Envelope loops.
+// There is one FrequencyPanel for each Envelope in EnvelopeManager, of which only the one corresponding to the active Envelope is displayed.
+//
+// Consists of two elements that are drawn to the GUI: A "counter", which displays a number that corresponds to the frequency and a dropdown menu, that lets the user select the loop mode.
+class FrequencyPanel : public InteractiveGUIElement {
+    private:
+    uint32_t XYXY[4]; // The size and position of this element in pixel in XYXY notation.
+    uint32_t counterXYXY[4]; // The size and position of the counter in pixel in XYXY notation.
+    uint32_t modeButtonXYXY[4]; // The size and position of the button to select the loop mode in pixel and XYXY notation.
+
+    uint32_t clickedX = 0;
+    uint32_t clickedY = 0;
+
+    bool currentlyDraggingCounter = false; // True if user is dragging on counter and value has to be updated.
+    bool updateCounter = true; // Indicates whether the counter has to be redrawn on the GUI. True if counter value has changed after dragging or switching currentLoopMode. Resets to false once renderGUI() is called.
+    bool updateButton = true; // Indicates whether the button should be rerendered in case of a switch between modes. Resets to false once renderGUI() is called.
+
+    std::map<envelopeLoopMode, double> counterValue =  {{envelopeFrequencyTempo, 0}, // Mapping between the loop mode and the corresponding counter value.
+                                                        {envelopeFrequencySeconds, 1.}};
+    double previousValue = 1.; // Is used to store the counter value of the currentLoopMode when the user changes the counter value. 
+
+    
+    public:
+    envelopeLoopMode currentLoopMode = envelopeFrequencyTempo; // The current looping mode, can be based on tempo, tempo triplets or seconds.
+
+    FrequencyPanel(uint32_t inXYXY[4], envelopeLoopMode initMode = envelopeFrequencyTempo, double initValue = 0.);
+
+    void processLeftClick(uint32_t x, uint32_t y);
+    void processMouseDrag(uint32_t x, uint32_t y);
+    void processMouseRelease(uint32_t x, uint32_t y);
+    void processDoubleClick(uint32_t x, uint32_t y);
+    void processRightClick(uint32_t x, uint32_t y);
+    void renderCounter(uint32_t *canvas);
+    void renderButton(uint32_t *canvas);
+    void renderGUI(uint32_t *canvas, double beatPosition, double secondsPlayed);
+    void processMenuSelection(WPARAM wParam);
+    double getEnvelopePhase(double beatPosition, double secondsPlayed);
+    void setupForRerender();
+};
 
 // Envelopes inherit the graphical editing capabilities from ShapeEditor but include methods to add, remove and update controlled parameters.
 class Envelope : public ShapeEditor{
