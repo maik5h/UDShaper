@@ -26,6 +26,77 @@ float getPowerFromPosY(float posY){
 contextMenuType MenuRequest::requestedMenu = menuNone;
 contextMenuType MenuRequest::lastRequested = menuNone;
 
+TopMenuBar::TopMenuBar(uint32_t inXYXY[4]) {
+    for (int i=0; i<4; i++) {
+        XYXY[i] = inXYXY[i];
+    }
+
+    // The plugin logo will be displayed at the upper left corner.
+    logoXYXY[0] = XYXY[0] + 50;
+    logoXYXY[1] = XYXY[1];
+    logoXYXY[2] = (uint32_t) (0.15*(XYXY[2] - XYXY[0] - 100));
+    logoXYXY[3] = XYXY[3];
+
+    // The mode button is placed next to the logo.
+    modeButtonXYXY[0] = (uint32_t) (0.256*(XYXY[2] - XYXY[0]));
+    modeButtonXYXY[1] = XYXY[1];
+    modeButtonXYXY[2] = (uint32_t) (0.456*(XYXY[2] - XYXY[0]));
+    modeButtonXYXY[3] = (uint32_t) XYXY[3];
+}
+
+void TopMenuBar::processLeftClick(uint32_t x, uint32_t y) {
+    if (isInBox(x, y, modeButtonXYXY)) {
+        MenuRequest::requestedMenu = menuDistortionMode;
+    }
+}
+
+void TopMenuBar::processMouseDrag(uint32_t x, uint32_t y) {};
+void TopMenuBar::processMouseRelease(uint32_t x, uint32_t y) {};
+void TopMenuBar::processDoubleClick(uint32_t x, uint32_t y) {};
+void TopMenuBar::processRightClick(uint32_t x, uint32_t y) {};
+
+void TopMenuBar::renderGUI(uint32_t *canvas, double beatPosition, double secondsPlayed) {
+    if (updateLogo) {
+        drawTextBox(canvas, "Logo", logoXYXY[0], logoXYXY[1], logoXYXY[2], logoXYXY[3], false);
+        updateLogo = false;
+    }
+    if (updateModeButton) {
+        std::string modeText; // The distortion mode as string.
+
+        // Set string according to current distortion mode.
+        switch (mode) {
+            case upDown:
+            modeText = "Up/Down";
+            break;
+
+            case leftRight:
+            modeText = "Left/Right";
+            break;
+
+            case midSide:
+            modeText = "Mid/Side";
+            break;
+
+            case positiveNegative:
+            modeText = "+/-";
+            break;
+        }
+
+        fillRectangle(canvas, modeButtonXYXY);
+        drawTextBox(canvas, "Distortion mode", modeButtonXYXY[0], modeButtonXYXY[1], modeButtonXYXY[2], (uint32_t) (modeButtonXYXY[3] - modeButtonXYXY[1]) / 2, false);
+        drawTextBox(canvas, modeText, modeButtonXYXY[0], (uint32_t) (modeButtonXYXY[3] - modeButtonXYXY[1]) / 2, modeButtonXYXY[2], modeButtonXYXY[3], false);
+        updateModeButton = false;
+    }
+}
+
+// Updates plugin distortion mode if different mode was selected from a menu.
+void TopMenuBar::processMenuSelection(WPARAM wparam, distortionMode &pluginDistortionMode) {
+    if (MenuRequest::lastRequested == menuDistortionMode) {
+        pluginDistortionMode = static_cast<distortionMode>(wparam);
+        updateModeButton = true;
+    }
+}
+
 /*
 ---NOTES ON MODULATION---
 Some parameters can be "modulated", which means they are changed by internal functions without explicit user input.

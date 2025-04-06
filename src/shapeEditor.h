@@ -26,7 +26,15 @@ themself.
 #include "assets.h"
 #include "string_presets.h"
 
-// Interpolation modes between two points.
+// Distortion modes of the UDShaper plugin.
+enum distortionMode {
+	upDown,             // Splits input audio into samples larger than the previous samples and samples lower than previous.
+	leftRight,          // Splits input audio into left and right channel.
+    midSide,            // Splits input audio into mid and side channel.
+	positiveNegative    // Splits input audio into samples >= 0 and samples < 0.
+};
+
+// Interpolation modes between two points of a ShapeEditor.
 enum Shapes{
     shapePower, // Curve follows shape of f(x) = (x < 0.5) ? x^power : 1-(1-x)^power, for 0 <= x <= 1, streched to the corresponding x and y intervals.
     shapeSine,  // Curve is a sine that continuously connects the previous and next point. 
@@ -60,7 +68,8 @@ enum contextMenuType{
     menuShapePoint,         // Show menu corresponding to a shapePoint, in which the point can be deleted and the interpolation mode can be changed. Opens on rightclick on point.
     menuLinkKnob,           // Show menu corresponding to a linkKnob, in which the link can be removed. Opens on rightclick on a link knob.
     menuPointPosMod,        // Show menu to select either x or y-direction for point position modeulation. Opens on left buttom release after modulating a point by an Envelope.
-    menuEnvelopeLoopMode    // Show menu to select a loop mode for the current active Envelope. Opens on left click on the loop mode button of EnvelopeManager.
+    menuEnvelopeLoopMode,   // Show menu to select a loop mode for the current active Envelope. Opens on left click on the loop mode button of EnvelopeManager.
+    menuDistortionMode,     // Show menu to select the distortion mode of the plugin. Opens on left click on the mode button in TopMenuBar.
 };
 
 // Corresponds to the options showed in the context menu appearing when rightclicking onto the linkKnobs.
@@ -87,6 +96,31 @@ class MenuRequest {
         lastRequested = requestedMenu;
         requestedMenu = menuNone;
     }
+};
+
+// Renders the menu bar at the top of the plugin and handles all user inputs on this area.
+// The menu bar will consist of: The plugin logo (TODO), a button to select the distortion mode and a panel to select presets (TODO).
+class TopMenuBar: InteractiveGUIElement {
+    uint32_t XYXY[4]; // Position and size of the whole menu bar in pixel.
+    uint32_t logoXYXY[4]; // Position and size of the plugin logo (upper left corner);
+    uint32_t modeButtonXYXY[4]; // Position and size of the button to select the distortion mode.
+
+    bool updateModeButton = true; // Rerenders mode button in next renderGUI call if true.
+    bool updateLogo = true; // Renders plugin logo in next renderGUI call if true.
+
+    public:
+    distortionMode mode = upDown; // UDShaper distortion mode.
+
+    TopMenuBar(uint32_t inXYXY[4]);
+
+    void processLeftClick(uint32_t x, uint32_t y);
+    void processMouseDrag(uint32_t x, uint32_t y);
+    void processMouseRelease(uint32_t x, uint32_t y);
+    void processDoubleClick(uint32_t x, uint32_t y);
+    void processRightClick(uint32_t x, uint32_t y);
+    void renderGUI(uint32_t *canvas, double beatPosition = 0, double secondsPlayed = 0);
+
+    void processMenuSelection(WPARAM wParam, distortionMode &pluginDistortionMode);
 };
 
 class ShapePoint;

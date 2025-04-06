@@ -66,9 +66,23 @@ void showLoopModeMenu(HWND hwnd, int xPos, int yPos) {
     DestroyMenu(hMenu);
 }
 
+// Dropdown menu to select the distortion mode.
+void showDistortionModeMenu(HWND hwnd, int xPos, int yPos) {
+	HMENU hMenu = CreatePopupMenu();
+
+	AppendMenu(hMenu, MF_STRING, upDown, "Up/Down");
+	AppendMenu(hMenu, MF_STRING, leftRight, "Left/Right");
+	AppendMenu(hMenu, MF_STRING, midSide, "Mid/Side");
+	AppendMenu(hMenu, MF_STRING, positiveNegative, "+/-");
+
+    TrackPopupMenu(hMenu, TPM_LEFTALIGN | TPM_TOPALIGN, xPos, yPos, 0, hwnd, NULL);
+
+    DestroyMenu(hMenu);
+}
+
 // Draws a textbox to canvas. xMin, yMin, xMax and yMax determine the size of the textbox. A frame is drawn outside of these coordinates.
 // The textsize is dependent on the height of the given box.
-void drawTextBox(uint32_t *canvas, const std::string text, uint32_t xMin, uint32_t yMin, uint32_t xMax, uint32_t yMax){
+void drawTextBox(uint32_t *canvas, const std::string text, uint32_t xMin, uint32_t yMin, uint32_t xMax, uint32_t yMax, bool addFrame){
 	// Create new device context
 	HDC hdcGUI = CreateCompatibleDC(NULL);
 	BITMAPINFO info = { { sizeof(BITMAPINFOHEADER), GUI_WIDTH, -GUI_HEIGHT, 1, 32, BI_RGB } };
@@ -100,8 +114,10 @@ void drawTextBox(uint32_t *canvas, const std::string text, uint32_t xMin, uint32
     DeleteDC(hdcGUI);
 
 	// Draw a frame around the text.
-	uint32_t box[4] = {xMin, yMin, xMax, yMax};
-	drawFrame(canvas, box, 5, 0x000000, 1);
+	if (drawFrame) {
+		uint32_t box[4] = {xMin, yMin, xMax, yMax};
+		drawFrame(canvas, box, 5, 0x000000, 1);
+	}
 }
 
 LRESULT CALLBACK GUIWindowProcedure(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
@@ -164,12 +180,9 @@ LRESULT CALLBACK GUIWindowProcedure(HWND window, UINT message, WPARAM wParam, LP
 			GUIPaint(plugin, true);
 			break;
 		}
-		// Process the menu selection for all ShapeEditor and Envelope instances, does only affect the point which has been rightclicked.
+		// Process the menu selection for all ShapeEditor and Envelope instances.
 		case WM_COMMAND: {
-			plugin->shapeEditor1->processMenuSelection(wParam);
-			plugin->shapeEditor2->processMenuSelection(wParam);
-			plugin->envelopes->processMenuSelection(wParam);
-
+			plugin->processMenuSelection(wParam);
 			GUIPaint(plugin, true);
 			break;
 		}
@@ -192,6 +205,12 @@ LRESULT CALLBACK GUIWindowProcedure(HWND window, UINT message, WPARAM wParam, LP
 				RECT rect;
 				GetWindowRect(window, &rect);
 				showLoopModeMenu(window, rect.left + GET_X_LPARAM(lParam), rect.top + GET_Y_LPARAM(lParam));
+				MenuRequest::reset();
+			}
+			else if (MenuRequest::requestedMenu == menuDistortionMode) {
+				RECT rect;
+				GetWindowRect(window, &rect);
+				showDistortionModeMenu(window, rect.left + GET_X_LPARAM(lParam), rect.top + GET_Y_LPARAM(lParam));
 				MenuRequest::reset();
 			};
 			GUIPaint(plugin, true);

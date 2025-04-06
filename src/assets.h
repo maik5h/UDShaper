@@ -1,3 +1,5 @@
+// Helpful functions to draw different elements to a window or the window bitmap.
+
 #pragma once
 
 #include <cstdint>
@@ -25,6 +27,8 @@ inline bool isInPoint(int x, int y, int pointX, int pointY, int radius){
     return ((x - pointX)*(x - pointX) + (y - pointY)*(y - pointY) <= radius*radius);
 };
 
+// The following functions act on a bitmap and do therefore not rely on platform dependent functions.
+
 void fillRectangle(uint32_t *canvas, uint32_t XYXY[4], uint32_t color = colorBackground);
 
 void drawPoint(uint32_t *canvas, float x, float y, uint32_t color = 0x000000, float size = 5);
@@ -42,4 +46,4 @@ void drawLinkKnob(uint32_t *canvas, uint32_t x, uint32_t y, uint32_t size, float
 // The following functions rely on platform dependent packages and are therefore not defined in assets.cpp
 // but win_gui32.cpp. They are declared here instead of GUI.h to avoid circular imports.
 
-void drawTextBox(uint32_t *canvas, const std::string text, uint32_t xMin, uint32_t yMin, uint32_t xMax, uint32_t yMax);
+void drawTextBox(uint32_t *canvas, const std::string text, uint32_t xMin, uint32_t yMin, uint32_t xMax, uint32_t yMax, bool addFrame = true);

@@ -19,13 +19,6 @@ renderAudio is the main method of this class, which changes the input audio depe
 
 long getCurrentTime();
 
-enum distortionMode {
-	upDown,
-	midSide,
-	leftRight,
-	positiveNegative
-};
-
 class UDShaper {
     public:
 	clap_plugin_t plugin; // The PluginClass, which interacts with the host, to create, destroy, process, etc. the plugin.
@@ -41,12 +34,12 @@ class UDShaper {
 
 	bool mouseDragging = false; // true if a left click was performed, which has not yet been released.
 	clap_id timerID;
+	distortionMode currentDistortionMode = upDown; // Current distortion mode of the plugin. Can be upDown, leftRight, midSide, positiveNegative.
 
+	TopMenuBar *topMenuBar; // TopMenuBar of the plugin, has button to select distortion mode.
 	ShapeEditor *shapeEditor1; // ShapeEditor for upwards, left, mid or positive audio.
 	ShapeEditor *shapeEditor2; // ShapeEditor for downwards, right, side or negative audio.
 	EnvelopeManager *envelopes; // Manages Envelopes and links between Envelopes and parameters.
-
-	distortionMode distortionMode = upDown; // Defines the condition on which it is decided, which of the ShapeEditors to choose for each sample.
 
 	HANDLE synchProcessStartTime;
 	long startedPlaying = 0;
@@ -62,6 +55,8 @@ class UDShaper {
     void processDoubleClick(uint32_t x, uint32_t y);
     void processRightClick(uint32_t x, uint32_t y);
     void renderGUI(uint32_t *canvas);
+
+	void processMenuSelection(WPARAM wparam);
 
     void renderAudio(const clap_process_t *process);
 };

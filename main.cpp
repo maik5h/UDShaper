@@ -1,5 +1,7 @@
+// Everything needed to make the plugin defined in src/ a CLAP plugin.
+// Assigns clap_plugin_descriptor attributes, sets up extensions and defines clap_plugin methods.
+
 #include <string.h>
-#include <stdlib.h>
 #include <stdio.h>
 #include <assert.h>
 #include <math.h>

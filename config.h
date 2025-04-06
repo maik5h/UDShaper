@@ -1,7 +1,7 @@
 #pragma once
 
 constexpr int GUI_WIDTH = 1950; // Default GUI window width in pixel.
-constexpr int GUI_HEIGHT = 700; // Sefault GUI window height in pixel.
+constexpr int GUI_HEIGHT = 800; // Sefault GUI window height in pixel.
 
 constexpr uint32_t FRAME_WIDTH = 16; // Width of the 3D frames around ShapeEditors in pixel.
 

@@ -1,5 +1,9 @@
 The biggest and most noticeable TODOs of this project:
 
+- Host crashes sometimes if deleted. Probably because dynamic memeroy is not freed properly
+
+- Add function that assigns size and position to all elements depending on the plugin size and make window resizable.
+
 - shapeSine is very buggy. Also add shapeArcsine.
 
 - Audio processing is automatically parallelized by CLAP, which makes some of the planned functionality impossible. 1. deciding whether the current sample is higher of lower than the previous one is not possible for the first sample in every batch. I "solved" that by comparing the first sample with the second one, which is a very good approximation but not perfectly accurate. 2. I want to normalize the distortion segment wise to each local maximum of the wave but again, the nearest local maximum might be outside of the current batch. Is there a way to get the whole buffer as list while still having the parallelization working?

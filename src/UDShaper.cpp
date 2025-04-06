@@ -20,13 +20,15 @@ UDShaper recalculates the correct song position from these values every time ren
 is forwarded to the renderGUI() methods of all other InteractiveGUIElements.
 */
 
-// Initializes the two ShapeEditors and the EnvelopeManager at positions at with sizes according to the input window size.
-UDShaper::UDShaper(uint32_t windowWidth, uint32_t windowHieght) {
+// Initializes the two ShapeEditors and the EnvelopeManager at positions and with sizes according to the input window size.
+UDShaper::UDShaper(uint32_t windowWidth, uint32_t windowHeight) {
     // TODO select the sizes based on the window size.
-    uint32_t editorSize1[4] = {50, 50, 450, 650};
-    uint32_t editorSize2[4] = {495, 50, 895, 650};
-    uint32_t envelopeSize[4] = {950, 50, 1900, 500};
+    uint32_t topMenuSize[4] = {0, 0, 1950, 100};
+    uint32_t editorSize1[4] = {50, 150, 450, 750};
+    uint32_t editorSize2[4] = {495, 150, 895, 750};
+    uint32_t envelopeSize[4] = {950, 150, 1900, 600};
 
+    topMenuBar = new TopMenuBar(topMenuSize);
     shapeEditor1 = new ShapeEditor(editorSize1);
     shapeEditor2 = new ShapeEditor(editorSize2);
     envelopes = new EnvelopeManager(envelopeSize);
@@ -34,10 +36,11 @@ UDShaper::UDShaper(uint32_t windowWidth, uint32_t windowHieght) {
 
 // Forwards left click to all InteractiveGUIElement members and starts to track the mouse drag.
 void UDShaper::processLeftClick(uint32_t x, uint32_t y) {
+    topMenuBar->processLeftClick(x, y);
     shapeEditor1->processLeftClick(x, y);
     shapeEditor2->processLeftClick(x, y);
-
     envelopes->processLeftClick(x, y);
+
     mouseDragging = true;
 }
 
@@ -126,9 +129,17 @@ void UDShaper::renderGUI(uint32_t *canvas) {
     double secondsPlayed = hostPlaying ? (now - startedPlaying) / 1000. : 0;
     ReleaseMutex(synchProcessStartTime);
 
+    topMenuBar->renderGUI(canvas);
     shapeEditor1->renderGUI(canvas, beatPosition, secondsPlayed);
     shapeEditor2->renderGUI(canvas, beatPosition, secondsPlayed);
     envelopes->renderGUI(canvas);
+}
+
+void UDShaper::processMenuSelection(WPARAM wParam) {
+    topMenuBar->processMenuSelection(wParam, currentDistortionMode);
+    shapeEditor1->processMenuSelection(wParam);
+    shapeEditor2->processMenuSelection(wParam);
+    envelopes->processMenuSelection(wParam);
 }
 
 // Takes the input audio from the input process and writes the output audio into process->audio_outputs.
@@ -159,7 +170,7 @@ void UDShaper::renderAudio(const clap_process_t *process) {
     float *outputL = process->audio_outputs[0].data32[0];
     float *outputR = process->audio_outputs[0].data32[1];
 
-    switch (distortionMode) {
+    switch (currentDistortionMode) {
         /* TODO Buffer is parallelized into pieces of ~200 samples. I dont know how to access all of them in
         one place so i can not properly decide which shape to choose.
         */
