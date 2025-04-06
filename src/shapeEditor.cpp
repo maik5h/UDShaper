@@ -92,7 +92,8 @@ void TopMenuBar::renderGUI(uint32_t *canvas, double beatPosition, double seconds
 // Updates plugin distortion mode if different mode was selected from a menu.
 void TopMenuBar::processMenuSelection(WPARAM wparam, distortionMode &pluginDistortionMode) {
     if (MenuRequest::lastRequested == menuDistortionMode) {
-        pluginDistortionMode = static_cast<distortionMode>(wparam);
+        mode = static_cast<distortionMode>(wparam);
+        pluginDistortionMode = mode;
         updateModeButton = true;
     }
 }
@@ -1010,7 +1011,6 @@ void EnvelopeManager::addEnvelope(){
     }
     // First add new FrequncyPanel so it can be referenced in the new Envelope.
     frequencyPanels.push_back(FrequencyPanel(toolsXYXY));
-
     envelopes.push_back(Envelope(envelopeXYXY, &frequencyPanels.back()));
     updateGUIElements = true;
 }
