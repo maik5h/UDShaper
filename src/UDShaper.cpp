@@ -29,8 +29,8 @@ UDShaper::UDShaper(uint32_t windowWidth, uint32_t windowHeight) {
     uint32_t envelopeSize[4] = {950, 150, 1900, 600};
 
     topMenuBar = new TopMenuBar(topMenuSize);
-    shapeEditor1 = new ShapeEditor(editorSize1);
-    shapeEditor2 = new ShapeEditor(editorSize2);
+    shapeEditor1 = new ShapeEditor(editorSize1, 0);
+    shapeEditor2 = new ShapeEditor(editorSize2, 1);
     envelopes = new EnvelopeManager(envelopeSize);
 }
 
@@ -125,6 +125,11 @@ void UDShaper::processRightClick(uint32_t x, uint32_t y) {
 
 // Renders the GUI of all InteractiveGUIElement members. beatPosition is used to sync animated graphics to the host playback position.
 void UDShaper::renderGUI(uint32_t *canvas) {
+    // clap_plugin_gui_t->create() is not automatically called when the plugin is created, it might be postponed to
+    // when the plugin window is first opened. This guard takes care that the GUI is only rendered after it has
+    // been created.
+    if (gui == nullptr) return;
+
     // The beatposition is, unlike on the audio threads, not taken from a clap_transport, but calculated for the point in time when this function is called.
     long now = getCurrentTime();
     WaitForSingleObject(synchProcessStartTime, INFINITE);
@@ -248,4 +253,74 @@ void UDShaper::renderAudio(const clap_process_t *process) {
             break;
         }
     }
+}
+
+// Saves the UDShaper state.
+//
+// Every object that is not natively serializable has a saveState(clap_ostream_t) method.
+// In the following it is described how the UDShaper state is built.
+// "..." indicates that an arbitrary number of elements follows.
+//
+// UDShaper state:
+//  version
+//  distortion mode
+//
+//  shapeEditor1 state (variable size):
+//      number of ShapePoints
+//      shapePoint 1 state
+//      shapePoint 2 state
+//      ...
+//
+//  shapeEditor2 state (variable size):
+//      number of ShapePoints
+//      shapePoint 1 state
+//      shapePoint 2 state
+//      ...
+//
+//  EnvelopeManager state (variable size):
+//      Envelope 1 state (variable size):
+//          number of ShapePoints
+//          shapePoint 1 state
+//      Modulation links state
+//      ...
+//
+//      frequencyPanel 1 state
+//      ...
+//
+bool UDShaper::saveState(const clap_ostream_t *stream) {
+    // Write UDShaper version:
+    if (stream->write(stream, &UDSHAPER_VERSION, 3*sizeof(int)) != 3*sizeof(int)) return false;
+
+    // Write current distortion mode:
+    if (stream->write(stream, &currentDistortionMode, sizeof(currentDistortionMode)) != sizeof(currentDistortionMode)) return false;
+
+    // Data regarding the ShapeEditors and EnvelopeManager are written by methods of the corresponding instances.
+    if (!shapeEditor1->saveState(stream)) return false;
+    if (!shapeEditor2->saveState(stream)) return false;
+    if (!envelopes->saveState(stream)) return false;
+
+    return true;
+}
+
+// Loads the UDShaper state from stream. Firstly reads the UDShaper version from which the state was saved and interprets
+// the following data accordingly.
+bool UDShaper::loadState(const clap_istream_t *stream){
+    // First item is always the version represented as three integer numbers.
+    int version[3];
+    if (stream->read(stream, version, 3*sizeof(int)) != 3*sizeof(int)) return false;
+
+    // Second item is the current distortion mode.
+    stream->read(stream, &currentDistortionMode, sizeof(distortionMode));
+    // Synch topMenuBar mode and rerender it to display the changes made.
+    topMenuBar->mode = currentDistortionMode;
+    topMenuBar->setupForRerender();
+
+    // Following data corresponds to the states of ShapeEditors and EnvelopeManager.
+    if (!shapeEditor1->loadState(stream, version)) return false;
+    if (!shapeEditor2->loadState(stream, version)) return false;
+    // To find the locations of all ShapePoints, EnvelopeManager needs pointer to both ShapeEditors.
+    ShapeEditor *shapeEditors[2] = {shapeEditor1, shapeEditor2};
+    if (!envelopes->loadState(stream, version, shapeEditors)) return false;
+
+    return true;
 }

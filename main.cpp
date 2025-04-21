@@ -82,7 +82,7 @@ static const clap_plugin_descriptor_t pluginDescriptor = {
 	.url = "https://github.com/maik5h",
 	.manual_url = "",
 	.support_url = "",
-	.version = "1.0.0",
+	.version = UDSHAPER_VERSION_STRING,
 	.description = "Upwards-downwards fully modulatable distortion plugin.",
 
 	.features = (const char *[]) {
@@ -212,6 +212,7 @@ static const clap_plugin_gui_t extensionGUI = {
 	.show = [] (const clap_plugin_t *_plugin) -> bool {
 		UDShaper *plugin = (UDShaper *) _plugin->plugin_data;
 		plugin->envelopes->setupForRerender();
+		plugin->topMenuBar->setupForRerender();
 		GUISetVisible((UDShaper *) _plugin->plugin_data, true);
 		return true;
 	},
@@ -229,12 +230,45 @@ static const clap_plugin_posix_fd_support_t extensionPOSIXFDSupport = {
 	},
 };
 
+
 static const clap_plugin_timer_support_t extensionTimerSupport = {
 	.on_timer = [] (const clap_plugin_t *_plugin, clap_id timerID) {
 		UDShaper *plugin = (UDShaper *) _plugin->plugin_data;
 
 		// repaint plugin so Modulation is also visible when user is not giving input
 		GUIPaint(plugin, true);
+	},
+};
+
+static const clap_plugin_state_t extensionPluginState = {
+	.save = [] (const clap_plugin_t *_plugin, const clap_ostream_t *stream) -> bool {
+		UDShaper *plugin = (UDShaper *) _plugin->plugin_data;
+
+		return plugin->saveState(stream);
+		return true;
+	},
+
+	.load = [] (const clap_plugin_t *_plugin, const clap_istream_t *stream) -> bool {
+		UDShaper *plugin = (UDShaper *) _plugin->plugin_data;
+
+		return plugin->loadState(stream);
+		return true;
+	},
+};
+
+static const clap_plugin_state_context_t extensionPluginStateContext = {
+	.save = [] (const clap_plugin_t *_plugin, const clap_ostream_t *stream, uint32_t context_type) -> bool {
+		UDShaper *plugin = (UDShaper *) _plugin->plugin_data;
+
+		return plugin->saveState(stream);
+		return true;
+	},
+
+	.load = [] (const clap_plugin_t *_plugin, const clap_istream_t *stream, uint32_t context_type) -> bool {
+		UDShaper *plugin = (UDShaper *) _plugin->plugin_data;
+
+		return plugin->loadState(stream);
+		return true;
 	},
 };
 
@@ -248,10 +282,13 @@ static const clap_plugin_t pluginClass = {
 		plugin->hostTimerSupport = (const clap_host_timer_support_t *) plugin->host->get_extension(plugin->host, CLAP_EXT_TIMER_SUPPORT);
 		plugin->hostParams = (const clap_host_params_t *) plugin->host->get_extension(plugin->host, CLAP_EXT_PARAMS);
 		plugin->hostLog = (const clap_host_log_t *) plugin->host->get_extension(plugin->host, CLAP_EXT_LOG);
+		plugin->hostState = (const clap_host_state_t *) plugin->host->get_extension(plugin->host, CLAP_EXT_STATE);
 
 		if (plugin->hostTimerSupport && plugin->hostTimerSupport->register_timer) {
 			plugin->hostTimerSupport->register_timer(plugin->host, GUI_REFRESH_INTERVAL, &plugin->timerID);
 		}
+
+		MutexInitialise(plugin->synchProcessStartTime);
 
 		return true;
 	},
@@ -262,7 +299,6 @@ static const clap_plugin_t pluginClass = {
 		if (plugin->hostTimerSupport && plugin->hostTimerSupport->register_timer) {
 			plugin->hostTimerSupport->unregister_timer(plugin->host, plugin->timerID);
 		}
-		
 		delete plugin;
 	},
 
@@ -302,6 +338,8 @@ static const clap_plugin_t pluginClass = {
 		if (0 == strcmp(id, CLAP_EXT_GUI             )) return &extensionGUI;
 		if (0 == strcmp(id, CLAP_EXT_POSIX_FD_SUPPORT)) return &extensionPOSIXFDSupport;
 		if (0 == strcmp(id, CLAP_EXT_TIMER_SUPPORT   )) return &extensionTimerSupport;
+		if (0 == strcmp(id, CLAP_EXT_STATE           )) return &extensionPluginState;
+		if (0 == strcmp(id, CLAP_EXT_STATE_CONTEXT   )) return &extensionPluginStateContext;
 		return nullptr;
 	},
 

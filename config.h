@@ -1,5 +1,8 @@
 #pragma once
 
+constexpr int UDSHAPER_VERSION[3] = {1, 0, 0}; // The version of this UDShaper instance.
+#define UDSHAPER_VERSION_STRING "1.0.0" // Version as an array of chars. Must be equivalent to UDSHAPER_VERSION.
+
 constexpr int GUI_WIDTH = 1950; // Default GUI window width in pixel.
 constexpr int GUI_HEIGHT = 800; // Sefault GUI window height in pixel.
 

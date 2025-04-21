@@ -98,6 +98,12 @@ void TopMenuBar::processMenuSelection(WPARAM wparam, distortionMode &pluginDisto
     }
 }
 
+// After calling, the TopMenuBar will be rerendered once in the next renderGUI() call.
+void TopMenuBar::setupForRerender() {
+    updateLogo = true;
+    updateModeButton = true;
+}
+
 /*
 ---NOTES ON MODULATION---
 Some parameters can be "modulated", which means they are changed by internal functions without explicit user input.
@@ -122,20 +128,23 @@ class ModulatedParameter{
     float base;     // Base value of this ModulatedParameter. This is the active value when no modulation offset is added. 
     float minValue; // Minimum value this ModulatedParameter can take.
     float maxValue; // Maximum value this ModulatedParameter can take.
-    ShapePoint *parent;
+    const ShapePoint *parent; // Pointer to the ShapePoint that this parameter is part of.
 
+    std::map<Envelope*, int> envelopeIndices; // Indices of every Envelope in the envelopes vector in EnvelopeManager. Is equal to the order in which Envelopes were added and will never change. Used for serialization.
     std::map<Envelope*, float> modulationAmounts; // Maps the pointer to an Envelope to its scaling factor for modulation.
 
     public:
-    ModulatedParameter(ShapePoint *parentPoint, float inBase, float inMinValue=-1, float inMaxValue=1){
+    const modulationMode mode; // The type of parameter represented by this instance.
+
+    ModulatedParameter(ShapePoint *parentPoint, modulationMode inMode, float inBase, float inMinValue=-1, float inMaxValue=1) : parent(parentPoint), mode(inMode) {
         base = inBase;
         minValue = inMinValue;
         maxValue = inMaxValue;
-        parent = parentPoint;
     }
 
     // Registeres the given envelope as a modulator to this parameter. This Envelope will now contribute to the modulation when calling .get() with the given amount.
-    void addModulator(Envelope *envelope, float amount){
+    // The index of the Envelope in the vector of Envelopes in EnvelopeManager is saved in order to serialize the state.
+    void addModulator(Envelope *envelope, float amount, int envelopeIdx){
         // Envelopes can only be added once.
         for (auto a : modulationAmounts){
             if (a.first == envelope){
@@ -144,6 +153,7 @@ class ModulatedParameter{
         }
 
         modulationAmounts[envelope] = amount;
+        envelopeIndices[envelope] = envelopeIdx;
     }
 
     void removeModulator(Envelope *envelope){
@@ -161,9 +171,14 @@ class ModulatedParameter{
         modulationAmounts.at(envelope) = amount;
     }
 
-    // Return a pointer to the ShapePoint that uses this ModulatedParameter instance.
-    ShapePoint *getParentPoint(){
+    // Returns a pointer to the ShapePoint that uses this ModulatedParameter instance.
+    const ShapePoint *getParentPoint(){
         return parent;
+    }
+
+    // Returns a pointer to the base value of this ModulatedParameter.
+    float *getBaseAdress() {
+        return &base;
     }
 
     // Moves the base value of this parameter to the input, should be used when the parameter is explicitly changed by the user.
@@ -193,7 +208,7 @@ class ShapePoint{
     // parameters of the parent ShapeEditor:
 
     int32_t XYXY[4]; // Position and size of parent shapeEditor. Points must stay inside these coordinates.
-
+    const int shapeEditorIndex; // Index of the parent ShapeEditor.
 
     // Parameters of the point:
 
@@ -217,7 +232,7 @@ class ShapePoint{
     pow is parameter defining the shape of the curve segment, its role is dependent on the mode:
         shapePower: f(x) = x^parameter
     */
-    ShapePoint(float x, float y, uint32_t editorSize[4], float pow = 1, float omega = 0.5, Shapes initMode = shapePower): posX(this, x), posY(this, y), curveCenterPosY(this, 0.5) {
+    ShapePoint(float x, float y, uint32_t editorSize[4], const int parentIdx, float pow = 1, float omega = 0.5, Shapes initMode = shapePower): shapeEditorIndex(parentIdx), posX(this, modPosX, x), posY(this, modPosY, y), curveCenterPosY(this, modCurveCenterY, 0.5) {
         assert ((0 <= x) && (x <= 1) && (0 <= y) && (y <= 1));
         
         for (int i=0; i<4; i++){
@@ -377,7 +392,7 @@ may be moved, but only in y-direction. None of these points can be removed to as
 well defined on the interval [0, 1].
 */
 
-ShapeEditor::ShapeEditor(uint32_t position[4]){
+ShapeEditor::ShapeEditor(uint32_t position[4], int shapeEditorIndex) : index(shapeEditorIndex) {
 
     for (int i=0; i<4; i++){
         XYXYFull[i] = position[i];
@@ -389,8 +404,8 @@ ShapeEditor::ShapeEditor(uint32_t position[4]){
     XYXY[3] = position[3] - FRAME_WIDTH;
 
     // Set up first and last point and link them. These points will always stay first and last point.
-    shapePoints = new ShapePoint(0., 0., XYXY);
-    shapePoints->next = new ShapePoint(1., 1., XYXY);
+    shapePoints = new ShapePoint(0., 0., XYXY, index);
+    shapePoints->next = new ShapePoint(1., 1., XYXY, index);
     shapePoints->next->previous = shapePoints;
 }
 
@@ -505,7 +520,7 @@ void ShapeEditor::processDoubleClick(uint32_t x, uint32_t y){
             insertBefore = insertBefore->next;
         }
 
-        insertPointBefore(insertBefore, new ShapePoint((float)(x - XYXY[0]) / (XYXY[2] - XYXY[0]), (float)(XYXY[3] - y) / (XYXY[3] - XYXY[1]), XYXY));
+        insertPointBefore(insertBefore, new ShapePoint((float)(x - XYXY[0]) / (XYXY[2] - XYXY[0]), (float)(XYXY[3] - y) / (XYXY[3] - XYXY[1]), XYXY, index));
     }
     deletedPoint = nullptr;
 }
@@ -700,6 +715,101 @@ float ShapeEditor::forward(float input, double beatPosition, double secondsPlaye
     return negativeInput ? -out : out;
 }
 
+// Saves the ShapeEditor state to the clap_ostream.
+// First saves the number of ShapePoints as an int and then saves:
+//  - (float)   point x-position
+//  - (float)   point y-position
+//  - (Shapes)  point interpolation mode
+//  - (float)   point curve center y-position
+//  - (float)   point omega value
+//
+// for every ShapePoint. These values describe the ShapeEditor state entirely.
+bool ShapeEditor::saveState(const clap_ostream_t *stream) {
+    ShapePoint *point = shapePoints->next;
+
+    // Save number of ShapePoints first.
+    int numberPoints = 0;
+    while (point != nullptr) {
+        point = point->next;
+        numberPoints ++;
+    }
+    if (stream->write(stream, &numberPoints, sizeof(int)) != sizeof(int)) return false;
+
+    point = shapePoints->next;
+    while (point != nullptr) {
+        // Save ModulatedParameter base values.
+        if (stream->write(stream, point->posX.getBaseAdress(), sizeof(float)) != sizeof(float)) return false;
+        if (stream->write(stream, point->posY.getBaseAdress(), sizeof(float)) != sizeof(float)) return false;
+        if (stream->write(stream, point->curveCenterPosY.getBaseAdress(), sizeof(float)) != sizeof(float)) return false;
+
+        // Save interpolation mode and interpolation parameters.
+        if (stream->write(stream, &point->mode, sizeof(point->mode)) != sizeof(point->mode)) return false;
+        if (stream->write(stream, &point->sineOmega, sizeof(point->sineOmega)) != sizeof(point->sineOmega)) return false;
+
+        point = point->next;
+    }
+
+    return true;
+}
+
+// Loads a ShapeEditor state from a clap_istream_t. The state is defined by the state of every
+// ShapePoint, which is given by:
+//  - (float) posX
+//  - (float) posY
+//  - (float) curceCenterY
+//  - (float) sineOmega
+//  - (Shapes) mode
+//
+// The first element in the stream must be the number of ShapePoints to be loaded. It is
+// expected to be called in UDShaper::loadState() after the version number was loaded.
+bool ShapeEditor::loadState(const clap_istream_t *stream, int version[3]) {
+    if (version[0] == 1 && version[1] == 0 && version[2] == 0) {
+        // Read number of ShapePoints in this shapeEditor.
+        int numberPoints;
+        if (stream->read(stream, &numberPoints, sizeof(int)) != sizeof(int)) return false;
+
+        // Pointer to the rightmost point
+        ShapePoint *last = shapePoints->next;
+
+        // Read state of all ShapePoints.
+        for (int i=0; i<numberPoints; i++) {
+            float posX, posY, curveCenterY, sineOmega;
+            Shapes mode;
+            int numberLinks;
+
+            if (stream->read(stream, &posX, sizeof(posX)) != sizeof(posX)) return false;
+            if (stream->read(stream, &posY, sizeof(posY)) != sizeof(posY)) return false;
+            if (stream->read(stream, &curveCenterY, sizeof(curveCenterY)) != sizeof(curveCenterY)) return false;
+            if (stream->read(stream, &mode, sizeof(mode)) != sizeof(mode)) return false;
+            if (stream->read(stream, &sineOmega, sizeof(sineOmega)) != sizeof(sineOmega)) return false;
+
+            float power = getPowerFromPosY(curveCenterY);
+
+            if (i != numberPoints - 1) {
+                ShapePoint *newPoint = new ShapePoint(posX, posY, XYXY, power, sineOmega, mode);
+                insertPointBefore(last, newPoint);
+            }
+            else {
+                // ShapeEditor is initialized with the last point, so it does not have to be added. Only set the attribute values.
+                last->posY.move(posY);
+                last->curveCenterPosY.move(curveCenterY);
+                last->mode = mode;
+                last->sineOmega = sineOmega;
+            }
+        }
+        return true;
+    }
+    else {
+        // TODO if version is not known one of these things should happen:
+        //  - If a preset was loaded, it means probably that the preset was saved from a more
+        //    recent version of UDShaper and can therefore not be loaded correctly.
+        //    There should be a message to warn the user.
+        //  - If it happens from copying/ moving by the host, throw an exception probably?
+        return false;
+    }
+    return true;
+}
+
 FrequencyPanel::FrequencyPanel(uint32_t inXYXY[4], envelopeLoopMode initMode, double initValue) {
     currentLoopMode = initMode;
     counterValue[initMode] = initValue;
@@ -869,12 +979,48 @@ void FrequencyPanel::setupForRerender() {
     updateCounter = true;
 }
 
+// Saves the FrequencyPanel state:
+//  - (envelopeLoopMode) currentLoopMode
+//  counterValue state:
+//      - (envelopeLoopMode) mode
+//      - (double) value
+//      for every possible mode
+bool FrequencyPanel::saveState(const clap_ostream_t *stream) {
+    if (stream->write(stream, &currentLoopMode, sizeof(currentLoopMode)) != sizeof(currentLoopMode)) return false;
+    for (auto& value : counterValue) {
+        if (stream->write(stream, &value.first, sizeof(envelopeLoopMode)) != sizeof(envelopeLoopMode)) return false;
+        if (stream->write(stream, &value.second, sizeof(double)) != sizeof(double)) return false;
+    }
+    return true;
+}
 
-Envelope::Envelope(uint32_t size[4], FrequencyPanel *inPanel) : ShapeEditor(size) {
+// Reads the FrequencyPanel state depending on the version the state was saved in.
+bool FrequencyPanel::loadState(const clap_istream_t *stream, int version[3]) {
+    if (version[0] == 1 && version[1] == 0 && version[2] == 0) {
+        if (stream->read(stream, &currentLoopMode, sizeof(currentLoopMode)) != sizeof(currentLoopMode)) return false;
+        // In version 1.0.0 two envelopeLoopModes are availbale.
+        for (int i=0; i<2; i++) {
+            envelopeLoopMode mode;
+            double value;
+
+            if (stream->read(stream, &mode, sizeof(envelopeLoopMode)) != sizeof(envelopeLoopMode)) return false;
+            if (stream->read(stream, &value, sizeof(double)) != sizeof(double)) return false;
+
+            counterValue[mode] = value;
+        }
+    }
+    return true;
+}
+
+
+Envelope::Envelope(uint32_t size[4], FrequencyPanel *inPanel, const int index) : ShapeEditor(size, index) {
     frequencyPanel = inPanel;
 };
 
-void Envelope::addModulatedParameter(ShapePoint *point, float amount, modulationMode mode){
+// Adds a modulation link to the parameter of point coresponding to mode. That means
+//  1. adds the parameter to the vector of modulatedParameters of this instance
+//  2. adds this Envelope as a modulator to the ModulatedParameter.
+void Envelope::addModulatedParameter(ShapePoint *point, float amount, modulationMode mode, int envelopeIdx){
     switch (mode) {
         case modCurveCenterY:
         {
@@ -882,7 +1028,9 @@ void Envelope::addModulatedParameter(ShapePoint *point, float amount, modulation
             modulatedParameters.push_back(&point->curveCenterPosY);
 
             // Add this Envelope to the list of modulating Envelopes of the parameter.
-            point->curveCenterPosY.addModulator(this, amount);
+            // The pointer to this instance is used to get the modulation offset from inside the ModuatedParameter.
+            // The Envelope index is used for serialization. It does not change in the lifetime of the Envelopes.
+            point->curveCenterPosY.addModulator(this, amount, envelopeIdx);
             break;
         }
         case modPosY:
@@ -891,7 +1039,7 @@ void Envelope::addModulatedParameter(ShapePoint *point, float amount, modulation
             modulatedParameters.push_back(&point->posY);
 
             // Add this Envelope to the list of modulating Envelopes of the parameter.
-            point->posY.addModulator(this, amount);
+            point->posY.addModulator(this, amount, envelopeIdx);
             break;
         }
         case modPosX:
@@ -900,7 +1048,7 @@ void Envelope::addModulatedParameter(ShapePoint *point, float amount, modulation
             modulatedParameters.push_back(&point->posX);
 
             // Add this Envelope to the list of modulating Envelopes of the parameter.
-            point->posX.addModulator(this, amount);
+            point->posX.addModulator(this, amount, envelopeIdx);
             break;
         }
     }
@@ -933,6 +1081,71 @@ float Envelope::modForward(double beatPosition, double secondsPlayed){
     // Envelope phase is calculated by the corresponding FrequencyPanel.
     beatPosition = frequencyPanel->getEnvelopePhase(beatPosition, secondsPlayed);
     return forward(beatPosition);
+}
+
+// Saves the state of all modulation Links of this Envelope:
+//  - (int) number of links
+//
+// and for every link:
+//  - (int) index of the ShapeEditor corresponding to the point (0 or 1)
+//  - (int) ShapePoint index
+//  - (modulationMode) type of modulation
+//  - (float) modulation amount
+bool Envelope::saveModulationState(const clap_ostream_t *stream) {
+    int numberParameters = modulatedParameters.size();
+    if (stream->write(stream, &numberParameters, sizeof(int)) != sizeof(int)) return false;
+
+    for (auto& parameter : modulatedParameters) {
+        // Find the position of the ShapePoint concerned by this parameter in the list of ShapePoints.
+        int pointIdx = -1; // Position of point in the list of ShapePoints. Starts as -1 since the first point in the list is not editable and does not count.
+        const ShapePoint *point = parameter->getParentPoint();
+        while (point->previous != nullptr) {
+            point = point->previous;
+            pointIdx ++;
+        }
+
+        if (stream->write(stream, &parameter->getParentPoint()->shapeEditorIndex, sizeof(int)) != sizeof(int)) return false;
+        if (stream->write(stream, &pointIdx, sizeof(int)) != sizeof(int)) return false;
+        if (stream->write(stream, &parameter->mode, sizeof(int)) != sizeof(int)) return false;
+        float modAmount = parameter->getAmount(this); // Modulation amount the parameter receives from this Envelope.
+        if (stream->write(stream, &modAmount, sizeof(float)) != sizeof(float)) return false;
+    }
+    return true;
+}
+
+// Loads modulation links.
+// First, reads the number of links that have been saved. For each saved link loads:
+//  - (int) ndex of the ShapeEditor corresponding to the point (0 or 1)
+//  - (int) ShapePoint index
+//  - (modulationMode) type of modulation
+//  - (float) modulation amount
+//
+// This method requires knowledge of the adresses of the ShapeEditor instances of the plugin to find the ShapePoints that
+// are modulated. The adresses are passed as an array of ShapeEditor*.
+bool Envelope::loadModulationState(const clap_istream_t *stream, int version[3], ShapeEditor* shapeEditors[2]) {
+    if (version[0] == 1 && version[1] == 0 && version[2] == 0) {
+        int numberModulationLinks; // Number of modulated parameters using this Envelope.
+        if (stream->read(stream, &numberModulationLinks, sizeof(int)) != sizeof(int)) return false;
+
+        for (int i=0; i<numberModulationLinks; i++) {
+            int shapeEditorIdx; // ShapeEditor containing ShapePoint using this parameter.
+            int pointIdx; // Position of the ShapePoint concerning this parameter in list of ShapePoints.
+            modulationMode mode;
+            float amount;
+
+            if (stream->read(stream, &shapeEditorIdx, sizeof(int)) != sizeof(int)) return false;
+            if (stream->read(stream, &pointIdx, sizeof(int)) != sizeof(int)) return false;
+            if (stream->read(stream, &mode, sizeof(modulationMode)) != sizeof(modulationMode)) return false;
+            if (stream->read(stream, &amount, sizeof(float)) != sizeof(float)) return false;
+
+            ShapePoint *point = shapeEditors[shapeEditorIdx]->shapePoints->next;
+            for (int j=0; j<pointIdx; j++) {
+                point = point->next;
+            }
+            addModulatedParameter(point, amount, mode, index);
+        }
+    }
+    return true;
 }
 
 EnvelopeManager::EnvelopeManager(uint32_t inXYXY[4]){
@@ -988,7 +1201,7 @@ void EnvelopeManager::addEnvelope(){
     }
     // First add new FrequncyPanel so it can be referenced in the new Envelope.
     frequencyPanels.emplace_back(toolsXYXY);
-    envelopes.emplace_back(envelopeXYXY, &frequencyPanels.back());
+    envelopes.emplace_back(envelopeXYXY, &frequencyPanels.back(), envelopes.size());
     updateGUIElements = true;
 }
 
@@ -1177,7 +1390,7 @@ void EnvelopeManager::addModulatedParameter(ShapePoint *point, float amount, mod
     // TODO it would be better to not even show the option X in the context menu on attempted modulation, but it is not straightforward with the current implementation. This is easier even though slightly more confusing to the user.
     if ((mode == modPosX) && (point->next == nullptr)) return;
 
-    envelopes[activeEnvelopeIndex].addModulatedParameter(point, amount, mode);
+    envelopes[activeEnvelopeIndex].addModulatedParameter(point, amount, mode, activeEnvelopeIndex);
     toolsUpdated = true;
 }
 
@@ -1195,4 +1408,46 @@ void EnvelopeManager::clearLinksToPoint(ShapePoint *point){
         }
     }
     toolsUpdated = true;
+}
+
+// Saves the EnvelopeManager state. First, all Envelope states are saved (same method as for base ShapeEditor).
+// Secondly, FrequencyPanel states are saved.
+bool EnvelopeManager::saveState(const clap_ostream_t *stream) {
+    int numberEnvelopes = envelopes.size();
+    if (stream->write(stream, &numberEnvelopes, sizeof(numberEnvelopes)) != sizeof(numberEnvelopes)) return false;
+    for (auto& envelope : envelopes) {
+        if (!envelope.saveState(stream)) return false;
+        if (!envelope.saveModulationState(stream)) return false;
+    }
+    for (auto& frequencyPanel : frequencyPanels) {
+        if (!frequencyPanel.saveState(stream)) return false;
+    }
+
+    return true;
+}
+
+// Load the EnvelopeManager state from stream. Firstly, loads Envelope states and Envelope modulation links, then
+// FrequencyPanel states.
+// This method requires knowledge of the adresses of the ShapeEditor instances of the plugin in order to recover the
+// modulation links between the Envelopes and the ModulatedParameters in the ShapeEditors.
+bool EnvelopeManager::loadState(const clap_istream_t *stream, int version[3], ShapeEditor *shapeEditors[2]) {
+    if (version[0] == 1 && version[1] == 0 && version[2] == 0) {
+        int numberEnvelopes;
+        stream->read(stream, &numberEnvelopes, sizeof(numberEnvelopes));
+
+        // EnvelopeManager is initialized with three Envelopes. Add Envelopes until the number saved in state is reached.
+        // TODO doing it like this means that EnvelopeManager has to be reinitialized when loading a preset. This
+        // appears to work in FL Studio but might not work on other hosts.
+        for (int i=0; i<numberEnvelopes - 3; i++) {
+            addEnvelope();
+        }
+
+        for (auto& envelope : envelopes) {
+            if (!envelope.loadState(stream, version)) return false;
+            if (!envelope.loadModulationState(stream, version, shapeEditors)) return false;
+        }
+        for (auto& frequencyPanel : frequencyPanels) {
+            if (!frequencyPanel.loadState(stream, version)) return false;
+        }
+    }
 }

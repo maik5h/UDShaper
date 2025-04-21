@@ -1,3 +1,13 @@
+
+
+#pragma once
+
+#include "../clap/clap.h"
+#include "shapeEditor.h"
+#include "assets.h"
+
+long getCurrentTime();
+
 /*
 UDShaper is the main plugin class. It holds all parameters that define the current state of the plugin,
 as well as three main compartments contributing to the GUI: two ShapeEditors and one EnvelopeManager.
@@ -10,27 +20,19 @@ menu to open, the contexMenuType is stored in the static attribute requesteMenu 
 
 renderAudio is the main method of this class, which changes the input audio depending on the state of the ShapeEditors.
 */
-
-#pragma once
-
-#include "../clap/clap.h"
-#include "shapeEditor.h"
-#include "assets.h"
-
-long getCurrentTime();
-
 class UDShaper {
     public:
 	clap_plugin_t plugin; // The PluginClass, which interacts with the host, to create, destroy, process, etc. the plugin.
 	const clap_host_t *host;
 
-	struct GUI *gui; // Pointer to the GUI, which contains the HWND and bit array of the window.
+	struct GUI *gui = nullptr; // Pointer to the GUI, which contains the HWND and bit array of the window.
 
 	// Extensions have to be assigned in clap_plugin_t::init, when host is fully accessable.
 	const clap_host_posix_fd_support_t *hostPOSIXFDSupport;
 	const clap_host_timer_support_t *hostTimerSupport;
 	const clap_host_params_t *hostParams;
 	const clap_host_log_t *hostLog;
+	const clap_host_state_t *hostState;
 
 	bool mouseDragging = false; // true if a left click was performed, which has not yet been released.
 	clap_id timerID;
@@ -60,4 +62,7 @@ class UDShaper {
 	void processMenuSelection(WPARAM wparam);
 
     void renderAudio(const clap_process_t *process);
+
+	bool saveState(const clap_ostream_t *stream);
+	bool loadState(const clap_istream_t *stream);
 };

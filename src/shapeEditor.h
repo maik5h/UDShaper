@@ -22,6 +22,7 @@ themself.
 #include <assert.h>
 #include <map>
 #include <windows.h>
+#include "../clap/clap.h"
 #include "../config.h"
 #include "assets.h"
 #include "string_presets.h"
@@ -121,6 +122,7 @@ class TopMenuBar: InteractiveGUIElement {
     void renderGUI(uint32_t *canvas, double beatPosition = 0, double secondsPlayed = 0);
 
     void processMenuSelection(WPARAM wParam, distortionMode &pluginDistortionMode);
+    void setupForRerender();
 };
 
 class ShapePoint;
@@ -137,18 +139,21 @@ class ShapeEditor : public InteractiveGUIElement {
     public:
     uint32_t XYXY[4]; // Box coordinates of the area where the shapePoints are defined, in XYXY notation.
     uint32_t XYXYFull[4]; // Box coordinates of the XYXY field extended by a margin.
+    const int index; // Can be used to distinguish this instance of ShapeEditor to others. Is used in the serialization to associate ShapePoints with the correct instance.
 
     shapeEditorDraggingMode currentDraggingMode = none; // Indicates which action should be performed when processing the mouse drag. Is set based on the position where the dragging started.
 
-    /*Pointer to the first ShapePoint in this ShapeEditor. ShapePoints are stored in a doubly linked list.
-
-    The first point must be excluded from all methods since it can not be edited and displayed. All loops over the ShapePoints must therefore start at shapePoints->next.
-    The last point must not be moved in x-direction or deleted. */
+    //Pointer to the first ShapePoint in this ShapeEditor. ShapePoints are stored in a doubly linked list.
+    //
+    //The first point must be excluded from all methods since it can not be edited and displayed. All loops over the ShapePoints must therefore start at shapePoints->next.
+    //The last point must not be moved in x-direction or deleted.
     ShapePoint *shapePoints;
 
-    ShapeEditor(uint32_t position[4]);
-    virtual ~ShapeEditor();
-    ShapePoint* getClosestPoint(uint32_t x, uint32_t y, float minimumDistance = REQUIRED_SQUARED_DISTANCE);
+    ShapeEditor(uint32_t position[4], int shapeEditorIndex);
+    ~ShapeEditor();
+
+    ShapePoint *getClosestPoint(uint32_t x, uint32_t y, float minimumDistance = REQUIRED_SQUARED_DISTANCE);
+    ShapePoint *getDeletedPoint();
 
     void processLeftClick(uint32_t x, uint32_t y);
     void processMouseDrag(uint32_t x, uint32_t y);
@@ -156,11 +161,12 @@ class ShapeEditor : public InteractiveGUIElement {
     void processDoubleClick(uint32_t x, uint32_t y);
     void processRightClick(uint32_t x, uint32_t y);
     void renderGUI(uint32_t *canvas, double beatPosition = 0, double secondsPlayed = 0);
-
-    ShapePoint *getDeletedPoint();
-    
     void processMenuSelection(WPARAM wParam);
+
     float forward(float input, double beatPosition = 0, double secondsPlayed = 0);
+
+    bool saveState(const clap_ostream_t *stream);
+    bool loadState(const clap_istream_t *stream, int version[3]);
 };
 
 class ModulatedParameter;
@@ -213,6 +219,9 @@ class FrequencyPanel : public InteractiveGUIElement {
     void processMenuSelection(WPARAM wParam);
     double getEnvelopePhase(double beatPosition, double secondsPlayed);
     void setupForRerender();
+
+    bool saveState(const clap_ostream_t *stream);
+    bool loadState(const clap_istream_t *stream, int version[3]);
 };
 
 // Envelopes inherit the graphical editing capabilities from ShapeEditor but include methods to add, remove and update controlled parameters.
@@ -222,13 +231,16 @@ class Envelope : public ShapeEditor{
     FrequencyPanel *frequencyPanel; // Pointer to the InteractiveGUIElement FrequencyPanel, to set loop mode and frequency of this Envelope.
     double tempo; // The song tempo. Is set by UDShaper during renderAudio() and used to retreive seconds passed from beatPosition in forward.
 
-    Envelope(uint32_t size[4], FrequencyPanel *inPanel);
-    void addModulatedParameter(ShapePoint *point, float amount, modulationMode mode);
+    Envelope(uint32_t size[4], FrequencyPanel *inPanel, const int index);
+    void addModulatedParameter(ShapePoint *point, float amount, modulationMode mode, int envelopeIdx);
     void setModulatedParameterAmount(int index, float amount);
     void removeModulatedParameter(int index);
     int getModulatedParameterNumber();
     float getModAmount(int index);
     float modForward(double beatPosition = 0, double secondsPlayed = 0);
+
+    bool saveModulationState(const clap_ostream_t *stream);
+    bool loadModulationState(const clap_istream_t *stream, int version[3], ShapeEditor *shapeEditors[2]);
 };
 
 // Class in which Envelopes can be edited and linked to Parameters of the ShapeEditors.
@@ -280,4 +292,6 @@ class EnvelopeManager : public InteractiveGUIElement {
     void addModulatedParameter(ShapePoint *point, float amount, modulationMode mode);
     void clearLinksToPoint(ShapePoint *point);
 
+    bool saveState(const clap_ostream_t *stream);
+    bool loadState(const clap_istream_t *stream, int version[3], ShapeEditor *shapeEditors[2]);
 };
