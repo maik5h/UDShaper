@@ -9,7 +9,7 @@
 #include <iostream>
 #include <vector>
 #include <chrono>
-#include "clap/clap.h"
+#include <clap/clap.h>
 #include "config.h"
 #include "src/shapeEditor.h"
 #include "src/GUI.h"

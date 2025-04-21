@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "../clap/clap.h"
+#include <clap/clap.h>
 #include "shapeEditor.h"
 #include "assets.h"
 

@@ -6,7 +6,7 @@
 #include "UDShaper.h"
 #include <windowsx.h>
 #include "assets.h"
-#include "../clap/clap.h"
+#include <clap/clap.h>
 #include "shapeEditor.h"
 
 struct GUI {
