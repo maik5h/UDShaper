@@ -1,5 +1,7 @@
 The biggest and most noticeable TODOs of this project:
 
+- Hosts only perform undo/ redo actions when the changed parameter is properly reported. Reporting parameters is not possible with the current setup and dynamic number of ShapePoints and linked parameters. A maximum number of parameters must be defined and all parameters would have to be preallocated.
+
 - When modulated, parameters can move to negative x-values.
 
 - Bug when adding the same Envelope to the same ModulatedParameter multiple times.
