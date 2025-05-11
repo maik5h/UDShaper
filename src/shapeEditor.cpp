@@ -232,7 +232,7 @@ class ShapePoint{
     pow is parameter defining the shape of the curve segment, its role is dependent on the mode:
         shapePower: f(x) = x^parameter
     */
-    ShapePoint(float x, float y, uint32_t editorSize[4], const int parentIdx, float pow = 1, float omega = 0.5, Shapes initMode = shapePower): shapeEditorIndex(parentIdx), posX(this, modPosX, x), posY(this, modPosY, y), curveCenterPosY(this, modCurveCenterY, 0.5) {
+    ShapePoint(float x, float y, uint32_t editorSize[4], const int parentIdx, float pow = 1, float omega = 0.5, Shapes initMode = shapePower): shapeEditorIndex(parentIdx), posX(this, modPosX, x, 0), posY(this, modPosY, y, 0), curveCenterPosY(this, modCurveCenterY, 0.5, 0) {
         assert ((0 <= x) && (x <= 1) && (0 <= y) && (y <= 1));
         
         for (int i=0; i<4; i++){
