@@ -142,18 +142,20 @@ class ModulatedParameter{
         maxValue = inMaxValue;
     }
 
-    // Registeres the given envelope as a modulator to this parameter. This Envelope will now contribute to the modulation when calling .get() with the given amount.
+    // Registers the given envelope as a modulator to this parameter. This Envelope will now contribute to the modulation when calling .get() with the given amount.
     // The index of the Envelope in the vector of Envelopes in EnvelopeManager is saved in order to serialize the state.
-    void addModulator(Envelope *envelope, float amount, int envelopeIdx){
+    // Returns true on success and false if the Envelope was already a Modulator of this ModulatedParameter.
+    bool addModulator(Envelope *envelope, float amount, int envelopeIdx){
         // Envelopes can only be added once.
         for (auto a : modulationAmounts){
             if (a.first == envelope){
-                return;
+                return false;
             }
         }
 
         modulationAmounts[envelope] = amount;
         envelopeIndices[envelope] = envelopeIdx;
+        return true;
     }
 
     void removeModulator(Envelope *envelope){
@@ -1024,31 +1026,31 @@ void Envelope::addModulatedParameter(ShapePoint *point, float amount, modulation
     switch (mode) {
         case modCurveCenterY:
         {
-            // Add the ModulatedParameter to the list of ModulatedParameters controlled by this Envelope.
-            modulatedParameters.push_back(&point->curveCenterPosY);
-
             // Add this Envelope to the list of modulating Envelopes of the parameter.
-            // The pointer to this instance is used to get the modulation offset from inside the ModuatedParameter.
+            // The pointer to this instance is used to get the modulation offset from inside the ModulatedParameter.
             // The Envelope index is used for serialization. It does not change in the lifetime of the Envelopes.
-            point->curveCenterPosY.addModulator(this, amount, envelopeIdx);
+            if (point->curveCenterPosY.addModulator(this, amount, envelopeIdx)) {
+                // If successfull, add the ModulatedParameter to the list of ModulatedParameters controlled by this Envelope.
+                modulatedParameters.push_back(&point->curveCenterPosY);
+            }
             break;
         }
         case modPosY:
         {
-            // Add the ModulatedParameter to the list of ModulatedParameters controlled by this Envelope.
-            modulatedParameters.push_back(&point->posY);
-
             // Add this Envelope to the list of modulating Envelopes of the parameter.
-            point->posY.addModulator(this, amount, envelopeIdx);
+            if (point->posY.addModulator(this, amount, envelopeIdx)) {
+                // If successfull, add the ModulatedParameter to the list of ModulatedParameters controlled by this Envelope.
+                modulatedParameters.push_back(&point->posY);
+            }
             break;
         }
         case modPosX:
         {
-            // Add the ModulatedParameter to the list of ModulatedParameters controlled by this Envelope.
-            modulatedParameters.push_back(&point->posX);
-
             // Add this Envelope to the list of modulating Envelopes of the parameter.
-            point->posX.addModulator(this, amount, envelopeIdx);
+            if (point->posX.addModulator(this, amount, envelopeIdx)) {
+                // If successfull, add the ModulatedParameter to the list of ModulatedParameters controlled by this Envelope.
+                modulatedParameters.push_back(&point->posX);
+            };
             break;
         }
     }
