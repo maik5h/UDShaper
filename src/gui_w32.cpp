@@ -82,17 +82,17 @@ void showDistortionModeMenu(HWND hwnd, int xPos, int yPos) {
 
 // Draws a textbox to canvas. xMin, yMin, xMax and yMax determine the size of the textbox. A frame is drawn outside of these coordinates.
 // The textsize is dependent on the height of the given box.
-void drawTextBox(uint32_t *canvas, const std::string text, uint32_t xMin, uint32_t yMin, uint32_t xMax, uint32_t yMax, bool addFrame){
+void drawTextBox(uint32_t *canvas, uint32_t GUIWidth, uint32_t GUIHeight, const std::string text, uint32_t xMin, uint32_t yMin, uint32_t xMax, uint32_t yMax, bool addFrame){
 	// Create new device context
 	HDC hdcGUI = CreateCompatibleDC(NULL);
-	BITMAPINFO info = { { sizeof(BITMAPINFOHEADER), GUI_WIDTH, -GUI_HEIGHT, 1, 32, BI_RGB } };
+	BITMAPINFO info = { { sizeof(BITMAPINFOHEADER), GUIWidth, -GUIHeight, 1, 32, BI_RGB } };
 
 	void* pBits = nullptr;
     HBITMAP hBitmap = CreateDIBSection(hdcGUI, &info, DIB_RGB_COLORS, &pBits, NULL, 0);
     HBITMAP oldBitmap = (HBITMAP)SelectObject(hdcGUI, hBitmap);
 
 	// Load GUI bits from canavs to pBits
-	memcpy(pBits, canvas, GUI_WIDTH * GUI_HEIGHT * sizeof(uint32_t));
+	memcpy(pBits, canvas, GUIWidth * GUIHeight * sizeof(uint32_t));
 
 	// draw text to hdcGUI
 	RECT rect{xMin, yMin, xMax, yMax};
@@ -107,7 +107,7 @@ void drawTextBox(uint32_t *canvas, const std::string text, uint32_t xMin, uint32
     DrawText(hdcGUI, text.c_str(), -1, &rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
 
 	// Load updated gui bitmap back into canvas
-	memcpy(canvas, pBits, GUI_WIDTH * GUI_HEIGHT * sizeof(uint32_t));
+	memcpy(canvas, pBits, GUIWidth * GUIHeight * sizeof(uint32_t));
 
     SelectObject(hdcGUI, oldBitmap);
     DeleteObject(hBitmap);
@@ -116,7 +116,7 @@ void drawTextBox(uint32_t *canvas, const std::string text, uint32_t xMin, uint32
 	// Draw a frame around the text.
 	if (drawFrame) {
 		uint32_t box[4] = {xMin, yMin, xMax, yMax};
-		drawFrame(canvas, box, 5, 0x000000, 1);
+		drawFrame(canvas, GUIWidth, box, 5, 0x000000, 1);
 	}
 }
 
@@ -132,8 +132,8 @@ LRESULT CALLBACK GUIWindowProcedure(HWND window, UINT message, WPARAM wParam, LP
 		case WM_PAINT: {
 			PAINTSTRUCT paint;
 			HDC dc = BeginPaint(window, &paint);
-			BITMAPINFO info = { { sizeof(BITMAPINFOHEADER), GUI_WIDTH, -GUI_HEIGHT, 1, 32, BI_RGB } };
-			StretchDIBits(dc, 0, 0, GUI_WIDTH, GUI_HEIGHT, 0, 0, GUI_WIDTH, GUI_HEIGHT, plugin->gui->bits, &info, DIB_RGB_COLORS, SRCCOPY);
+			BITMAPINFO info = { { sizeof(BITMAPINFOHEADER), GUISize::width, -GUISize::height, 1, 32, BI_RGB } };
+			StretchDIBits(dc, 0, 0, GUISize::width, GUISize::height, 0, 0, GUISize::width, GUISize::height, plugin->gui->bits, &info, DIB_RGB_COLORS, SRCCOPY);
 			EndPaint(window, &paint);
 			break;
 		}
@@ -237,21 +237,9 @@ void GUICreate(UDShaper *plugin, clap_plugin_descriptor_t pluginDescriptor) {
 	}
 
 	plugin->gui->window = CreateWindow(pluginDescriptor.id, pluginDescriptor.name, WS_CHILDWINDOW | WS_CLIPSIBLINGS, 
-			CW_USEDEFAULT, 0, GUI_WIDTH, GUI_HEIGHT, GetDesktopWindow(), NULL, NULL, NULL);
-	plugin->gui->bits = (uint32_t *) calloc(1, GUI_WIDTH * GUI_HEIGHT * 4);
+			CW_USEDEFAULT, 0, GUISize::width, GUISize::height, GetDesktopWindow(), NULL, NULL, NULL);
+	plugin->gui->bits = (uint32_t *) calloc(1, GUISize::width * GUISize::height * 4);
 	SetWindowLongPtr(plugin->gui->window, 0, (LONG_PTR) plugin);
-
-	// Set up elements that do not change over time. They will not be rerendered every frame.
-	uint32_t pluginSize[4] = {0, 0, GUI_WIDTH, GUI_HEIGHT};
-	fillRectangle(plugin->gui->bits, pluginSize, colorBackground);
-
-	draw3DFrame(plugin->gui->bits, plugin->shapeEditor1->XYXYFull, colorEditorBackground);
-	draw3DFrame(plugin->gui->bits, plugin->shapeEditor2->XYXYFull, colorEditorBackground);
-	plugin->envelopes->setupFrames(plugin->gui->bits);
-
-	uint32_t outerFrameOffset = 28;
-	uint32_t outerFrame[4] = {plugin->shapeEditor1->XYXYFull[0] - outerFrameOffset, plugin->shapeEditor1->XYXYFull[1] - outerFrameOffset, plugin->shapeEditor2->XYXYFull[2] + outerFrameOffset, plugin->shapeEditor2->XYXYFull[3] + outerFrameOffset};
-	drawFrame(plugin->gui->bits, outerFrame, 5, 0x000000, 0.45);
 
 	plugin->renderGUI(plugin->gui->bits);
 }

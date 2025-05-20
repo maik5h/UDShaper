@@ -18,40 +18,40 @@ uint32_t blendColor(uint32_t originalColor, uint32_t newColor, double alpha){
 }
 
 // Fills the area given by box with color. Assumes input canvas is the GUI.
-void fillRectangle(uint32_t *canvas, uint32_t box[4], uint32_t color){
+void fillRectangle(uint32_t *canvas, uint32_t GUIWidth, uint32_t box[4], uint32_t color){
     for (int y=box[1]; y<box[3]; y++){
         for (int x=box[0]; x<box[2]; x++){
-            canvas[x + y * GUI_WIDTH] = color;
+            canvas[x + y * GUIWidth] = color;
         }
     }
 }
 
 // Draws a point of color and size at position x, y onto canvas.
-void drawPoint(uint32_t *canvas, float x, float y, uint32_t color, float size){
+void drawPoint(uint32_t *canvas, uint32_t GUIWidth, float x, float y, uint32_t color, float size){
     for (int i=(int)-size/2; i<(int)size/2; i++){
         for (int j=(int)-size/2; j<(int)size/2; j++){
             if (i*i + j*j <= size*size/4){
-                canvas[(int)x + i + ((int)y + j) * GUI_WIDTH] = color;
+                canvas[(int)x + i + ((int)y + j) * GUIWidth] = color;
             }
         }
     }
 }
 
 // Draws a simple frame to canvas. The frame extends the number of pixel given in thickness from the innerBox.
-void drawFrame(uint32_t *canvas, uint32_t innerBox[4], int thickness, uint32_t color, float alpha){
+void drawFrame(uint32_t *canvas, uint32_t GUIWidth, uint32_t innerBox[4], int thickness, uint32_t color, float alpha){
     for (int i=innerBox[1] - thickness; i<innerBox[3] + thickness; i++){
         for (int j=innerBox[0] - thickness; j<innerBox[2] + thickness; j++){
             if (isInBox(j, i, innerBox)){
                 continue;
             }
 
-            canvas[j + i * GUI_WIDTH] = blendColor(canvas[j + i * GUI_WIDTH], color, alpha);
+            canvas[j + i * GUIWidth] = blendColor(canvas[j + i * GUIWidth], color, alpha);
         }
     }
 };
 
 // Draw a frame that has each side shaded in a different color to create the impression of depth.
-void draw3DFrame(uint32_t *canvas, uint32_t innerBox[4], uint32_t baseColor, int thickness){
+void draw3DFrame(uint32_t *canvas, uint32_t GUIWidth, uint32_t innerBox[4], uint32_t baseColor, int thickness){
     uint32_t colorBright1 = blendColor(colorBackground, 0xFFFFFF, 0.52);
     uint32_t colorBright2 = blendColor(colorBackground, 0xFFFFFF, 0.4);
     uint32_t colorDark1 = blendColor(colorBackground, 0x000000, 0.2);
@@ -60,21 +60,21 @@ void draw3DFrame(uint32_t *canvas, uint32_t innerBox[4], uint32_t baseColor, int
     // draw upper edge in colorDark2
     for (int i=0; i<thickness; i++){
         for (int x=innerBox[0] - i; x<innerBox[2] + i; x++){
-            canvas[x + (innerBox[1] - i) * GUI_WIDTH] = colorDark2;
+            canvas[x + (innerBox[1] - i) * GUIWidth] = colorDark2;
         }
     }
 
     // draw lower edge in colorBright1
     for (int i=0; i<thickness; i++){
         for (int x=innerBox[0] - i; x<innerBox[2] + i; x++){
-            canvas[x + (innerBox[3] + i) * GUI_WIDTH] = colorBright1;
+            canvas[x + (innerBox[3] + i) * GUIWidth] = colorBright1;
         }
     }
 
     // draw left edge in colorBright2
     for (int i=0; i<thickness; i++){
         for (int y=innerBox[1] - i; y<innerBox[3] + i; y++){
-            canvas[innerBox[0] - i + y * GUI_WIDTH] = colorBright2;
+            canvas[innerBox[0] - i + y * GUIWidth] = colorBright2;
         }
     }
 
@@ -82,33 +82,33 @@ void draw3DFrame(uint32_t *canvas, uint32_t innerBox[4], uint32_t baseColor, int
     // draw right edge in colorDark1
     for (int i=0; i<thickness; i++){
         for (int y=innerBox[1] - i; y<innerBox[3] + i; y++){
-            canvas[innerBox[2] + i + y * GUI_WIDTH] = colorDark1;
+            canvas[innerBox[2] + i + y * GUIWidth] = colorDark1;
         }
     }
 };
 
 // Draws a grid inside box to canvas. Thickness is not yet implemented.
-void drawGrid(uint32_t *canvas, uint32_t box[4], int numberLines, int thickness, uint32_t color, float alpha){
+void drawGrid(uint32_t *canvas, uint32_t GUIWidth, uint32_t box[4], int numberLines, int thickness, uint32_t color, float alpha){
     int distanceX = (int)(box[2] - box[0]) / (numberLines + 1);
     int distanceY = (int)(box[3] - box[1]) / (numberLines + 1);
 
     // horizontal lines
     for (uint32_t y=1; y<=numberLines; y++){
         for (uint32_t x=box[0]; x<box[2]; x++){
-            canvas[box[1] * GUI_WIDTH + x + y * distanceY * GUI_WIDTH] = blendColor(canvas[box[1] * GUI_WIDTH + x + y * distanceY * GUI_WIDTH], color, alpha);
+            canvas[box[1] * GUIWidth + x + y * distanceY * GUIWidth] = blendColor(canvas[box[1] * GUIWidth + x + y * distanceY * GUIWidth], color, alpha);
         }
     }
 
     // vertical lines
     for (uint32_t y=box[1]; y<box[3]; y++){
         for (int x=1; x<=numberLines; x++){
-            canvas[box[0] + x * distanceX + y * GUI_WIDTH] = blendColor(canvas[x * distanceX + y * GUI_WIDTH], color, alpha);
+            canvas[box[0] + x * distanceX + y * GUIWidth] = blendColor(canvas[x * distanceX + y * GUIWidth], color, alpha);
         }
     }
 }
 
 // Draws a LinkKnob at (posX, posY) to canvas. The knob is ring shaped and filled with color from the very top up to value, where value = +-1 fills the whole circle. The area is filled clockwise for positive and counter clockwise for negative values. It is used to control the links between Envelopes and Parameters, hence the name.
-void drawLinkKnob(uint32_t *canvas, uint32_t posX, uint32_t posY, uint32_t size, float value, uint32_t color){
+void drawLinkKnob(uint32_t *canvas, uint32_t GUIWidth, uint32_t posX, uint32_t posY, uint32_t size, float value, uint32_t color){
     float thickness = 0.45; // Relative thickness of the ring
     float r; // squared distance to center
     float phi; // angle
@@ -145,10 +145,10 @@ void drawLinkKnob(uint32_t *canvas, uint32_t posX, uint32_t posY, uint32_t size,
 
                 // Change color depending on the relation of phi to 2*pi * value
                 if ((value > 0) ? (phi < 2.*M_PI*value) : (2*M_PI - phi <= -2.*M_PI*value)){
-                    canvas[x + y * GUI_WIDTH] = color;
+                    canvas[x + y * GUIWidth] = color;
                 }
                 else{
-                    canvas[x + y * GUI_WIDTH] = 0U;
+                    canvas[x + y * GUIWidth] = 0U;
                 }
             }
         }

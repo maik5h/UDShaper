@@ -15,6 +15,7 @@
 #include "src/GUI.h"
 #include "src/assets.h"
 #include "src/UDShaper.h"
+#include "src/GUILayout.h"
 
 // for debugging (FL Studio does not support logging)
 void logToFile(const std::string& message) {
@@ -150,11 +151,11 @@ static const clap_plugin_params_t extensionParams = {
 };
 
 static const clap_plugin_gui_t extensionGUI = {
-	.is_api_supported = [] (const clap_plugin_t *plugin, const char *api, bool isFloating) -> bool {
+	.is_api_supported = [] (const clap_plugin_t *_plugin, const char *api, bool isFloating) -> bool {
 		return 0 == strcmp(api, GUI_API) && !isFloating;
 	},
 
-	.get_preferred_api = [] (const clap_plugin_t *plugin, const char **api, bool *isFloating) -> bool {
+	.get_preferred_api = [] (const clap_plugin_t *_plugin, const char **api, bool *isFloating) -> bool {
 		*api = GUI_API;
 		*isFloating = false;
 		return true;
@@ -170,29 +171,70 @@ static const clap_plugin_gui_t extensionGUI = {
 		GUIDestroy((UDShaper *) _plugin->plugin_data, pluginDescriptor);
 	},
 
-	.set_scale = [] (const clap_plugin_t *plugin, double scale) -> bool {
+	.set_scale = [] (const clap_plugin_t *_plugin, double scale) -> bool {
 		return false;
 	},
 
-	.get_size = [] (const clap_plugin_t *plugin, uint32_t *width, uint32_t *height) -> bool {
-		*width = GUI_WIDTH;
-		*height = GUI_HEIGHT;
+	.get_size = [] (const clap_plugin_t *_plugin, uint32_t *width, uint32_t *height) -> bool {
+		UDShaper *plugin = (UDShaper *) _plugin->plugin_data;
+		*width = plugin->layout.GUIWidth;
+		*height = plugin->layout.GUIHeight;
 		return true;
 	},
 
-	.can_resize = [] (const clap_plugin_t *plugin) -> bool {
-		return false;
+	.can_resize = [] (const clap_plugin_t *_plugin) -> bool {
+		return true;
 	},
 
-	.get_resize_hints = [] (const clap_plugin_t *plugin, clap_gui_resize_hints_t *hints) -> bool {
-		return false;
+	.get_resize_hints = [] (const clap_plugin_t *_plugin, clap_gui_resize_hints_t *hints) -> bool {
+		hints->can_resize_horizontally = true;
+		hints->can_resize_vertically = true;
+		hints->preserve_aspect_ratio = true;
+		hints->aspect_ratio_width = 2;
+		hints->aspect_ratio_height = 1;
+		
+		return true;
 	},
 
-	.adjust_size = [] (const clap_plugin_t *plugin, uint32_t *width, uint32_t *height) -> bool {
-		return extensionGUI.get_size(plugin, width, height);
+	.adjust_size = [] (const clap_plugin_t *_plugin, uint32_t *width, uint32_t *height) -> bool {
+		UDShaper *plugin = (UDShaper *) _plugin->plugin_data;
+
+		// The plugin is only allowed to have aspect ratio of 2:1.
+		// Set width and height to the point on the line of allowed sizes that is the closest
+		// to the point defined by the initial width and height:
+		*height = (2 * *width + *height) / 5;
+		*width = 2 * *height;
+
+		// Clamp width and height to allowed limits.
+		*width = (*width < GUI_WIDTH_MIN) ? GUI_WIDTH_MIN : (*width > GUI_WIDTH_MAX) ? GUI_WIDTH_MAX : *width;
+		*height = (*height < GUI_HEIGHT_MIN) ? GUI_HEIGHT_MIN : (*height > GUI_HEIGHT_MAX) ? GUI_HEIGHT_MAX : *height;
+
+		return true;
 	},
 
-	.set_size = [] (const clap_plugin_t *plugin, uint32_t width, uint32_t height) -> bool {
+	.set_size = [] (const clap_plugin_t *_plugin, uint32_t width, uint32_t height) -> bool {
+		UDShaper *plugin = (UDShaper *) _plugin->plugin_data;
+
+		uint32_t previousWidth = GUISize::width;
+
+		GUISize::width = width;
+		GUISize::height = height;
+
+		// Free previous memory and allocate new block that matches the new size.
+		free(plugin->gui->bits);
+		plugin->gui->bits = (uint32_t *) calloc(1, width * height * 4);
+
+		// Rescale window or else it will not render full size.
+		// Do it only when the size is increased or else it will crash.
+		if (width > previousWidth) {
+			SetWindowPos(plugin->gui->window, NULL, 0, 0, width, height, SWP_NOMOVE | SWP_NOZORDER);
+		}
+
+		// Rescale plugin GUI elements.
+		plugin->rescaleGUI(width, height);
+
+		// Paint the GUI to window.
+		GUIPaint(plugin, true);
 		return true;
 	},
 
@@ -202,11 +244,11 @@ static const clap_plugin_gui_t extensionGUI = {
 		return true;
 	},
 
-	.set_transient = [] (const clap_plugin_t *plugin, const clap_window_t *window) -> bool {
+	.set_transient = [] (const clap_plugin_t *_plugin, const clap_window_t *window) -> bool {
 		return false;
 	},
 
-	.suggest_title = [] (const clap_plugin_t *plugin, const char *title) {
+	.suggest_title = [] (const clap_plugin_t *_plugin, const char *title) {
 	},
 
 	.show = [] (const clap_plugin_t *_plugin) -> bool {
@@ -361,7 +403,7 @@ static const clap_plugin_factory_t pluginFactory = {
 			return nullptr;
 		}
 
-		UDShaper *plugin = new UDShaper(GUI_WIDTH, GUI_HEIGHT);
+		UDShaper *plugin = new UDShaper();
 		plugin->host = host;
 		plugin->plugin = pluginClass;
 		plugin->plugin.plugin_data = plugin;

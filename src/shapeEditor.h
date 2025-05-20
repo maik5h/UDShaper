@@ -26,6 +26,7 @@ themself.
 #include "../config.h"
 #include "assets.h"
 #include "string_presets.h"
+#include "GUILayout.h"
 
 // Distortion modes of the UDShaper plugin.
 enum distortionMode {
@@ -102,17 +103,15 @@ class MenuRequest {
 // Renders the menu bar at the top of the plugin and handles all user inputs on this area.
 // The menu bar will consist of: The plugin logo (TODO), a button to select the distortion mode and a panel to select presets (TODO).
 class TopMenuBar: InteractiveGUIElement {
-    uint32_t XYXY[4]; // Position and size of the whole menu bar in pixel.
-    uint32_t logoXYXY[4]; // Position and size of the plugin logo (upper left corner);
-    uint32_t modeButtonXYXY[4]; // Position and size of the button to select the distortion mode.
-
+    TopMenuBarLayout layout; // Stores the box coordinates of elements belonging to this TopMenuBar instance.
     bool updateModeButton = true; // Rerenders mode button in next renderGUI call if true.
     bool updateLogo = true; // Renders plugin logo in next renderGUI call if true.
+
 
     public:
     distortionMode mode = upDown; // UDShaper distortion mode.
 
-    TopMenuBar(uint32_t inXYXY[4]);
+    TopMenuBar(uint32_t inXYXY[4], uint32_t GUIWidth, uint32_t GUIHeight);
 
     void processLeftClick(uint32_t x, uint32_t y);
     void processMouseDrag(uint32_t x, uint32_t y);
@@ -120,6 +119,7 @@ class TopMenuBar: InteractiveGUIElement {
     void processDoubleClick(uint32_t x, uint32_t y);
     void processRightClick(uint32_t x, uint32_t y);
     void renderGUI(uint32_t *canvas, double beatPosition = 0, double secondsPlayed = 0);
+    void rescaleGUI(uint32_t newXYXY[4], uint32_t newWidth, uint32_t newHeight);
 
     void processMenuSelection(WPARAM wParam, distortionMode &pluginDistortionMode);
     void setupForRerender();
@@ -131,14 +131,12 @@ class ShapeEditor : public InteractiveGUIElement {
     protected:
     ShapePoint *currentlyDragging = nullptr; // Pointer to the ShapePoint that is currently edited by the user.
     ShapePoint *rightClicked = nullptr; // Pointer to the ShapePoint that has been rightclicked by the user.
-
     ShapePoint *deletedPoint = nullptr; // If a point was deleted, store a pointer to it here, so that the plugin can remove all Envelope links after the input is fully processed.
-
+    bool GUIInitialized = false; // Indicates whether elements that do not have to be rendered every frame are drawn to the GUI.
     void drawConnection(uint32_t *canvas, ShapePoint *point, double beatPosition = 0., double secondsPlayed = 0, uint32_t color = 0x000000, float thickness = 5);
 
     public:
-    uint32_t XYXY[4]; // Box coordinates of the area where the shapePoints are defined, in XYXY notation.
-    uint32_t XYXYFull[4]; // Box coordinates of the XYXY field extended by a margin.
+    ShapeEditorLayout layout; // Stores the box coordinates of elements belonging to this ShapeEditor instance.
     const int index; // Can be used to distinguish this instance of ShapeEditor to others. Is used in the serialization to associate ShapePoints with the correct instance.
 
     shapeEditorDraggingMode currentDraggingMode = none; // Indicates which action should be performed when processing the mouse drag. Is set based on the position where the dragging started.
@@ -149,7 +147,7 @@ class ShapeEditor : public InteractiveGUIElement {
     //The last point must not be moved in x-direction or deleted.
     ShapePoint *shapePoints;
 
-    ShapeEditor(uint32_t position[4], int shapeEditorIndex);
+    ShapeEditor(uint32_t position[4], uint32_t GUIWidth, uint32_t GUIHeight, int shapeEditorIndex);
     ~ShapeEditor();
 
     ShapePoint *getClosestPoint(uint32_t x, uint32_t y, float minimumDistance = REQUIRED_SQUARED_DISTANCE);
@@ -161,6 +159,7 @@ class ShapeEditor : public InteractiveGUIElement {
     void processDoubleClick(uint32_t x, uint32_t y);
     void processRightClick(uint32_t x, uint32_t y);
     void renderGUI(uint32_t *canvas, double beatPosition = 0, double secondsPlayed = 0);
+    void rescaleGUI(uint32_t newXYXY[4], uint32_t newWidth, uint32_t newHeight);
     void processMenuSelection(WPARAM wParam);
 
     float forward(float input, double beatPosition = 0, double secondsPlayed = 0);
@@ -187,10 +186,7 @@ The FrequencyPanels that control these properties are stored in EnvelopeManager 
 // Consists of two elements that are drawn to the GUI: A "counter", which displays a number that corresponds to the frequency and a dropdown menu, that lets the user select the loop mode.
 class FrequencyPanel : public InteractiveGUIElement {
     private:
-    uint32_t XYXY[4]; // The size and position of this element in pixel in XYXY notation.
-    uint32_t counterXYXY[4]; // The size and position of the counter in pixel in XYXY notation.
-    uint32_t modeButtonXYXY[4]; // The size and position of the button to select the loop mode in pixel and XYXY notation.
-
+    FrequencyPanelLayout layout; // Stores the box coordinates of elements belonging to this FrequencyPanel instance.
     uint32_t clickedX = 0;
     uint32_t clickedY = 0;
 
@@ -206,7 +202,7 @@ class FrequencyPanel : public InteractiveGUIElement {
     public:
     envelopeLoopMode currentLoopMode = envelopeFrequencyTempo; // The current looping mode, can be based on tempo, tempo triplets or seconds.
 
-    FrequencyPanel(uint32_t inXYXY[4], envelopeLoopMode initMode = envelopeFrequencyTempo, double initValue = 0.);
+    FrequencyPanel(uint32_t inXYXY[4], uint32_t GUIWidth, uint32_t GUIHeight, envelopeLoopMode initMode = envelopeFrequencyTempo, double initValue = 0.);
 
     void processLeftClick(uint32_t x, uint32_t y);
     void processMouseDrag(uint32_t x, uint32_t y);
@@ -216,6 +212,7 @@ class FrequencyPanel : public InteractiveGUIElement {
     void renderCounter(uint32_t *canvas);
     void renderButton(uint32_t *canvas);
     void renderGUI(uint32_t *canvas, double beatPosition, double secondsPlayed);
+    void rescaleGUI(uint32_t newXYXY[4], uint32_t newWidth, uint32_t newHeight);
     void processMenuSelection(WPARAM wParam);
     double getEnvelopePhase(double beatPosition, double secondsPlayed);
     void setupForRerender();
@@ -231,7 +228,7 @@ class Envelope : public ShapeEditor{
     FrequencyPanel *frequencyPanel; // Pointer to the InteractiveGUIElement FrequencyPanel, to set loop mode and frequency of this Envelope.
     double tempo; // The song tempo. Is set by UDShaper during renderAudio() and used to retreive seconds passed from beatPosition in forward.
 
-    Envelope(uint32_t size[4], FrequencyPanel *inPanel, const int index);
+    Envelope(uint32_t size[4], uint32_t GUIWidth, uint32_t GUIHeight, FrequencyPanel *inPanel, const int index);
     void addModulatedParameter(ShapePoint *point, float amount, modulationMode mode, int envelopeIdx);
     void setModulatedParameterAmount(int index, float amount);
     void removeModulatedParameter(int index);
@@ -249,12 +246,6 @@ class Envelope : public ShapeEditor{
 // Only one Envelope is displayed and editable, the active Envelope can be switched on the selection panel. The tool panel shows knobs for all ModulatedParameters that are linked to the active Envelope. These knobs control the modulation amount of the corresponding parameter.
 class EnvelopeManager : public InteractiveGUIElement {
     private:
-    uint32_t XYXY[4]; // Size and position of this EnvelopeManager in XYXY notation.
-    uint32_t envelopeXYXY[4]; // Size and position at which the active Envelope is displayed.
-    uint32_t selectorXYXY[4]; // Size and position at which the Envelope selection panel is displayed.
-    uint32_t knobsXYXY[4]; // Size an position of the panel on which link knobs are displayed. Placed below Envelope.
-    uint32_t toolsXYXY[4]; // Size and position of the tool panel below the link knobs.
-    
     uint32_t clickedX; // x-position of last mouseclick
     uint32_t clickedY; // y-position of last mouseclick
 
@@ -276,8 +267,9 @@ class EnvelopeManager : public InteractiveGUIElement {
     public:
     envelopeManagerDraggingMode currentDraggingMode = envNone;
     ShapePoint *attemptedToModulate = nullptr; // Points to a ShapePoint that was linked to the active Envelope by the user, but is waiting for the user to select the X or Y direction in the menu before it can actually be added as a ModulatedParameter.
+    EnvelopeManagerLayout layout; // Stores the box coordinates of elements belonging to this EnvelopeManager instance.
 
-    EnvelopeManager(uint32_t XYXY[4]);
+    EnvelopeManager(uint32_t XYXY[4], uint32_t GUIWidth, uint32_t GUIHeight);
     void setupFrames(uint32_t *canvas);
     
     void processLeftClick(uint32_t x, uint32_t y);
@@ -286,6 +278,7 @@ class EnvelopeManager : public InteractiveGUIElement {
     void processDoubleClick(uint32_t x, uint32_t y);
     void processRightClick(uint32_t x, uint32_t y);
     void renderGUI(uint32_t	*canvas, double beatPosition = 0, double secondsPlayed = 0);
+    void rescaleGUI(uint32_t newXYXY[4], uint32_t newWidth, uint32_t newHeight);
     void setupForRerender();
 
     void processMenuSelection(WPARAM wParam);

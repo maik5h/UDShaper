@@ -21,17 +21,14 @@ is forwarded to the renderGUI() methods of all other InteractiveGUIElements.
 */
 
 // Initializes the two ShapeEditors and the EnvelopeManager at positions and with sizes according to the input window size.
-UDShaper::UDShaper(uint32_t windowWidth, uint32_t windowHeight) {
-    // TODO select the sizes based on the window size.
-    uint32_t topMenuSize[4] = {0, 0, 1950, 100};
-    uint32_t editorSize1[4] = {50, 150, 450, 750};
-    uint32_t editorSize2[4] = {495, 150, 895, 750};
-    uint32_t envelopeSize[4] = {950, 150, 1900, 600};
+UDShaper::UDShaper() {
+    // Calculate Coordinates of UDShaper elements based on the given window parameters.
+    layout.setCoordinates(GUI_WIDTH_INIT, GUI_HEIGHT_INIT);
 
-    topMenuBar = new TopMenuBar(topMenuSize);
-    shapeEditor1 = new ShapeEditor(editorSize1, 0);
-    shapeEditor2 = new ShapeEditor(editorSize2, 1);
-    envelopes = new EnvelopeManager(envelopeSize);
+    topMenuBar = new TopMenuBar(layout.topMenuXYXY, layout.GUIWidth, layout.GUIHeight);
+    shapeEditor1 = new ShapeEditor(layout.editor1XYXY, layout.GUIWidth, layout.GUIHeight, 0);
+    shapeEditor2 = new ShapeEditor(layout.editor2XYXY, layout.GUIWidth, layout.GUIHeight, 1);
+    envelopes = new EnvelopeManager(layout.envelopeXYXY, layout.GUIWidth, layout.GUIHeight);
 }
 
 UDShaper::~UDShaper() {
@@ -130,6 +127,20 @@ void UDShaper::renderGUI(uint32_t *canvas) {
     // been created.
     if (gui == nullptr) return;
 
+    if (!GUIInitialized) {
+        // Draw GUI elements that do not change over time. They will not be rerendered every frame.
+        // Start with filling the background.
+        fillRectangle(canvas, layout.GUIWidth, layout.fullXYXY, colorBackground);
+
+        // Set up EnvelopManager frame.
+        envelopes->setupFrames(canvas);
+
+        // Draw frame around ShapeEditors.
+        drawFrame(canvas, layout.GUIWidth, layout.editorFrameXYXY, 0.003125 * layout.GUIWidth, 0x000000, 0.45);
+
+        GUIInitialized = true;
+    }
+
     // The beatposition is, unlike on the audio threads, not taken from a clap_transport, but calculated for the point in time when this function is called.
     long now = getCurrentTime();
     WaitForSingleObject(synchProcessStartTime, INFINITE);
@@ -145,6 +156,20 @@ void UDShaper::renderGUI(uint32_t *canvas) {
     shapeEditor1->renderGUI(canvas, beatPosition, secondsPlayed);
     shapeEditor2->renderGUI(canvas, beatPosition, secondsPlayed);
     envelopes->renderGUI(canvas);
+}
+
+void UDShaper::rescaleGUI(uint32_t width, uint32_t height) {
+    // Update the UDShaper layout.
+    layout.setCoordinates(width, height);
+
+    // Firstly reset the whole GUI so no remainders of stretched elements are visible.
+    GUIInitialized = false;
+
+    // Secondly, update layouts of all elements accoring to new UDShaper layout and rerender their contents.
+    topMenuBar->rescaleGUI(layout.topMenuXYXY, width, height);
+    shapeEditor1->rescaleGUI(layout.editor1XYXY, width, height);
+    shapeEditor2->rescaleGUI(layout.editor2XYXY, width, height);
+    envelopes->rescaleGUI(layout.envelopeXYXY, width, height);
 }
 
 void UDShaper::processMenuSelection(WPARAM wParam) {

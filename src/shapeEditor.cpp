@@ -26,26 +26,12 @@ float getPowerFromPosY(float posY){
 contextMenuType MenuRequest::requestedMenu = menuNone;
 contextMenuType MenuRequest::lastRequested = menuNone;
 
-TopMenuBar::TopMenuBar(uint32_t inXYXY[4]) {
-    for (int i=0; i<4; i++) {
-        XYXY[i] = inXYXY[i];
-    }
-
-    // The plugin logo will be displayed at the upper left corner.
-    logoXYXY[0] = XYXY[0] + 50;
-    logoXYXY[1] = XYXY[1];
-    logoXYXY[2] = (uint32_t) (0.15*(XYXY[2] - XYXY[0] - 100));
-    logoXYXY[3] = XYXY[3];
-
-    // The mode button is placed next to the logo.
-    modeButtonXYXY[0] = (uint32_t) (0.256*(XYXY[2] - XYXY[0]));
-    modeButtonXYXY[1] = XYXY[1];
-    modeButtonXYXY[2] = (uint32_t) (0.456*(XYXY[2] - XYXY[0]));
-    modeButtonXYXY[3] = (uint32_t) XYXY[3];
+TopMenuBar::TopMenuBar(uint32_t inXYXY[4], uint32_t inGUIWidth, uint32_t inGUIHeight) {
+    layout.setCoordinates(inXYXY, inGUIWidth, inGUIHeight);
 }
 
 void TopMenuBar::processLeftClick(uint32_t x, uint32_t y) {
-    if (isInBox(x, y, modeButtonXYXY)) {
+    if (isInBox(x, y, layout.modeButtonXYXY)) {
         MenuRequest::requestedMenu = menuDistortionMode;
     }
 }
@@ -57,7 +43,7 @@ void TopMenuBar::processRightClick(uint32_t x, uint32_t y) {};
 
 void TopMenuBar::renderGUI(uint32_t *canvas, double beatPosition, double secondsPlayed) {
     if (updateLogo) {
-        drawTextBox(canvas, "Logo", logoXYXY[0], logoXYXY[1], logoXYXY[2], logoXYXY[3], false);
+        drawTextBox(canvas, layout.GUIWidth, layout.GUIHeight, "Logo", layout.logoXYXY[0], layout.logoXYXY[1], layout.logoXYXY[2], layout.logoXYXY[3], false);
         updateLogo = false;
     }
     if (updateModeButton) {
@@ -82,11 +68,17 @@ void TopMenuBar::renderGUI(uint32_t *canvas, double beatPosition, double seconds
             break;
         }
 
-        fillRectangle(canvas, modeButtonXYXY);
-        drawTextBox(canvas, "Distortion mode", modeButtonXYXY[0], modeButtonXYXY[1], modeButtonXYXY[2], (uint32_t) (modeButtonXYXY[3] - modeButtonXYXY[1]) / 2, false);
-        drawTextBox(canvas, modeText, modeButtonXYXY[0], (uint32_t) (modeButtonXYXY[3] - modeButtonXYXY[1]) / 2, modeButtonXYXY[2], modeButtonXYXY[3], false);
+        fillRectangle(canvas, layout.GUIWidth, layout.modeButtonXYXY);
+        drawTextBox(canvas, layout.GUIWidth, layout.GUIHeight, "Distortion mode", layout.modeButtonXYXY[0], layout.modeButtonXYXY[1], layout.modeButtonXYXY[2], (uint32_t) (layout.modeButtonXYXY[3] - layout.modeButtonXYXY[1]) / 2, false);
+        drawTextBox(canvas, layout.GUIWidth, layout.GUIHeight, modeText, layout.modeButtonXYXY[0], (uint32_t) (layout.modeButtonXYXY[3] - layout.modeButtonXYXY[1]) / 2, layout.modeButtonXYXY[2], layout.modeButtonXYXY[3], false);
         updateModeButton = false;
     }
+}
+
+void TopMenuBar::rescaleGUI(uint32_t newXYXY[4], uint32_t newWidth, uint32_t newHeight) {
+    layout.setCoordinates(newXYXY, newWidth, newHeight);
+    updateModeButton = true;
+    updateLogo = true;
 }
 
 // Updates plugin distortion mode if different mode was selected from a menu.
@@ -291,6 +283,12 @@ class ShapePoint{
         return previous->getAbsPosY(beatPosition, secondsPlayed) + (uint32_t)(curveCenterPosY.get(beatPosition, secondsPlayed) * ((int32_t)getAbsPosY(beatPosition, secondsPlayed) - (int32_t)previous->getAbsPosY(beatPosition, secondsPlayed)));
     }
 
+    void updateParentXYXY(uint32_t newXYXY[4]) {
+        for (int i=0; i<4; i++) {
+            XYXY[i] = newXYXY[i];
+        }
+    }
+
     // updates the Curve center point when manually dragging it
     void updateCurveCenter(int x, int y){
         // nothing to update if line is horizontal
@@ -394,20 +392,13 @@ may be moved, but only in y-direction. None of these points can be removed to as
 well defined on the interval [0, 1].
 */
 
-ShapeEditor::ShapeEditor(uint32_t position[4], int shapeEditorIndex) : index(shapeEditorIndex) {
+ShapeEditor::ShapeEditor(uint32_t position[4], uint32_t inGUIWidth, uint32_t inGUIHeight, int shapeEditorIndex) : index(shapeEditorIndex) {
 
-    for (int i=0; i<4; i++){
-        XYXYFull[i] = position[i];
-    }
-
-    XYXY[0] = position[0] + FRAME_WIDTH;
-    XYXY[1] = position[1] + FRAME_WIDTH;
-    XYXY[2] = position[2] - FRAME_WIDTH;
-    XYXY[3] = position[3] - FRAME_WIDTH;
+    layout.setCoordinates(position, inGUIWidth, inGUIHeight);
 
     // Set up first and last point and link them. These points will always stay first and last point.
-    shapePoints = new ShapePoint(0., 0., XYXY, index);
-    shapePoints->next = new ShapePoint(1., 1., XYXY, index);
+    shapePoints = new ShapePoint(0., 0., layout.editorXYXY, index);
+    shapePoints->next = new ShapePoint(1., 1., layout.editorXYXY, index);
     shapePoints->next->previous = shapePoints;
 }
 
@@ -464,7 +455,7 @@ void ShapeEditor::processLeftClick(uint32_t x, uint32_t y){
     // check if mouse hovers over the graphical interface and return if not
     // check for slightly higher area to be able to grab point from outside the interface
     float offset = pow(REQUIRED_SQUARED_DISTANCE, 0.5);
-    if ((x < XYXY[0] - offset) | (x >= XYXY[2] + offset) | (y < XYXY[1] - offset) | (y >= XYXY[3] + offset)){
+    if ((x < layout.editorXYXY[0] - offset) | (x >= layout.editorXYXY[2] + offset) | (y < layout.editorXYXY[1] - offset) | (y >= layout.editorXYXY[3] + offset)){
         return;
     }
 
@@ -480,7 +471,7 @@ void ShapeEditor::processLeftClick(uint32_t x, uint32_t y){
 
 // Processes double click. If a ShapePoint was deleted by the double click, a pointer to this ShapePoint is returned. If no point has been deleted, nullptr is returned.
 void ShapeEditor::processDoubleClick(uint32_t x, uint32_t y){
-    if ((x < XYXY[0]) | (x >= XYXY[2]) | (y < XYXY[1]) | (y >= XYXY[3])){
+    if ((x < layout.editorXYXY[0]) | (x >= layout.editorXYXY[2]) | (y < layout.editorXYXY[1]) | (y >= layout.editorXYXY[3])){
         deletedPoint = nullptr;
         return;
     }
@@ -522,7 +513,8 @@ void ShapeEditor::processDoubleClick(uint32_t x, uint32_t y){
             insertBefore = insertBefore->next;
         }
 
-        insertPointBefore(insertBefore, new ShapePoint((float)(x - XYXY[0]) / (XYXY[2] - XYXY[0]), (float)(XYXY[3] - y) / (XYXY[3] - XYXY[1]), XYXY, index));
+        // TODO can i make this line shorter?
+        insertPointBefore(insertBefore, new ShapePoint((float)(x - layout.editorXYXY[0]) / (layout.editorXYXY[2] - layout.editorXYXY[0]), (float)(layout.editorXYXY[3] - y) / (layout.editorXYXY[3] - layout.editorXYXY[1]), layout.editorXYXY, index));
     }
     deletedPoint = nullptr;
 }
@@ -552,23 +544,37 @@ void ShapeEditor::processRightClick(uint32_t x, uint32_t y){
 
 void ShapeEditor::renderGUI(uint32_t *canvas, double beatPosition, double secondsPlayed){
     // set whole area to background color
-    for (uint32_t i = XYXYFull[0]; i < XYXYFull[2]; i++) {
-        for (uint32_t j = XYXYFull[1]; j < XYXYFull[3]; j++) {
-            canvas[i + j * GUI_WIDTH] = colorEditorBackground;
-        }
+    fillRectangle(canvas, layout.GUIWidth, layout.innerXYXY, colorEditorBackground);
+
+    if (!GUIInitialized) {
+        draw3DFrame(canvas, layout.GUIWidth, layout.innerXYXY, colorEditorBackground, RELATIVE_FRAME_WIDTH * layout.GUIWidth);
+        GUIInitialized = true;
     }
 
-    drawGrid(canvas, XYXY, 3, 2, 0xFFFFFF, alphaGrid);
-    drawFrame(canvas, XYXY, 3, 0xFFFFFF);
+    drawGrid(canvas, layout.GUIWidth, layout.editorXYXY, 3, 2, 0xFFFFFF, alphaGrid);
+    drawFrame(canvas, layout.GUIWidth, layout.editorXYXY, 3, 0xFFFFFF);
 
     // first draw all connections between points, then points on top
     for (ShapePoint *point = shapePoints->next; point != nullptr; point = point->next){
         drawConnection(canvas, point, beatPosition, secondsPlayed, colorCurve);
     }
     for (ShapePoint *point = shapePoints->next; point != nullptr; point = point->next){
-        drawPoint(canvas, point->getAbsPosX(beatPosition, secondsPlayed), point->getAbsPosY(beatPosition, secondsPlayed), colorCurve, 20);
-        drawPoint(canvas, point->getCurveCenterAbsPosX(beatPosition, secondsPlayed), point->getCurveCenterAbsPosY(beatPosition, secondsPlayed), colorCurve, 16);
+        drawPoint(canvas, layout.GUIWidth, point->getAbsPosX(beatPosition, secondsPlayed), point->getAbsPosY(beatPosition, secondsPlayed), colorCurve, RELATIVE_POINT_SIZE*layout.GUIWidth);
+        drawPoint(canvas, layout.GUIWidth, point->getCurveCenterAbsPosX(beatPosition, secondsPlayed), point->getCurveCenterAbsPosY(beatPosition, secondsPlayed), colorCurve, RELATIVE_POINT_SIZE_SMALL*layout.GUIWidth);
     }
+}
+
+void ShapeEditor::rescaleGUI(uint32_t newXYXY[4], uint32_t newWidth, uint32_t newHeight) {
+    layout.setCoordinates(newXYXY, newWidth, newHeight);
+
+    // ShapePoints are aware of the size of the editor they belong to. They must be informed of the changes.
+    ShapePoint *point = shapePoints;
+    while (point != nullptr) {
+        point->updateParentXYXY(layout.editorXYXY);
+        point = point->next;
+    }
+
+    GUIInitialized = false;
 }
 
 // Returns the pointer to the ShapePoint that was most recently deleted and resets the deletedPoint attribute to nullptr. Returns nullptr, when no point was deleted.
@@ -628,9 +634,9 @@ void ShapeEditor::drawConnection(uint32_t *canvas, ShapePoint *point, double bea
             for (int i = xMin; i < xMax; i++) {
                 // TODO: antialiasing/ width of curve
                 if (power > 0){
-                    canvas[i + (uint32_t)((yL - pow((float)(i - xMin) / (xMax - xMin), power) * (int32_t)(yL - yR))) * GUI_WIDTH] = color;
+                    canvas[i + (uint32_t)((yL - pow((float)(i - xMin) / (xMax - xMin), power) * (int32_t)(yL - yR))) * layout.GUIWidth] = color;
                 } else {
-                    canvas[i + (uint32_t)((yR + pow((float)(xMax - i) / (xMax - xMin), -power) * (int32_t)(yL - yR))) * GUI_WIDTH] = color;
+                    canvas[i + (uint32_t)((yR + pow((float)(xMax - i) / (xMax - xMin), -power) * (int32_t)(yL - yR))) * layout.GUIWidth] = color;
                 }
             }
             break;
@@ -643,7 +649,7 @@ void ShapeEditor::drawConnection(uint32_t *canvas, ShapePoint *point, double bea
                 // normalize curve to one if if frequency is so low that segment is smaller than half a wavelength
                 float ampCorrection = (point->sineOmega < 0.5) ? 1 / sin(point->sineOmega * pi) : 1;
                 // this works trust me
-                canvas[i + (int)(ampCorrection * sin((float)(i - xMin - (xMax - xMin)/2) / (xMax - xMin) * point->sineOmega * 2 * pi) * (yR - yL) / 2 - (yL - yR)/2 + yL) * GUI_WIDTH] = color;
+                canvas[i + (int)(ampCorrection * sin((float)(i - xMin - (xMax - xMin)/2) / (xMax - xMin) * point->sineOmega * 2 * pi) * (yR - yL) / 2 - (yL - yR)/2 + yL) * layout.GUIWidth] = color;
             }
             break;
         }
@@ -659,15 +665,15 @@ void ShapeEditor::processMouseDrag(uint32_t x, uint32_t y){
         int32_t xUpperLim;
 
         // The rightmost point must not move in x-direction. If point is last point set both limits to only allowed value, else choose positions of neighbouring points.
-        xLowerLim = currentlyDragging->next == nullptr ? XYXY[2] : currentlyDragging->previous->getAbsPosX();
-        xUpperLim = currentlyDragging->next == nullptr ? XYXY[2] : currentlyDragging->next->getAbsPosX();
+        xLowerLim = currentlyDragging->next == nullptr ? layout.editorXYXY[2] : currentlyDragging->previous->getAbsPosX();
+        xUpperLim = currentlyDragging->next == nullptr ? layout.editorXYXY[2] : currentlyDragging->next->getAbsPosX();
 
         x = (x > xUpperLim) ? xUpperLim : (x < xLowerLim) ? xLowerLim : x;
-        y = (y > (int32_t)XYXY[3]) ? XYXY[3] : (y < XYXY[1]) ? XYXY[1] : y;
+        y = (y > (int32_t)layout.editorXYXY[3]) ? layout.editorXYXY[3] : (y < layout.editorXYXY[1]) ? layout.editorXYXY[1] : y;
 
         // the rightmost point must not move in x-direction
         if (currentlyDragging->next == nullptr){
-            x = XYXY[2];
+            x = layout.editorXYXY[2];
         }
 
         currentlyDragging->updatePositionAbsolute(x, y);
@@ -788,7 +794,7 @@ bool ShapeEditor::loadState(const clap_istream_t *stream, int version[3]) {
             float power = getPowerFromPosY(curveCenterY);
 
             if (i != numberPoints - 1) {
-                ShapePoint *newPoint = new ShapePoint(posX, posY, XYXY, power, sineOmega, mode);
+                ShapePoint *newPoint = new ShapePoint(posX, posY, layout.editorXYXY, power, sineOmega, mode);
                 insertPointBefore(last, newPoint);
             }
             else {
@@ -812,24 +818,10 @@ bool ShapeEditor::loadState(const clap_istream_t *stream, int version[3]) {
     return true;
 }
 
-FrequencyPanel::FrequencyPanel(uint32_t inXYXY[4], envelopeLoopMode initMode, double initValue) {
+FrequencyPanel::FrequencyPanel(uint32_t inXYXY[4], uint32_t inGUIWidth, uint32_t inGUIHeight, envelopeLoopMode initMode, double initValue) {
     currentLoopMode = initMode;
     counterValue[initMode] = initValue;
-
-    for (int i=0; i<4; i++) {
-        XYXY[i] = inXYXY[i];
-    }
-
-    // TODO for now counter and button are just split in half. There is room for visual improvement
-    counterXYXY[0] = XYXY[0];
-    counterXYXY[1] = XYXY[1];
-    counterXYXY[2] = (uint32_t) (XYXY[2] + XYXY[0]) / 2;
-    counterXYXY[3] = XYXY[3];
-
-    modeButtonXYXY[0] = (uint32_t) (XYXY[2] + XYXY[0]) / 2;
-    modeButtonXYXY[1] = XYXY[1];
-    modeButtonXYXY[2] = XYXY[2];
-    modeButtonXYXY[3] = XYXY[3];
+    layout.setCoordinates(inXYXY, inGUIWidth, inGUIHeight);
 }
 
 // Can either
@@ -839,11 +831,11 @@ void FrequencyPanel::processLeftClick(uint32_t x, uint32_t y) {
     clickedX = x;
     clickedY = y;
 
-    if (isInBox(x, y, modeButtonXYXY)) {
+    if (isInBox(x, y, layout.modeButtonXYXY)) {
         MenuRequest::requestedMenu = menuEnvelopeLoopMode;
     }
 
-    if (isInBox(x, y, counterXYXY)) {
+    if (isInBox(x, y, layout.counterXYXY)) {
         currentlyDraggingCounter = true;
     }
 };
@@ -903,8 +895,8 @@ void FrequencyPanel::renderCounter(uint32_t *canvas) {
     }
 
     // Draw the counter with the current value.
-    fillRectangle(canvas, counterXYXY);
-    drawTextBox(canvas, counterText, counterXYXY[0], counterXYXY[1], counterXYXY[2], counterXYXY[3]);
+    fillRectangle(canvas, layout.GUIWidth, layout.counterXYXY);
+    drawTextBox(canvas, layout.GUIWidth, layout.GUIHeight, counterText, layout.counterXYXY[0], layout.counterXYXY[1], layout.counterXYXY[2], layout.counterXYXY[3]);
 }
 
 // Renders the button with the currentLoopMode.
@@ -919,8 +911,8 @@ void FrequencyPanel::renderButton(uint32_t *canvas) {
             buttonText = "Seconds";
             break;
     }
-    fillRectangle(canvas, modeButtonXYXY);
-    drawTextBox(canvas, buttonText, modeButtonXYXY[0], modeButtonXYXY[1], modeButtonXYXY[2], modeButtonXYXY[3]);
+    fillRectangle(canvas, layout.GUIWidth, layout.modeButtonXYXY);
+    drawTextBox(canvas, layout.GUIWidth, layout.GUIHeight, buttonText, layout.modeButtonXYXY[0], layout.modeButtonXYXY[1], layout.modeButtonXYXY[2], layout.modeButtonXYXY[3]);
 }
 
 // Renders two boxes:
@@ -935,6 +927,12 @@ void FrequencyPanel::renderGUI(uint32_t *canvas, double beatPosition, double sec
         renderButton(canvas);
         updateButton = false;
     }
+}
+
+void FrequencyPanel::rescaleGUI(uint32_t newXYXY[4], uint32_t newWidth, uint32_t newHeight) {
+    layout.setCoordinates(newXYXY, newWidth, newHeight);
+    updateCounter = true;
+    updateButton = true;
 }
 
 // Processes a context menu selection if the last opened menu was a Envelope loop mode menu.
@@ -1015,7 +1013,7 @@ bool FrequencyPanel::loadState(const clap_istream_t *stream, int version[3]) {
 }
 
 
-Envelope::Envelope(uint32_t size[4], FrequencyPanel *inPanel, const int index) : ShapeEditor(size, index) {
+Envelope::Envelope(uint32_t size[4], uint32_t inGUIWidth, uint32_t inGUIHeight, FrequencyPanel *inPanel, const int index) : ShapeEditor(size, inGUIWidth, inGUIHeight, index) {
     frequencyPanel = inPanel;
 };
 
@@ -1150,45 +1148,12 @@ bool Envelope::loadModulationState(const clap_istream_t *stream, int version[3],
     return true;
 }
 
-EnvelopeManager::EnvelopeManager(uint32_t inXYXY[4]){
-    for (int i=0; i<4; i++){
-        XYXY[i] = inXYXY[i];
-    }
+EnvelopeManager::EnvelopeManager(uint32_t inXYXY[4], uint32_t inGUIWidth, uint32_t inGUIHeight){
+    layout.setCoordinates(inXYXY, inGUIWidth, inGUIHeight);
+    activeEnvelopeIndex = 0;
 
     envelopes.reserve(MAX_NUMBER_ENVELOPES);
     frequencyPanels.reserve(MAX_NUMBER_ENVELOPES);
-
-    // Width and height of the EnvelopeManager. 
-    // 10% on left and bottom are reserved for other GUI elements, rest is for Envelopes.
-    uint32_t width = XYXY[2] - XYXY[0];
-    uint32_t height = XYXY[3] - XYXY[1];
-
-    // The Envelope is positioned at the upper right of the EnvelopeManager.
-    envelopeXYXY[0] = (uint32_t)(XYXY[0] + 0.1*width);
-    envelopeXYXY[1] = XYXY[1];
-    envelopeXYXY[2] = XYXY[2];
-    envelopeXYXY[3] = (uint32_t)(XYXY[3] - 0.4*height);
-
-    // The selector panel is positioned directly to the left of Envelope, with the same y-extent as the Envelope.
-    selectorXYXY[0] = XYXY[0];
-    selectorXYXY[1] = XYXY[1];
-    selectorXYXY[2] = envelopeXYXY[0];
-    selectorXYXY[3] = envelopeXYXY[3];
-
-    // The knobs are positioned below the Envelope, with the same x-extent as the Envelope.
-    // For y-position, take width of the 3D frame around the active Envelope into account.
-    knobsXYXY[0] = envelopeXYXY[0];
-    knobsXYXY[1] = (uint32_t)(XYXY[3] - 0.4*height) + FRAME_WIDTH;
-    knobsXYXY[2] = XYXY[2];
-    knobsXYXY[3] = (uint32_t)(XYXY[3] - 0.2*height);
-
-    // Tools are positioned below knobs.
-    toolsXYXY[0] = envelopeXYXY[0];
-    toolsXYXY[1] = (uint32_t)(XYXY[3] - 0.2*height) + FRAME_WIDTH;
-    toolsXYXY[2] = XYXY[2];
-    toolsXYXY[3] = XYXY[3];
-
-    activeEnvelopeIndex = 0;
 
     // initiate with three envelopes
     addEnvelope();
@@ -1202,8 +1167,8 @@ void EnvelopeManager::addEnvelope(){
         return;
     }
     // First add new FrequncyPanel so it can be referenced in the new Envelope.
-    frequencyPanels.emplace_back(toolsXYXY);
-    envelopes.emplace_back(envelopeXYXY, &frequencyPanels.back(), envelopes.size());
+    frequencyPanels.emplace_back(layout.toolsXYXY, layout.GUIWidth, layout.GUIHeight);
+    envelopes.emplace_back(layout.editorXYXY, layout.GUIWidth, layout.GUIHeight, &frequencyPanels.back(), envelopes.size());
     updateGUIElements = true;
 }
 
@@ -1219,20 +1184,15 @@ void EnvelopeManager::setActiveEnvelope(int index){
 
 // Draw the initial 3D frames around the displayed Envelope. Only has to be called when creating the GUI or the GUI contents have been changed by an user input.
 void EnvelopeManager::setupFrames(uint32_t *canvas){
+    fillRectangle(canvas, layout.GUIWidth, layout.selectorXYXY, colorBackground);
 
-    for (int y=selectorXYXY[1]; y<selectorXYXY[3]; y++){
-        for (int x=selectorXYXY[0]; x<selectorXYXY[2]; x++){
-            canvas[x + y * GUI_WIDTH] = colorBackground;
-        }
-    }
-
-    draw3DFrame(canvas, envelopeXYXY, colorEditorBackground);
+    draw3DFrame(canvas, layout.GUIWidth, layout.editorInnerXYXY, colorEditorBackground, RELATIVE_FRAME_WIDTH*layout.GUIWidth);
 
     // Fill one rectangle at the left of the Envelop in the same color as the Envelope. y-range is the Envelope y-range divided by the number of Envelopes.
-    uint32_t rectYRange = (uint32_t)(envelopeXYXY[3] - envelopeXYXY[1]) / envelopes.size();
-    for (uint32_t y = XYXY[1] + activeEnvelopeIndex*rectYRange; y<XYXY[1] + (activeEnvelopeIndex + 1)*rectYRange; y++){
-        for (uint32_t x = XYXY[0]; x<=envelopeXYXY[0]; x++){
-            canvas[x + y * GUI_WIDTH] = colorEditorBackground;
+    uint32_t rectYRange = (uint32_t)(layout.editorInnerXYXY[3] - layout.editorInnerXYXY[1]) / envelopes.size();
+    for (uint32_t y = layout.selectorXYXY[1] + activeEnvelopeIndex*rectYRange; y<layout.selectorXYXY[1] + (activeEnvelopeIndex + 1)*rectYRange; y++){
+        for (uint32_t x = layout.selectorXYXY[0]; x<=layout.editorInnerXYXY[0]; x++){
+            canvas[x + y * layout.GUIWidth] = colorEditorBackground;
         }
     }
 }
@@ -1243,6 +1203,7 @@ void EnvelopeManager::renderGUI(uint32_t *canvas, double beatPosition, double se
 
     if (updateGUIElements){
         setupFrames(canvas);
+        updateGUIElements = false;
     }
 
     if (toolsUpdated){
@@ -1253,6 +1214,24 @@ void EnvelopeManager::renderGUI(uint32_t *canvas, double beatPosition, double se
     frequencyPanels.at(activeEnvelopeIndex).renderGUI(canvas, beatPosition, secondsPlayed);
 }
 
+void EnvelopeManager::rescaleGUI(uint32_t newXYXY[4], uint32_t newWidth, uint32_t newHeight) {
+    // Update EnvelopeManager layout.
+    layout.setCoordinates(newXYXY, newWidth, newHeight);
+
+    // Update layouts of every Envelope.
+    for (Envelope &env : envelopes) {
+        env.rescaleGUI(layout.editorXYXY, newWidth, newHeight);
+    }
+
+    for (FrequencyPanel &panel : frequencyPanels) {
+        panel.rescaleGUI(layout.toolsXYXY, newWidth, newHeight);
+    }
+
+    // Rerender all elements.
+    updateGUIElements = true;
+    toolsUpdated = true;
+}
+
 // Set ups the EnvelopeManager to fully rerender the next time renderGUI() is called. Use when plugin window is reopened after being closed.
 void EnvelopeManager::setupForRerender() {
     frequencyPanels.at(activeEnvelopeIndex).setupForRerender();
@@ -1261,11 +1240,12 @@ void EnvelopeManager::setupForRerender() {
 // Draws the knobs for the ModulatedParameters of the active Envelope to the tool panel. Knobs are positioned next to each other sorted by their index in the modulatedParameters vector of the parent Envelope.
 void EnvelopeManager::drawKnobs(uint32_t *canvas){
     // first reset whole area
-    fillRectangle(canvas, knobsXYXY);
+    fillRectangle(canvas, layout.GUIWidth, layout.knobsXYXY);
 
     for (int i=0; i<envelopes[activeEnvelopeIndex].getModulatedParameterNumber(); i++){
         float amount = envelopes[activeEnvelopeIndex].getModAmount(i); // modulation amount of the ith ModulatedParameter
-        drawLinkKnob(canvas, knobsXYXY[0] + LINK_KNOB_SPACING*i + LINK_KNOB_SPACING/2, knobsXYXY[1] + (int)(LINK_KNOB_SPACING/2), LINK_KNOB_SIZE, amount);
+        uint32_t spacing = RELATIVE_LINK_KNOB_SPACING * layout.GUIWidth;
+        drawLinkKnob(canvas, layout.GUIWidth, layout.knobsXYXY[0] + spacing*i + spacing/2, layout.knobsXYXY[1] + (int)(spacing/2), RELATIVE_LINK_KNOB_SIZE * layout.GUIWidth, amount);
     }
 }
 
@@ -1278,8 +1258,8 @@ void EnvelopeManager::processLeftClick(uint32_t x, uint32_t y){
     clickedY = y;
 
     // switch active Envelope when clicked onto the corresponding switch at the selection panel
-    if (isInBox(x, y, selectorXYXY)){
-        int newActive = (y - selectorXYXY[1]) * envelopes.size() / (selectorXYXY[3] - selectorXYXY[1]);
+    if (isInBox(x, y, layout.selectorXYXY)){
+        int newActive = (y - layout.selectorXYXY[1]) * envelopes.size() / (layout.selectorXYXY[3] - layout.selectorXYXY[1]);
         setActiveEnvelope(newActive);
 
         // After the switch was pressed, assume the following mouse movement to be an attempt to link a parameter to this Envelope:
@@ -1288,7 +1268,8 @@ void EnvelopeManager::processLeftClick(uint32_t x, uint32_t y){
 
     // check if it has been clicked on any of the LinkKnobs and set currentdragging mode to moveKnob if true
     for (int i=0; i<envelopes.at(activeEnvelopeIndex).getModulatedParameterNumber(); i++){
-        if (isInPoint(x, y, knobsXYXY[0] + LINK_KNOB_SPACING*i + LINK_KNOB_SPACING/2, knobsXYXY[1] + (int)(LINK_KNOB_SPACING/2), LINK_KNOB_SIZE)){
+        uint32_t spacing = RELATIVE_LINK_KNOB_SPACING * layout.GUIWidth;
+        if (isInPoint(x, y, layout.knobsXYXY[0] + spacing*i + spacing/2, layout.knobsXYXY[1] + (int)(spacing/2), RELATIVE_LINK_KNOB_SIZE*layout.GUIWidth)){
             selectedKnob = i;
             selectedKnobAmount = envelopes.at(activeEnvelopeIndex).getModAmount(i);
             currentDraggingMode = moveKnob;
@@ -1312,7 +1293,8 @@ void EnvelopeManager::processDoubleClick(uint32_t x, uint32_t y){
 void EnvelopeManager::processRightClick(uint32_t x, uint32_t y){
     // check all knobs if they have been rightclicked
     for (int i=0; i<envelopes[activeEnvelopeIndex].getModulatedParameterNumber(); i++){
-        if (isInPoint(x, y, knobsXYXY[0] + LINK_KNOB_SPACING*i + LINK_KNOB_SPACING/2, knobsXYXY[1] + (int)(LINK_KNOB_SPACING/2), LINK_KNOB_SIZE)){
+        uint32_t spacing = RELATIVE_LINK_KNOB_SPACING * layout.GUIWidth;
+        if (isInPoint(x, y, layout.knobsXYXY[0] + spacing*i + spacing/2, layout.knobsXYXY[1] + (int)(spacing/2), RELATIVE_LINK_KNOB_SIZE*layout.GUIWidth)){
             selectedKnob = i;
             MenuRequest::requestedMenu = menuLinkKnob;
             return;

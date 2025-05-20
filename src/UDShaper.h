@@ -5,6 +5,7 @@
 #include <clap/clap.h>
 #include "shapeEditor.h"
 #include "assets.h"
+#include "GUILayout.h"
 
 long getCurrentTime();
 
@@ -26,6 +27,8 @@ class UDShaper {
 	const clap_host_t *host;
 
 	struct GUI *gui = nullptr; // Pointer to the GUI, which contains the HWND and bit array of the window.
+	bool GUIInitialized = false; // Indicates whether elements that do not have to be rendered every frame are drawn to the GUI.
+	UDShaperLayout layout;
 
 	// Extensions have to be assigned in clap_plugin_t::init, when host is fully accessable.
 	const clap_host_posix_fd_support_t *hostPOSIXFDSupport;
@@ -49,7 +52,7 @@ class UDShaper {
 	double initBeatPosition;
 	double currentTempo;
 
-	UDShaper(uint32_t windowWidth, uint32_t windowHeight);
+	UDShaper();
 	~UDShaper();
 
     void processLeftClick(uint32_t x, uint32_t y);
@@ -58,6 +61,7 @@ class UDShaper {
     void processDoubleClick(uint32_t x, uint32_t y);
     void processRightClick(uint32_t x, uint32_t y);
     void renderGUI(uint32_t *canvas);
+	void rescaleGUI(uint32_t width, uint32_t height);
 
 	void processMenuSelection(WPARAM wparam);
 
