@@ -1,5 +1,7 @@
 The biggest and most noticeable TODOs of this project:
 
+- Logging is done by printing text to file. For reasons beyond me, the host i am using (FL Studio) does not support the CLAP logging feature. Meaningfull logging using the clap feature should still be added to the plugin.
+
 - Hosts only perform undo/ redo actions when the changed parameter is properly reported. Reporting parameters is not possible with the current setup and dynamic number of ShapePoints and linked parameters. A maximum number of parameters must be defined and all parameters would have to be preallocated.
 
 - Files shapeEditor.h and shapeEditor.cpp should be renamed to UDShaperElements or similar.

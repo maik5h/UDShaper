@@ -6,6 +6,7 @@
 #include "shapeEditor.h"
 #include "assets.h"
 #include "GUILayout.h"
+#include "logging.h"
 
 long getCurrentTime();
 

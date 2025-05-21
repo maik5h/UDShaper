@@ -1,15 +1,5 @@
 #include "shapeEditor.h"
-
-#include <fstream>
-#include <iostream>
-void logToFile2(const std::string& message) {
-    std::ofstream logFile("C:/Users/mm/Desktop/log.txt", std::ios_base::app);
-    if (logFile.is_open()) {
-        logFile << message << std::endl;
-    } else {
-        std::cerr << "Failed to open log file!" << std::endl;
-    }
-}
+#include "logging.h"
 
 // Claculates the power of the curve for the interpolation mode power from the y value at x=0.5.
 // Can be negative, which does NOT mean the curve is actually f(x) = 1 / (x^|power|) but that the curve is flipped vertically and horizontally.

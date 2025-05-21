@@ -16,16 +16,7 @@
 #include "src/assets.h"
 #include "src/UDShaper.h"
 #include "src/GUILayout.h"
-
-// for debugging (FL Studio does not support logging)
-void logToFile(const std::string& message) {
-    std::ofstream logFile("C:/Users/mm/Desktop/log.txt", std::ios_base::app);
-    if (logFile.is_open()) {
-        logFile << message << std::endl;
-    } else {
-        std::cerr << "Failed to open log file!" << std::endl;
-    }
-}
+#include "src/logging.h"
 
 // GUI is rendered on the main thread, while the song position is only available on the audio threads.
 // This function compares the process corresponding to the thread it is called in with the last process written to the UDShaper object.
