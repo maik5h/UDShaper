@@ -3,7 +3,7 @@
 #pragma once
 
 #include <clap/clap.h>
-#include "shapeEditor.h"
+#include "UDShaperElements.h"
 #include "assets.h"
 #include "GUILayout.h"
 #include "logging.h"

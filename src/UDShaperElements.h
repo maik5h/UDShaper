@@ -1,14 +1,11 @@
-/*
-Everything concerning the shape editors.
-A shape editor is a region on the UI that can be used to design a curve by adding, moving and deleting points between
-which the curve is interpolated. The way the curve is interpolated in each region between two points ("curve segment")
-can be chosen from a dialog box by rightclicking the point to the right of the segment. There are the options power
-and sine, see implementation for further explanations. Some shapes can further be edited by dragging the center of the
-curve.
-
-Envelopes are shapeEditors that can be used to modulate certain parameters, but are not intended to be modulated
-themself.
-*/
+// Subelements of the UDShaper are declared in this file.
+// All subelements are InteractiveGUIElements and have a fixed position on the UDShaper GUI on which they can
+// draw their GUI.
+// There are the classes TopMenuBar, ShapeEditor, Envelope, FreuqnecyPanel and EnvelopeManager.
+//
+// ShapeEditors are visual graph editors. Envelopes are visual graph editors that can modulate ShapeEditor parameters.
+// The modulation speed of Envelopes can be set with a FrequencyPanel. Envelopes and FrequencyPanels are stored
+// and managed inside EnvelopeManager.
 
 #pragma once
 
@@ -127,6 +124,11 @@ class TopMenuBar: InteractiveGUIElement {
 
 class ShapePoint;
 
+// A shape editor is a region on the UI that can be used to design a curve by adding, moving and deleting points between
+// which the curve is interpolated. The way the curve is interpolated in each region between two points ("curve segment")
+// can be chosen from a dialog box by rightclicking the point to the right of the segment. There are the options power
+// and sine, see implementation for more details. Some shapes can further be edited by dragging the center of the
+// curve.
 class ShapeEditor : public InteractiveGUIElement {
     protected:
     ShapePoint *currentlyDragging = nullptr; // Pointer to the ShapePoint that is currently edited by the user.
@@ -170,15 +172,13 @@ class ShapeEditor : public InteractiveGUIElement {
 
 class ModulatedParameter;
 
-/*The phase of Envelopes is periodic and dependent on time. The frequency with which an Envelope oscillates
-can be cahnged by the user by adjusting a "counter" which displays a number. There are different modes
-determining how this number is interpreted:
-    -envelopeFrequencyTempo: the Envelope loops n times per beat, where n is a power of 2 or one over a power of 2.
-    -envelopeFrequencyTempoTriplets: similar to previous, except that it loops in a triplet pattern.
-    -envelopeFrequencySeconds: the period of the oscillation in seconds can be set directly using the counter.
-
-The FrequencyPanels that control these properties are stored in EnvelopeManager and only referenced in Envelope.
-*/
+// Envelopes modulate ShapeEditor parameters in a periodic and timedependent manner. The frequency
+// can be changed by the user by adjusting a "counter" which displays a number. There are different modes
+// determining how this number is interpreted:
+//     -envelopeFrequencyTempo: the Envelope loops n times per beat, where n is a power of 2 or one over a power of 2.
+//     -envelopeFrequencySeconds: the period of the oscillation in seconds can be set directly using the counter.
+//
+// The FrequencyPanels that control these properties are stored in EnvelopeManager and only referenced in Envelope.
 
 // An InteractiveGUIElement that lets the user change the frequency with which the corresponding Envelope loops.
 // There is one FrequencyPanel for each Envelope in EnvelopeManager, of which only the one corresponding to the active Envelope is displayed.
@@ -242,8 +242,9 @@ class Envelope : public ShapeEditor{
 
 // Class in which Envelopes can be edited and linked to Parameters of the ShapeEditors.
 //
-// Consists of three parts: An Envelope, a selection panel left to the Envelope and a tool panel below Envelope and selection panel.
+// Consists of four parts: An Envelope, a selection panel left to the Envelope and a frequency panel and tool panel below Envelope and selection panel.
 // Only one Envelope is displayed and editable, the active Envelope can be switched on the selection panel. The tool panel shows knobs for all ModulatedParameters that are linked to the active Envelope. These knobs control the modulation amount of the corresponding parameter.
+// The frequency panel can be used to change the modulation speed of the active Envelope.
 class EnvelopeManager : public InteractiveGUIElement {
     private:
     uint32_t clickedX; // x-position of last mouseclick

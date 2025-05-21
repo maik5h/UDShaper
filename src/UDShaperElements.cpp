@@ -1,4 +1,4 @@
-#include "shapeEditor.h"
+#include "UDShaperElements.h"
 #include "logging.h"
 
 // Claculates the power of the curve for the interpolation mode power from the y value at x=0.5.

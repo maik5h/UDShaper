@@ -7,7 +7,7 @@
 #include <windowsx.h>
 #include "assets.h"
 #include <clap/clap.h>
-#include "shapeEditor.h"
+#include "UDShaperElements.h"
 
 struct GUI {
 	HWND window; // GUI window.

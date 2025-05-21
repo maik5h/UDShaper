@@ -11,7 +11,7 @@
 #include <chrono>
 #include <clap/clap.h>
 #include "config.h"
-#include "src/shapeEditor.h"
+#include "src/UDShaperElements.h"
 #include "src/GUI.h"
 #include "src/assets.h"
 #include "src/UDShaper.h"
