@@ -1,8 +1,5 @@
 #include "GUILayout.h"
 
-uint32_t GUISize::width = GUI_WIDTH_INIT;
-uint32_t GUISize::height = GUI_HEIGHT_INIT;
-
 // Sets the coordinates of all sub-elements according to the given width and height values.
 void UDShaperLayout::setCoordinates(uint32_t width, uint32_t height) {
         GUIWidth = width;

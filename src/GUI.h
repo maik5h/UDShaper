@@ -12,6 +12,8 @@
 struct GUI {
 	HWND window; // GUI window.
 	uint32_t *bits; // GUI bitmap buffer. Has size GUI_WIDTH * GUI_HEIGHT with eight bit for each color channel and alpha channel.
+	uint32_t width;		// Width of the GUI.
+	uint32_t height;	// Height of the GUI.
 };
 
 void GUIPaint(UDShaper *plugin, bool internal);

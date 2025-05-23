@@ -132,8 +132,8 @@ LRESULT CALLBACK GUIWindowProcedure(HWND window, UINT message, WPARAM wParam, LP
 		case WM_PAINT: {
 			PAINTSTRUCT paint;
 			HDC dc = BeginPaint(window, &paint);
-			BITMAPINFO info = { { sizeof(BITMAPINFOHEADER), GUISize::width, -GUISize::height, 1, 32, BI_RGB } };
-			StretchDIBits(dc, 0, 0, GUISize::width, GUISize::height, 0, 0, GUISize::width, GUISize::height, plugin->gui->bits, &info, DIB_RGB_COLORS, SRCCOPY);
+			BITMAPINFO info = { { sizeof(BITMAPINFOHEADER), plugin->gui->width, -plugin->gui->height, 1, 32, BI_RGB } };
+			StretchDIBits(dc, 0, 0, plugin->gui->width, plugin->gui->height, 0, 0, plugin->gui->width, plugin->gui->height, plugin->gui->bits, &info, DIB_RGB_COLORS, SRCCOPY);
 			EndPaint(window, &paint);
 			break;
 		}
@@ -225,6 +225,8 @@ LRESULT CALLBACK GUIWindowProcedure(HWND window, UINT message, WPARAM wParam, LP
 // Creates windowclass and window and draws some elements on the GUI, that are not updated afterwards, such as frames around elements.
 void GUICreate(UDShaper *plugin, clap_plugin_descriptor_t pluginDescriptor) {
 	plugin->gui = new GUI();
+	plugin->gui->width = GUI_WIDTH_INIT;
+	plugin->gui->height = GUI_HEIGHT_INIT;
 
 	if (globalOpenGUICount++ == 0) {
 		WNDCLASS windowClass = {};
@@ -237,8 +239,8 @@ void GUICreate(UDShaper *plugin, clap_plugin_descriptor_t pluginDescriptor) {
 	}
 
 	plugin->gui->window = CreateWindow(pluginDescriptor.id, pluginDescriptor.name, WS_CHILDWINDOW | WS_CLIPSIBLINGS, 
-			CW_USEDEFAULT, 0, GUISize::width, GUISize::height, GetDesktopWindow(), NULL, NULL, NULL);
-	plugin->gui->bits = (uint32_t *) calloc(1, GUISize::width * GUISize::height * 4);
+			CW_USEDEFAULT, 0, plugin->gui->width, plugin->gui->height, GetDesktopWindow(), NULL, NULL, NULL);
+	plugin->gui->bits = (uint32_t *) calloc(1, plugin->gui->width * plugin->gui->height * 4);
 	SetWindowLongPtr(plugin->gui->window, 0, (LONG_PTR) plugin);
 
 	plugin->renderGUI(plugin->gui->bits);

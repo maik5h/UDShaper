@@ -206,10 +206,10 @@ static const clap_plugin_gui_t extensionGUI = {
 	.set_size = [] (const clap_plugin_t *_plugin, uint32_t width, uint32_t height) -> bool {
 		UDShaper *plugin = (UDShaper *) _plugin->plugin_data;
 
-		uint32_t previousWidth = GUISize::width;
+		uint32_t previousWidth = plugin->gui->width;
 
-		GUISize::width = width;
-		GUISize::height = height;
+		plugin->gui->width = width;
+		plugin->gui->height = height;
 
 		// Free previous memory and allocate new block that matches the new size.
 		free(plugin->gui->bits);

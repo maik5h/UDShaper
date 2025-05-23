@@ -1,21 +1,13 @@
 // Structs to manage the sizes and positions of GUI elements are defined in the following.
-// There is a static struct GUISize, which holds width and height of the GUI. It is used to access the
-// current values from within gui_w32.cpp.
 // The struct UDShaperElementCoordinates stores box coordinates of all UDShaper GUI elements such as ShapeEditors
 // and the EnvelopeManager. The setCoordinates method calculates the coordinates of all elements corresonding
-// to a given GUISize. ShapeEditorCoordinates, FrequencyPanelCoordinates and TopMenuBarCoordinates work similar.
+// to a given GUI size. ShapeEditorCoordinates, FrequencyPanelCoordinates and TopMenuBarCoordinates work similar.
 //
 // Rendering of the GUI is handled in the individual GUI elements of the plugin in shapeEditor.cpp.
 
 #pragma once
 
 #include "../config.h"
-
-// Static struct to store GUI width and height. Whenever this is changed, the size of all UDShaper GUI elements has to be updated.
-struct GUISize {
-    static uint32_t width;  // Width of the full UDShaper GUI.
-    static uint32_t height; // Height of the full UDShaper GUI.
-};
 
 // Stores box coordinates of the main elements of UDShaper.
 // Box coordinates corresponding to a specific window width and height are calculated by setCoordinates().
