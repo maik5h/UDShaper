@@ -25,10 +25,8 @@
 //
 // Uses Mutex but should be fast enough to not cause major delays in processing. 
 void reportPlaybackStatusToMain(UDShaper *plugin, const clap_process_t *process) {
-	int samplerate = 44100; // TODO how to get actual sr????
-
 	long processStartTime = getCurrentTime(); // The time at sample 0 of this process.
-	long processStopTime = processStartTime + (long)(1000 * process->frames_count / samplerate); // The time at the last sample of this process.
+	long processStopTime = processStartTime + (long)(1000 * process->frames_count / plugin->samplerate); // The time at the last sample of this process.
 	double processStartPosition = (double)process->transport->song_pos_beats / CLAP_BEATTIME_FACTOR; // The beatPosition at sample 0 of this process.
 	bool isPlaying = (process->transport->flags & CLAP_TRANSPORT_IS_PLAYING);
 
@@ -337,6 +335,7 @@ static const clap_plugin_t pluginClass = {
 
 	.activate = [] (const clap_plugin *_plugin, double sampleRate, uint32_t minimumFramesCount, uint32_t maximumFramesCount) -> bool {
 		UDShaper *plugin = (UDShaper *) _plugin->plugin_data;
+		plugin->samplerate = sampleRate;
 		return true;
 	},
 

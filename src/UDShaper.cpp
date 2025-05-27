@@ -220,9 +220,6 @@ void UDShaper::renderAudio(const clap_process_t *process) {
             float previousLevelL;
             float previousLevelR;
 
-            // TODO get current samplerate
-            int samplerate = 44100;
-
             for (uint32_t index = start; index < end; index++) {
                 // for modulation faster than buffer rate, modulate parameters with updated beatPosition for every sample
                 // tempo is beats per minute, so tempo / 60 is beats per second. samplerate is samples per second, so tempo/60 * samplerate is beats per sample.

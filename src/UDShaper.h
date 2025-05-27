@@ -53,6 +53,8 @@ class UDShaper {
 	double initBeatPosition;
 	double currentTempo;
 
+	double samplerate; // The current samplerate of the host.
+
 	UDShaper();
 	~UDShaper();
 
