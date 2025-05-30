@@ -55,6 +55,21 @@ void UDShaper::processMouseDrag(uint32_t x, uint32_t y) {
         shapeEditor2->processMouseDrag(x, y);
 
         envelopes->processMouseDrag(x, y);
+
+        // If the user is trying to add a modulation link, highlight the positions on the GUI where links
+        // can be connected.
+        // Setting highlightModulatedParameters to true will highlight all possible parameters.
+        if (envelopes->currentDraggingMode == addLink) {
+            shapeEditor1->highlightModulatedParameters = true;
+            shapeEditor2-> highlightModulatedParameters = true;
+        }
+    }
+    else {
+        // If the cursor hovers over a link knob, highlight the point corresponding to this knob.
+        // The highlight state is not updated while dragging in order to
+        // a) not highlight while dragging another element, which might be confusing
+        // b) more importantly, keep highlighted when turning a knob and moving outside the knob range.
+        envelopes->highlightHoveredParameter(x, y);
     }
 }
 

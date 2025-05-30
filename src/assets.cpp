@@ -37,6 +37,18 @@ void drawPoint(uint32_t *canvas, uint32_t GUIWidth, float x, float y, uint32_t c
     }
 }
 
+// Draws a circle with a given width and radius to position (x, y) on canvas. radius gives the radius of the
+// outer edge.
+void drawCircle(uint32_t *canvas, uint32_t GUIWidth, uint32_t posX, uint32_t posY, uint32_t color, uint32_t radius, uint32_t width) {
+    for (int y=-static_cast<int>(radius); y<static_cast<int>(radius); y++) {
+        for (int x=-static_cast<int>(radius); x<static_cast<int>(radius); x++) {
+            if (x*x + y*y <= radius*radius && x*x + y*y > (radius - width)*(radius - width)) {
+                canvas[(y + posY)*GUIWidth + posX + x] = color;
+            }
+        }
+    }
+}
+
 // Draws a simple frame to canvas. The frame extends the number of pixel given in thickness from the innerBox.
 void drawFrame(uint32_t *canvas, uint32_t GUIWidth, uint32_t innerBox[4], int thickness, uint32_t color, float alpha){
     for (int i=innerBox[1] - thickness; i<innerBox[3] + thickness; i++){

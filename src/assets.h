@@ -36,6 +36,8 @@ void fillRectangle(uint32_t *canvas, uint32_t GUIWidth, uint32_t XYXY[4], uint32
 
 void drawPoint(uint32_t *canvas, uint32_t GUIWidth, float x, float y, uint32_t color = 0x000000, float size = 5);
 
+void drawCircle(uint32_t *canvas, uint32_t GUIWidth, uint32_t x, uint32_t y, uint32_t color = 0x000000, uint32_t radius = 20, uint32_t width = 4);
+
 void drawFrame(uint32_t *canvas, uint32_t GUIWidth, uint32_t innerRectangle[4], int thickness = 15, uint32_t color = 0x000000, float alpha = 1);
 
 void draw3DFrame(uint32_t *canvas, uint32_t GUIWidth, uint32_t innerRectangle[4], uint32_t baseColor, int thickness = 15);

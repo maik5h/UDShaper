@@ -24,6 +24,7 @@
 #include "assets.h"
 #include "string_presets.h"
 #include "GUILayout.h"
+#include "logging.h"
 
 // Distortion modes of the UDShaper plugin.
 enum distortionMode {
@@ -56,6 +57,7 @@ enum envelopeManagerDraggingMode{
 
 // Different parameters modulated by envelopes require different treatment. These are the types of parameters that can be modulated.
 enum modulationMode{
+    modNone,            // No modulation.
     modCurveCenterY,    // Modulation affects whatever value is associated with the curveCenterPosY in the current interpolation mode.
     modPosX,            // Modulation changes the x-position of the modulated ShapePoint.
     modPosY             // Modulation changes the y-position of the modulated ShapePoint.
@@ -142,6 +144,8 @@ class ShapeEditor : public InteractiveGUIElement {
     const int index; // Can be used to distinguish this instance of ShapeEditor to others. Is used in the serialization to associate ShapePoints with the correct instance.
 
     shapeEditorDraggingMode currentDraggingMode = none; // Indicates which action should be performed when processing the mouse drag. Is set based on the position where the dragging started.
+
+    bool highlightModulatedParameters = false; // Set to true to draw circles around ShapePoints and curve center points.
 
     //Pointer to the first ShapePoint in this ShapeEditor. ShapePoints are stored in a doubly linked list.
     //
@@ -281,6 +285,8 @@ class EnvelopeManager : public InteractiveGUIElement {
     void renderGUI(uint32_t	*canvas, double beatPosition = 0, double secondsPlayed = 0);
     void rescaleGUI(uint32_t newXYXY[4], uint32_t newWidth, uint32_t newHeight);
     void setupForRerender();
+
+    void highlightHoveredParameter(uint32_t x, uint32_t y);
 
     void processMenuSelection(WPARAM wParam);
     void addModulatedParameter(ShapePoint *point, float amount, modulationMode mode);

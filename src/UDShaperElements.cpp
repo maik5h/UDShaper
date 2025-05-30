@@ -210,6 +210,8 @@ class ShapePoint{
     float sineOmega; // Omega for the shapeSine interpolation mode.
     Shapes mode = shapePower; // Interpolation mode between this and previous point.
 
+    modulationMode highlightMode = modNone; // Highlights the point or curve center point on the GUI if not modNone.
+
     /*x, y are relative positions on the graph editor, e.g. they must be between 0 and 1
     editorSize is screen coordinates of parent shapeEditor in XYXY notation: {xMin, yMin, xMax, yMax}
     previousPoint is pointer to the next ShapePoint on the left hand side of the current point. If there is no point to the left, should be nullptr
@@ -551,6 +553,18 @@ void ShapeEditor::renderGUI(uint32_t *canvas, double beatPosition, double second
     for (ShapePoint *point = shapePoints->next; point != nullptr; point = point->next){
         drawPoint(canvas, layout.GUIWidth, point->getAbsPosX(beatPosition, secondsPlayed), point->getAbsPosY(beatPosition, secondsPlayed), colorCurve, RELATIVE_POINT_SIZE*layout.GUIWidth);
         drawPoint(canvas, layout.GUIWidth, point->getCurveCenterAbsPosX(beatPosition, secondsPlayed), point->getCurveCenterAbsPosY(beatPosition, secondsPlayed), colorCurve, RELATIVE_POINT_SIZE_SMALL*layout.GUIWidth);
+    
+        // Highlight some or all ModulatedParameters. Highlighting is done by drawing a circle around
+        // either the point or curve center point of this ShapePoint instance.
+        // If highlightModulatedParameters is true, highlight all parameters.
+        // If highlightMode of the corresponding point is not modNone, highlight this point even if
+        // highlightModulatedParameters is false.
+        if (highlightModulatedParameters || point->highlightMode == modCurveCenterY) {
+            drawCircle(canvas, layout.GUIWidth, point->getCurveCenterAbsPosX(beatPosition, secondsPlayed), point->getCurveCenterAbsPosY(beatPosition, secondsPlayed), colorCurve, RELATIVE_POINT_SIZE*layout.GUIWidth);
+        }
+        if (highlightModulatedParameters || point->highlightMode == modPosX || point->highlightMode == modPosY) {
+            drawCircle(canvas, layout.GUIWidth, point->getAbsPosX(beatPosition, secondsPlayed), point->getAbsPosY(beatPosition, secondsPlayed), colorCurve, RELATIVE_POINT_SIZE*layout.GUIWidth);
+        }
     }
 }
 
@@ -605,6 +619,10 @@ void ShapeEditor::processMenuSelection(WPARAM wParam){
 void ShapeEditor::processMouseRelease(uint32_t x, uint32_t y){
     currentlyDragging = nullptr;
     currentDraggingMode = none;
+
+    // ModulatedParameters should only be indicated on the GUI while dragging, so reset
+    // highlightModulatedParameters on release.
+    highlightModulatedParameters = false;
 }
 
 // Draws the connection corresponding to ShapePoint *point (from the previous SHapePoint up to this one).
@@ -1051,6 +1069,10 @@ void Envelope::setModulatedParameterAmount(int index, float amount){
 }
 
 void Envelope::removeModulatedParameter(int index){
+    // Remove highlighting from parent point.
+    ShapePoint *point = const_cast<ShapePoint*>(modulatedParameters.at(index)->getParentPoint());
+    point->highlightMode = modNone;
+
     // First remove this Envelope from the list of modulators of the parameter.
     modulatedParameters.at(index)->removeModulator(this);
 
@@ -1293,6 +1315,37 @@ void EnvelopeManager::processRightClick(uint32_t x, uint32_t y){
     
     envelopes.at(activeEnvelopeIndex).processRightClick(x, y);
     frequencyPanels.at(activeEnvelopeIndex).processRightClick(x, y);
+}
+
+// Draws a circle around the parameter corresponding to a link knob close to cursor position (x, y).
+// Is used to show which parameter a knob belongs to if the cursor hovers over it.
+void EnvelopeManager::highlightHoveredParameter(uint32_t x, uint32_t y) {
+    uint32_t box[4]; // Stores coordinates of the box corresponding to a link knob.
+    ShapePoint *highlighted = nullptr; // Pointer to the ShapePoint corresponding to the link knob, over which the cursor hovers.
+
+    for (int i=0; i<envelopes[activeEnvelopeIndex].getModulatedParameterNumber(); i++){
+        uint32_t spacing = RELATIVE_LINK_KNOB_SPACING * layout.GUIWidth;
+        // Find the box coordinates of the knob.
+        box[0] = layout.knobsXYXY[0] + spacing*i;
+        box[1] = layout.knobsXYXY[1];
+        box[2] = layout.knobsXYXY[0] + spacing*(i+1);
+        box[3] = layout.knobsXYXY[1] + spacing;
+
+        // Get the parent point and modulation mode of the i-th ModulatedParameter.
+        ShapePoint *point = const_cast<ShapePoint*>(envelopes.at(activeEnvelopeIndex).modulatedParameters.at(i)->getParentPoint());
+        modulationMode mode = envelopes.at(activeEnvelopeIndex).modulatedParameters.at(i)->mode;
+
+        // If mouse is in these coordinates, mark the parameter as highlighted.
+        if (isInBox(x, y, box)) {
+            point->highlightMode = mode;
+            highlighted = point;
+        }
+        // As there are multiple modulation modes per point, it is possible to have multiple links to the same point.
+        // Remove the highlighting only if point has not been processed yet.
+        else if (point != highlighted) {
+            point->highlightMode = modNone;
+        }
+    }
 }
 
 void EnvelopeManager::processMenuSelection(WPARAM wParam){
