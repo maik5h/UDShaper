@@ -7,7 +7,7 @@
 #include <fstream>
 #include <iostream>
 
-class Logger {
+struct Logger {
     // Indicates whether the plugin is in debug mode. Effectively deactivates logToFile(), which should never
     // be used outside debugging as it is just a temporary solution.
     static bool debugMode;
