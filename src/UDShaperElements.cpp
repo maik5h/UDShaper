@@ -1198,15 +1198,36 @@ void EnvelopeManager::setActiveEnvelope(int index){
 void EnvelopeManager::setupFrames(uint32_t *canvas){
     fillRectangle(canvas, layout.GUIWidth, layout.selectorXYXY, colorBackground);
 
+    // Draw frame around the Envelope.
     draw3DFrame(canvas, layout.GUIWidth, layout.editorInnerXYXY, colorEditorBackground, RELATIVE_FRAME_WIDTH*layout.GUIWidth);
 
-    // Fill one rectangle at the left of the Envelop in the same color as the Envelope. y-range is the Envelope y-range divided by the number of Envelopes.
-    uint32_t rectYRange = (uint32_t)(layout.editorInnerXYXY[3] - layout.editorInnerXYXY[1]) / envelopes.size();
-    for (uint32_t y = layout.selectorXYXY[1] + activeEnvelopeIndex*rectYRange; y<layout.selectorXYXY[1] + (activeEnvelopeIndex + 1)*rectYRange; y++){
-        for (uint32_t x = layout.selectorXYXY[0]; x<=layout.editorInnerXYXY[0]; x++){
-            canvas[x + y * layout.GUIWidth] = colorEditorBackground;
-        }
+    // To draw the selector panel left the the Envelope, first reset the whole area to the background color.
+    fillRectangle(canvas, layout.GUIWidth, layout.selectorXYXY, colorBackground);
+
+    // Fill one rectangle at the left of the Envelope in the same color as the Envelope.
+    // It indicates which Envelope is currently selected.
+    // boxYRange is the Envelope y-range divided by the number of Envelopes.
+    float boxYRange = (layout.editorInnerXYXY[3] - layout.editorInnerXYXY[1]) / envelopes.size();
+
+    // The box to be filled in:
+    uint32_t selectorBox[4] = {
+        layout.selectorXYXY[0] + RELATIVE_FRAME_WIDTH*layout.GUIWidth,
+        layout.selectorXYXY[1] + static_cast<uint32_t>(activeEnvelopeIndex*boxYRange) + RELATIVE_FRAME_WIDTH*layout.GUIWidth,
+        layout.selectorXYXY[2],
+        layout.selectorXYXY[1] + static_cast<uint32_t>((activeEnvelopeIndex + 1)*boxYRange) + RELATIVE_FRAME_WIDTH*layout.GUIWidth};
+
+    // Rounding errors can lead to a mismatch between the box and the Envelope positions. This is only visible when the last Envelope is active.
+    // If the last Envelope is selected, set the lower y-position of the box to match the lower y-position of the Envelope.
+    if (activeEnvelopeIndex == envelopes.size() - 1) {
+        selectorBox[3] = layout.editorInnerXYXY[3];
     }
+
+    // Draw partial frame around the box.
+    drawPartial3DFrame(canvas, layout.GUIWidth, selectorBox, colorEditorBackground, RELATIVE_FRAME_WIDTH*layout.GUIWidth);
+
+    // Fill the box with the Envelope background color. The box is larger in x-direction to overlap with the frame around the Envelope.
+    selectorBox[2] += RELATIVE_FRAME_WIDTH*layout.GUIWidth;
+    fillRectangle(canvas, layout.GUIWidth, selectorBox, colorEditorBackground);
 }
 
 // Draws the GUI of this EnvelopeManager to canvas. Always calls renderGUI on the active Envelope but renders 3D frames, Envelope selection panel and tool panel only if they have been changed.

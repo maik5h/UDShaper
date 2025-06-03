@@ -116,10 +116,11 @@ void EnvelopeManagerLayout::setCoordinates(uint32_t XYXY[4], uint32_t inGUIWidth
 
         // The selector panel is positioned directly to the left of Envelope, with the same y-extent as the Envelope.
         // editorXYXY is the full size of the graph editor. selectorXYXY has to take the width of the 3D into account.
+        // It is expanded by one pixel in x-direction to connect to the editorXYXY.
         selectorXYXY[0] = fullXYXY[0];
-        selectorXYXY[1] = fullXYXY[1] + RELATIVE_FRAME_WIDTH * GUIWidth;
-        selectorXYXY[2] = editorInnerXYXY[0];
-        selectorXYXY[3] = editorInnerXYXY[3];
+        selectorXYXY[1] = fullXYXY[1];
+        selectorXYXY[2] = editorXYXY[0] + 1;
+        selectorXYXY[3] = editorXYXY[3];
 
         // The knobs are positioned below the Envelope, with the same x-extent as the Envelope.
         // For y-position, take width of the 3D frame around the active Envelope into account.

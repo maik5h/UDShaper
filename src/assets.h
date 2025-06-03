@@ -42,6 +42,8 @@ void drawFrame(uint32_t *canvas, uint32_t GUIWidth, uint32_t innerRectangle[4], 
 
 void draw3DFrame(uint32_t *canvas, uint32_t GUIWidth, uint32_t innerRectangle[4], uint32_t baseColor, int thickness = 15);
 
+void drawPartial3DFrame(uint32_t *canvas, uint32_t GUIWidth, uint32_t innerRectangle[4], uint32_t baseColor, uint32_t thickness = 15);
+
 void drawGrid(uint32_t *canvas, uint32_t GUIWidth, uint32_t box[4], int numberLines, int thickness, uint32_t color, float alpha=1);
 
 void drawArrow(uint32_t *canvas, uint32_t GUIWidth, uint32_t box[4], bool up, float sizeFactor);

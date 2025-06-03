@@ -90,7 +90,6 @@ void draw3DFrame(uint32_t *canvas, uint32_t GUIWidth, uint32_t innerBox[4], uint
         }
     }
 
-
     // draw right edge in colorDark1
     for (int i=0; i<thickness; i++){
         for (int y=innerBox[1] - i; y<innerBox[3] + i; y++){
@@ -98,6 +97,35 @@ void draw3DFrame(uint32_t *canvas, uint32_t GUIWidth, uint32_t innerBox[4], uint
         }
     }
 };
+
+// Draws a 3D frame similar to the function draw3DFrame, but the segment on the right is missing and connects to another 3D frame positioned to the right.
+void drawPartial3DFrame(uint32_t *canvas, uint32_t GUIWidth, uint32_t innerBox[4], uint32_t baseColor, uint32_t thickness) {
+    uint32_t colorBright1 = blendColor(colorBackground, 0xFFFFFF, 0.52);
+    uint32_t colorBright2 = blendColor(colorBackground, 0xFFFFFF, 0.4);
+    uint32_t colorDark1 = blendColor(colorBackground, 0x000000, 0.2);
+    uint32_t colorDark2 = blendColor(colorBackground, 0x000000, 0.3);
+
+    // Draw upper edge in colorDark2. Corner on the right is y-mirrored compared to the edge in regular 3D frames.
+    for (int y=0; y<thickness; y++){
+        for (int x=innerBox[0] - y; x<innerBox[2] + thickness - y; x++){
+            canvas[x + (innerBox[1] - y) * GUIWidth] = colorDark2;
+        }
+    }
+
+    // Draw lower edge in colorBright1. Corner on the right is y-mirrored compared to the edge in regular 3D frames.
+    for (int y=0; y<thickness; y++){
+        for (int x=innerBox[0] - y; x<innerBox[2] + thickness - y; x++){
+            canvas[x + (innerBox[3] + y) * GUIWidth] = colorBright1;
+        }
+    }
+
+    // Draw left edge in colorBright2.
+    for (int x=0; x<thickness; x++){
+        for (int y=innerBox[1] - x; y<innerBox[3] + x; y++){
+            canvas[innerBox[0] - x + y * GUIWidth] = colorBright2;
+        }
+    }
+}
 
 // Draws a grid inside box to canvas. Thickness is not yet implemented.
 void drawGrid(uint32_t *canvas, uint32_t GUIWidth, uint32_t box[4], int numberLines, int thickness, uint32_t color, float alpha){
