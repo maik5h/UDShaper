@@ -9,6 +9,8 @@
 #include <cmath>
 #include "../config.h"
 
+uint32_t blendColor(uint32_t originalColor, uint32_t newColor, double alpha);
+
 // Abstract base class for all elements that contribute to the plugin GUI and react to user inputs.
 class InteractiveGUIElement {
     virtual void processLeftClick(uint32_t x, uint32_t y) = 0;

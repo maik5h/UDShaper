@@ -26,8 +26,8 @@ constexpr uint32_t colorCurve = 0xFFFFFF;
 constexpr float SHAPE_MAX_POWER = 30;       // Maximum of the power parameter of ShapePoints.
 constexpr float SHAPE_MIN_OMEGA = 10E-3;    // Minimum omega of SHapePoints.
 
-constexpr float RELATIVE_LINK_KNOB_SPACING = 100. / 1600;   // Distance between link knobs below the active Envelope of the EnvelopeManager.
-constexpr float RELATIVE_LINK_KNOB_SIZE = 40. / 1600;       // Size of the link knobs below the active Envelope of the EnvelopeManager.
+constexpr uint32_t MAX_NUMBER_LINKS = 12;               // Maximum number of links to a ModulatedParameter for a single Envelope.
+constexpr float RELATIVE_LINK_KNOB_SIZE = 40. / 1600;       // Diameter of the link knobs below the active Envelope of the EnvelopeManager relative to the GUI width..
 constexpr float KNOB_SENSITIVITY = 1./150;                  // How much the value of a knob changes when the mouse moves one pixel on the screen.
 constexpr float COUNTER_SENSITIVITY = 1./40;                // How much the value of the counter changer when the mouse moves one pixel on the screen.
 

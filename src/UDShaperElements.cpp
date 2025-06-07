@@ -1228,6 +1228,9 @@ void EnvelopeManager::setupFrames(uint32_t *canvas){
     // Fill the box with the Envelope background color. The box is larger in x-direction to overlap with the frame around the Envelope.
     selectorBox[2] += RELATIVE_FRAME_WIDTH*layout.GUIWidth;
     fillRectangle(canvas, layout.GUIWidth, selectorBox, colorEditorBackground);
+
+    // Draw a 3D frame around the link knobs below the Envelope.
+    draw3DFrame(canvas, layout.GUIWidth, layout.knobsInnerXYXY, colorEditorBackground, RELATIVE_FRAME_WIDTH*layout.GUIWidth);
 }
 
 // Draws the GUI of this EnvelopeManager to canvas. Always calls renderGUI on the active Envelope but renders 3D frames, Envelope selection panel and tool panel only if they have been changed.
@@ -1273,12 +1276,12 @@ void EnvelopeManager::setupForRerender() {
 // Draws the knobs for the ModulatedParameters of the active Envelope to the tool panel. Knobs are positioned next to each other sorted by their index in the modulatedParameters vector of the parent Envelope.
 void EnvelopeManager::drawKnobs(uint32_t *canvas){
     // first reset whole area
-    fillRectangle(canvas, layout.GUIWidth, layout.knobsXYXY);
+    fillRectangle(canvas, layout.GUIWidth, layout.knobsInnerXYXY, blendColor(colorBackground, 0x000000, 0.1));
 
     for (int i=0; i<envelopes[activeEnvelopeIndex].getModulatedParameterNumber(); i++){
         float amount = envelopes[activeEnvelopeIndex].getModAmount(i); // modulation amount of the ith ModulatedParameter
-        uint32_t spacing = RELATIVE_LINK_KNOB_SPACING * layout.GUIWidth;
-        drawLinkKnob(canvas, layout.GUIWidth, layout.knobsXYXY[0] + spacing*i + spacing/2, layout.knobsXYXY[1] + (int)(spacing/2), RELATIVE_LINK_KNOB_SIZE * layout.GUIWidth, amount);
+        uint32_t spacing = static_cast<uint32_t>((layout.knobsInnerXYXY[2] - layout.knobsInnerXYXY[0]) / MAX_NUMBER_LINKS);
+        drawLinkKnob(canvas, layout.GUIWidth, layout.knobsInnerXYXY[0] + spacing*i + spacing/2, static_cast<uint32_t>((layout.knobsXYXY[3] + layout.knobsXYXY[1]) / 2), RELATIVE_LINK_KNOB_SIZE * layout.GUIWidth, amount);
     }
 }
 
@@ -1301,8 +1304,8 @@ void EnvelopeManager::processLeftClick(uint32_t x, uint32_t y){
 
     // check if it has been clicked on any of the LinkKnobs and set currentdragging mode to moveKnob if true
     for (int i=0; i<envelopes.at(activeEnvelopeIndex).getModulatedParameterNumber(); i++){
-        uint32_t spacing = RELATIVE_LINK_KNOB_SPACING * layout.GUIWidth;
-        if (isInPoint(x, y, layout.knobsXYXY[0] + spacing*i + spacing/2, layout.knobsXYXY[1] + (int)(spacing/2), RELATIVE_LINK_KNOB_SIZE*layout.GUIWidth)){
+        uint32_t spacing = static_cast<uint32_t>((layout.knobsInnerXYXY[2] - layout.knobsInnerXYXY[0]) / MAX_NUMBER_LINKS);;
+        if (isInPoint(x, y, layout.knobsInnerXYXY[0] + spacing*i + spacing/2, static_cast<uint32_t>((layout.knobsXYXY[3] + layout.knobsXYXY[1]) / 2), static_cast<int>(RELATIVE_LINK_KNOB_SIZE*layout.GUIWidth / 2))){
             selectedKnob = i;
             selectedKnobAmount = envelopes.at(activeEnvelopeIndex).getModAmount(i);
             currentDraggingMode = moveKnob;
@@ -1326,8 +1329,8 @@ void EnvelopeManager::processDoubleClick(uint32_t x, uint32_t y){
 void EnvelopeManager::processRightClick(uint32_t x, uint32_t y){
     // check all knobs if they have been rightclicked
     for (int i=0; i<envelopes[activeEnvelopeIndex].getModulatedParameterNumber(); i++){
-        uint32_t spacing = RELATIVE_LINK_KNOB_SPACING * layout.GUIWidth;
-        if (isInPoint(x, y, layout.knobsXYXY[0] + spacing*i + spacing/2, layout.knobsXYXY[1] + (int)(spacing/2), RELATIVE_LINK_KNOB_SIZE*layout.GUIWidth)){
+        uint32_t spacing = static_cast<uint32_t>((layout.knobsInnerXYXY[2] - layout.knobsInnerXYXY[0]) / MAX_NUMBER_LINKS);;
+        if (isInPoint(x, y, layout.knobsInnerXYXY[0] + spacing*i + spacing/2, static_cast<uint32_t>((layout.knobsXYXY[3] + layout.knobsXYXY[1]) / 2), static_cast<int>(RELATIVE_LINK_KNOB_SIZE*layout.GUIWidth / 2))){
             selectedKnob = i;
             MenuRequest::requestedMenu = menuLinkKnob;
             return;
@@ -1345,12 +1348,12 @@ void EnvelopeManager::highlightHoveredParameter(uint32_t x, uint32_t y) {
     ShapePoint *highlighted = nullptr; // Pointer to the ShapePoint corresponding to the link knob, over which the cursor hovers.
 
     for (int i=0; i<envelopes[activeEnvelopeIndex].getModulatedParameterNumber(); i++){
-        uint32_t spacing = RELATIVE_LINK_KNOB_SPACING * layout.GUIWidth;
+        uint32_t spacing = static_cast<uint32_t>((layout.knobsInnerXYXY[2] - layout.knobsInnerXYXY[0]) / MAX_NUMBER_LINKS);;
         // Find the box coordinates of the knob.
-        box[0] = layout.knobsXYXY[0] + spacing*i;
-        box[1] = layout.knobsXYXY[1];
-        box[2] = layout.knobsXYXY[0] + spacing*(i+1);
-        box[3] = layout.knobsXYXY[1] + spacing;
+        box[0] = layout.knobsInnerXYXY[0] + spacing*i;
+        box[1] = layout.knobsInnerXYXY[1];
+        box[2] = layout.knobsInnerXYXY[0] + spacing*(i+1);
+        box[3] = layout.knobsInnerXYXY[1] + spacing;
 
         // Get the parent point and modulation mode of the i-th ModulatedParameter.
         ShapePoint *point = const_cast<ShapePoint*>(envelopes.at(activeEnvelopeIndex).modulatedParameters.at(i)->getParentPoint());
@@ -1438,7 +1441,10 @@ void EnvelopeManager::addModulatedParameter(ShapePoint *point, float amount, mod
     // TODO it would be better to not even show the option X in the context menu on attempted modulation, but it is not straightforward with the current implementation. This is easier even though slightly more confusing to the user.
     if ((mode == modPosX) && (point->next == nullptr)) return;
 
-    envelopes[activeEnvelopeIndex].addModulatedParameter(point, amount, mode, activeEnvelopeIndex);
+    // Dont add ModulatedParameter if the maximum amount is reached.
+    if (envelopes.at(activeEnvelopeIndex).modulatedParameters.size() == MAX_NUMBER_LINKS) return;
+
+    envelopes.at(activeEnvelopeIndex).addModulatedParameter(point, amount, mode, activeEnvelopeIndex);
     toolsUpdated = true;
 }
 

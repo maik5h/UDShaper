@@ -70,7 +70,8 @@ struct EnvelopeManagerLayout {
     uint32_t editorXYXY[4];         // Box coordinates of the full graph editor.
     uint32_t editorInnerXYXY[4];    // Box coordinates of the graph editor without the outer 3D frame.
     uint32_t selectorXYXY[4];       // Box coordinates of the selector panel left to the editor.
-    uint32_t knobsXYXY[4];          // Box coordinates of the knob panel below the editor and selector panel.
+    uint32_t knobsXYXY[4];          // Box coordinates of the full knob panel below the editor and selector panel.
+    uint32_t knobsInnerXYXY[4];     // Box coordinates of the knob panel without the outer 3D frame.
     uint32_t toolsXYXY[4];          // Box coordinates of the tool panel below the knob panel.
 
     void setCoordinates(uint32_t inFullXYXY[4], uint32_t GUIWidth, uint32_t GUIHeight);

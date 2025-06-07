@@ -127,7 +127,12 @@ void EnvelopeManagerLayout::setCoordinates(uint32_t XYXY[4], uint32_t inGUIWidth
         knobsXYXY[0] = editorXYXY[0];
         knobsXYXY[1] = (uint32_t)(fullXYXY[3] - 0.4*height) + RELATIVE_FRAME_WIDTH * GUIWidth;
         knobsXYXY[2] = fullXYXY[2];
-        knobsXYXY[3] = (uint32_t)(fullXYXY[3] - 0.2*height);
+        knobsXYXY[3] = (uint32_t)(fullXYXY[3] - 0.25*height);
+
+        knobsInnerXYXY[0] = knobsXYXY[0] + RELATIVE_FRAME_WIDTH * GUIWidth;
+        knobsInnerXYXY[1] = knobsXYXY[1] + RELATIVE_FRAME_WIDTH * GUIWidth;
+        knobsInnerXYXY[2] = knobsXYXY[2] - RELATIVE_FRAME_WIDTH * GUIWidth;
+        knobsInnerXYXY[3] = knobsXYXY[3] - RELATIVE_FRAME_WIDTH * GUIWidth;
 
         // Tools are positioned below knobs.
         toolsXYXY[0] = editorXYXY[0];
