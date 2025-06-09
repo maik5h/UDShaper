@@ -107,7 +107,7 @@ void EnvelopeManagerLayout::setCoordinates(uint32_t XYXY[4], uint32_t inGUIWidth
         editorXYXY[0] = (uint32_t)(fullXYXY[0] + 0.1*width);
         editorXYXY[1] = fullXYXY[1];
         editorXYXY[2] = fullXYXY[2];
-        editorXYXY[3] = (uint32_t)(fullXYXY[3] - 0.4*height);
+        editorXYXY[3] = (uint32_t)(fullXYXY[3] - 0.3*height);
 
         editorInnerXYXY[0] = editorXYXY[0] + RELATIVE_FRAME_WIDTH * GUIWidth;
         editorInnerXYXY[1] = editorXYXY[1] + RELATIVE_FRAME_WIDTH * GUIWidth;
@@ -125,9 +125,9 @@ void EnvelopeManagerLayout::setCoordinates(uint32_t XYXY[4], uint32_t inGUIWidth
         // The knobs are positioned below the Envelope, with the same x-extent as the Envelope.
         // For y-position, take width of the 3D frame around the active Envelope into account.
         knobsXYXY[0] = editorXYXY[0];
-        knobsXYXY[1] = (uint32_t)(fullXYXY[3] - 0.4*height) + RELATIVE_FRAME_WIDTH * GUIWidth;
+        knobsXYXY[1] = (uint32_t)(fullXYXY[3] - 0.3*height) + RELATIVE_FRAME_WIDTH * GUIWidth;
         knobsXYXY[2] = fullXYXY[2];
-        knobsXYXY[3] = (uint32_t)(fullXYXY[3] - 0.25*height);
+        knobsXYXY[3] = (uint32_t)(fullXYXY[3] - 0.15*height);
 
         knobsInnerXYXY[0] = knobsXYXY[0] + RELATIVE_FRAME_WIDTH * GUIWidth;
         knobsInnerXYXY[1] = knobsXYXY[1] + RELATIVE_FRAME_WIDTH * GUIWidth;
@@ -136,7 +136,7 @@ void EnvelopeManagerLayout::setCoordinates(uint32_t XYXY[4], uint32_t inGUIWidth
 
         // Tools are positioned below knobs.
         toolsXYXY[0] = editorXYXY[0];
-        toolsXYXY[1] = (uint32_t)(fullXYXY[3] - 0.2*height) + RELATIVE_FRAME_WIDTH * GUIWidth;
+        toolsXYXY[1] = (uint32_t)(fullXYXY[3] - 0.15*height) + RELATIVE_FRAME_WIDTH * GUIWidth;
         toolsXYXY[2] = fullXYXY[2];
         toolsXYXY[3] = fullXYXY[3];
     }
@@ -150,14 +150,16 @@ void FrequencyPanelLayout::setCoordinates(uint32_t XYXY[4], uint32_t inGUIWidth,
         fullXYXY[i] = XYXY[i];
     }
 
-    // TODO for now counter and button are just split in half. There is room for visual improvement
-    counterXYXY[0] = fullXYXY[0];
-    counterXYXY[1] = fullXYXY[1];
-    counterXYXY[2] = (uint32_t) (fullXYXY[2] + fullXYXY[0]) / 2;
-    counterXYXY[3] = fullXYXY[3];
+    uint32_t frame_width = static_cast<uint32_t>(RELATIVE_FRAME_WIDTH_NARROW * GUIWidth);
 
-    modeButtonXYXY[0] = (uint32_t) (fullXYXY[2] + fullXYXY[0]) / 2;
-    modeButtonXYXY[1] = fullXYXY[1];
-    modeButtonXYXY[2] = fullXYXY[2];
-    modeButtonXYXY[3] = fullXYXY[3];
+    // TODO for now counter and button are just split in half. There is room for visual improvement
+    counterXYXY[0] = fullXYXY[0] + frame_width;
+    counterXYXY[1] = fullXYXY[1] + frame_width;
+    counterXYXY[2] = (uint32_t) (fullXYXY[2] + fullXYXY[0]) / 2 - frame_width;
+    counterXYXY[3] = fullXYXY[3] - frame_width;
+
+    modeButtonXYXY[0] = (uint32_t) (fullXYXY[2] + fullXYXY[0]) / 2 + frame_width;
+    modeButtonXYXY[1] = fullXYXY[1] + frame_width;
+    modeButtonXYXY[2] = fullXYXY[2] - frame_width;
+    modeButtonXYXY[3] = fullXYXY[3] - frame_width;
 }
