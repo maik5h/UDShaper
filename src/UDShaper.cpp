@@ -153,7 +153,7 @@ void UDShaper::renderGUI(uint32_t *canvas) {
         fillRectangle(canvas, layout.GUIWidth, envelopes->layout.knobsInnerXYXY, blendColor(colorBackground, 0x000000, 0.1));
 
         // Draw frame around ShapeEditors.
-        drawFrame(canvas, layout.GUIWidth, layout.editorFrameXYXY, 0.003125 * layout.GUIWidth, 0x000000, 0.45);
+        drawFrame(canvas, layout.GUIWidth, layout.editorFrameXYXY, RELATIVE_FRAME_WIDTH_NARROW * layout.GUIWidth, 0x000000, 0.45);
 
         GUIInitialized = true;
     }

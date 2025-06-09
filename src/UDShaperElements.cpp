@@ -33,7 +33,7 @@ void TopMenuBar::processRightClick(uint32_t x, uint32_t y) {};
 
 void TopMenuBar::renderGUI(uint32_t *canvas, double beatPosition, double secondsPlayed) {
     if (updateLogo) {
-        drawTextBox(canvas, layout.GUIWidth, layout.GUIHeight, "Logo", layout.logoXYXY[0], layout.logoXYXY[1], layout.logoXYXY[2], layout.logoXYXY[3], false);
+        drawTextBox(canvas, layout.GUIWidth, layout.GUIHeight, "Logo", layout.logoXYXY[0], layout.logoXYXY[1], layout.logoXYXY[2], layout.logoXYXY[3], 0);
         updateLogo = false;
     }
     if (updateModeButton) {
@@ -59,8 +59,8 @@ void TopMenuBar::renderGUI(uint32_t *canvas, double beatPosition, double seconds
         }
 
         fillRectangle(canvas, layout.GUIWidth, layout.modeButtonXYXY);
-        drawTextBox(canvas, layout.GUIWidth, layout.GUIHeight, "Distortion mode", layout.modeButtonXYXY[0], layout.modeButtonXYXY[1], layout.modeButtonXYXY[2], (uint32_t) (layout.modeButtonXYXY[3] - layout.modeButtonXYXY[1]) / 2, false);
-        drawTextBox(canvas, layout.GUIWidth, layout.GUIHeight, modeText, layout.modeButtonXYXY[0], (uint32_t) (layout.modeButtonXYXY[3] - layout.modeButtonXYXY[1]) / 2, layout.modeButtonXYXY[2], layout.modeButtonXYXY[3], false);
+        drawTextBox(canvas, layout.GUIWidth, layout.GUIHeight, "Distortion mode", layout.modeButtonXYXY[0], layout.modeButtonXYXY[1], layout.modeButtonXYXY[2], (uint32_t) (layout.modeButtonXYXY[3] - layout.modeButtonXYXY[1]) / 2, 0);
+        drawTextBox(canvas, layout.GUIWidth, layout.GUIHeight, modeText, layout.modeButtonXYXY[0], (uint32_t) (layout.modeButtonXYXY[3] - layout.modeButtonXYXY[1]) / 2, layout.modeButtonXYXY[2], layout.modeButtonXYXY[3], static_cast<uint32_t>(RELATIVE_FRAME_WIDTH_NARROW * layout.GUIWidth));
         updateModeButton = false;
     }
 }
@@ -544,7 +544,7 @@ void ShapeEditor::renderGUI(uint32_t *canvas, double beatPosition, double second
     }
 
     drawGrid(canvas, layout.GUIWidth, layout.editorXYXY, 3, 2, 0xFFFFFF, alphaGrid);
-    drawFrame(canvas, layout.GUIWidth, layout.editorXYXY, 3, 0xFFFFFF);
+    drawFrame(canvas, layout.GUIWidth, layout.editorXYXY, static_cast<uint32_t>(RELATIVE_FRAME_WIDTH_EDITOR * layout.GUIWidth), 0xFFFFFF);
 
     // first draw all connections between points, then points on top
     for (ShapePoint *point = shapePoints->next; point != nullptr; point = point->next){
@@ -904,7 +904,7 @@ void FrequencyPanel::renderCounter(uint32_t *canvas) {
 
     // Draw the counter with the current value.
     fillRectangle(canvas, layout.GUIWidth, layout.counterXYXY);
-    drawTextBox(canvas, layout.GUIWidth, layout.GUIHeight, counterText, layout.counterXYXY[0], layout.counterXYXY[1], layout.counterXYXY[2], layout.counterXYXY[3]);
+    drawTextBox(canvas, layout.GUIWidth, layout.GUIHeight, counterText, layout.counterXYXY[0], layout.counterXYXY[1], layout.counterXYXY[2], layout.counterXYXY[3], static_cast<uint32_t>(RELATIVE_FRAME_WIDTH_NARROW * layout.GUIWidth));
 }
 
 // Renders the button with the currentLoopMode.
@@ -920,7 +920,7 @@ void FrequencyPanel::renderButton(uint32_t *canvas) {
             break;
     }
     fillRectangle(canvas, layout.GUIWidth, layout.modeButtonXYXY);
-    drawTextBox(canvas, layout.GUIWidth, layout.GUIHeight, buttonText, layout.modeButtonXYXY[0], layout.modeButtonXYXY[1], layout.modeButtonXYXY[2], layout.modeButtonXYXY[3]);
+    drawTextBox(canvas, layout.GUIWidth, layout.GUIHeight, buttonText, layout.modeButtonXYXY[0], layout.modeButtonXYXY[1], layout.modeButtonXYXY[2], layout.modeButtonXYXY[3], static_cast<uint32_t>(RELATIVE_FRAME_WIDTH_NARROW * layout.GUIWidth));
 }
 
 // Renders two boxes:

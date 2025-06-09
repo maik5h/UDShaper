@@ -13,9 +13,11 @@ constexpr uint32_t GUI_HEIGHT_MIN = 160;    // Minimum GUI height in pixel.
 constexpr uint32_t GUI_WIDTH_MAX = 2400;    // Maximum GUI width in pixel.
 constexpr uint32_t GUI_HEIGHT_MAX = 1200;   // Maximum GUI height in pixel.
 
-constexpr float RELATIVE_FRAME_WIDTH = 16. / 1600;      // Width of 3D frames around ShapeEditors relative to the GUI width.
-constexpr float RELATIVE_POINT_SIZE_SMALL = 12. / 1600; // Radius of the curve center points relative to the GUI width.
-constexpr float RELATIVE_POINT_SIZE = 16. / 1600;       // Radius of ShapePoints relative to the GUI width.
+constexpr float RELATIVE_FRAME_WIDTH = 16. / 1600;          // Width of 3D frames around ShapeEditors relative to the GUI width.
+constexpr float RELATIVE_FRAME_WIDTH_NARROW = 5. / 1600;    // Width of narrow frames relative to the GUI width.
+constexpr float RELATIVE_FRAME_WIDTH_EDITOR = 3. / 1600;    // Width of the frames around ShapeEditor interfaces relative to the GUI width.
+constexpr float RELATIVE_POINT_SIZE_SMALL = 12. / 1600;     // Radius of the curve center points relative to the GUI width.
+constexpr float RELATIVE_POINT_SIZE = 16. / 1600;           // Radius of ShapePoints relative to the GUI width.
 
 
 constexpr uint32_t colorBackground = 0x5F5F5F;

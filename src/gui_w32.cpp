@@ -82,7 +82,7 @@ void showDistortionModeMenu(HWND hwnd, int xPos, int yPos) {
 
 // Draws a textbox to canvas. xMin, yMin, xMax and yMax determine the size of the textbox. A frame is drawn outside of these coordinates.
 // The textsize is dependent on the height of the given box.
-void drawTextBox(uint32_t *canvas, uint32_t GUIWidth, uint32_t GUIHeight, const std::string text, uint32_t xMin, uint32_t yMin, uint32_t xMax, uint32_t yMax, bool addFrame){
+void drawTextBox(uint32_t *canvas, uint32_t GUIWidth, uint32_t GUIHeight, const std::string text, uint32_t xMin, uint32_t yMin, uint32_t xMax, uint32_t yMax, uint32_t frameWidth){
 	// Create new device context
 	HDC hdcGUI = CreateCompatibleDC(NULL);
 	BITMAPINFO info = { { sizeof(BITMAPINFOHEADER), GUIWidth, -GUIHeight, 1, 32, BI_RGB } };
@@ -114,9 +114,9 @@ void drawTextBox(uint32_t *canvas, uint32_t GUIWidth, uint32_t GUIHeight, const 
     DeleteDC(hdcGUI);
 
 	// Draw a frame around the text.
-	if (drawFrame) {
+	if (frameWidth) {
 		uint32_t box[4] = {xMin, yMin, xMax, yMax};
-		drawFrame(canvas, GUIWidth, box, 5, 0x000000, 1);
+		drawFrame(canvas, GUIWidth, box, frameWidth, 0x000000, 1);
 	}
 }
 

@@ -55,4 +55,4 @@ void drawLinkKnob(uint32_t *canvas, uint32_t GUIWidth, uint32_t x, uint32_t y, u
 // The following functions rely on platform dependent packages and are therefore not defined in assets.cpp
 // but win_gui32.cpp. They are declared here instead of GUI.h to avoid circular imports.
 
-void drawTextBox(uint32_t *canvas, uint32_t GUIWidth, uint32_t GUIHeight, const std::string text, uint32_t xMin, uint32_t yMin, uint32_t xMax, uint32_t yMax, bool addFrame = true);
+void drawTextBox(uint32_t *canvas, uint32_t GUIWidth, uint32_t GUIHeight, const std::string text, uint32_t xMin, uint32_t yMin, uint32_t xMax, uint32_t yMax, uint32_t frameWidth = 5);
