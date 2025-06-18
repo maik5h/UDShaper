@@ -152,10 +152,10 @@ void UDShaper::renderGUI(uint32_t *canvas) {
         // Set up EnvelopManager frame.
         envelopes->setupFrames(canvas);
         // Draw darker rectangle onto the EnvelopeManager knob panel.
-        fillRectangle(canvas, layout.GUIWidth, envelopes->layout.knobsInnerXYXY, blendColor(colorBackground, 0x000000, 0.1));
+        fillRectangle(canvas, layout.GUIWidth, envelopes->layout.knobsInnerXYXY, blendColor(colorBackground, 0xFF000000, 0.1));
 
         // Draw frame around ShapeEditors.
-        drawFrame(canvas, layout.GUIWidth, layout.editorFrameXYXY, RELATIVE_FRAME_WIDTH_NARROW * layout.GUIWidth, 0x000000, 0.45);
+        drawFrame(canvas, layout.GUIWidth, layout.editorFrameXYXY, RELATIVE_FRAME_WIDTH_NARROW * layout.GUIWidth, 0xFF000000, alphaShadow);
 
         GUIInitialized = true;
     }

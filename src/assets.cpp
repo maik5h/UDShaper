@@ -64,10 +64,10 @@ void drawFrame(uint32_t *canvas, uint32_t GUIWidth, uint32_t innerBox[4], int th
 
 // Draw a frame that has each side shaded in a different color to create the impression of depth.
 void draw3DFrame(uint32_t *canvas, uint32_t GUIWidth, uint32_t innerBox[4], uint32_t baseColor, int thickness){
-    uint32_t colorBright1 = blendColor(colorBackground, 0xFFFFFF, 0.52);
-    uint32_t colorBright2 = blendColor(colorBackground, 0xFFFFFF, 0.4);
-    uint32_t colorDark1 = blendColor(colorBackground, 0x000000, 0.2);
-    uint32_t colorDark2 = blendColor(colorBackground, 0x000000, 0.3);
+    uint32_t colorBright1 = blendColor(colorBackground, 0xFFFFFFFF, 0.52);
+    uint32_t colorBright2 = blendColor(colorBackground, 0xFFFFFFFF, 0.4);
+    uint32_t colorDark1 = blendColor(colorBackground, 0xFF000000, 0.2);
+    uint32_t colorDark2 = blendColor(colorBackground, 0xFF000000, 0.3);
 
     // draw upper edge in colorDark2
     for (int i=0; i<thickness; i++){

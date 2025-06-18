@@ -21,6 +21,7 @@
 #include <windows.h>
 #include <clap/clap.h>
 #include "../config.h"
+#include "../color_palette.h"
 #include "assets.h"
 #include "string_presets.h"
 #include "GUILayout.h"
@@ -137,7 +138,7 @@ class ShapeEditor : public InteractiveGUIElement {
     ShapePoint *rightClicked = nullptr; // Pointer to the ShapePoint that has been rightclicked by the user.
     ShapePoint *deletedPoint = nullptr; // If a point was deleted, store a pointer to it here, so that the plugin can remove all Envelope links after the input is fully processed.
     bool GUIInitialized = false; // Indicates whether elements that do not have to be rendered every frame are drawn to the GUI.
-    void drawConnection(uint32_t *canvas, ShapePoint *point, double beatPosition = 0., double secondsPlayed = 0, uint32_t color = 0x000000, float thickness = 5);
+    void drawConnection(uint32_t *canvas, ShapePoint *point, double beatPosition = 0., double secondsPlayed = 0, uint32_t color = 0xFF000000, float thickness = 5);
 
     public:
     ShapeEditorLayout layout; // Stores the box coordinates of elements belonging to this ShapeEditor instance.

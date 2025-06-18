@@ -8,6 +8,7 @@
 #include <string>
 #include <cmath>
 #include "../config.h"
+#include "../color_palette.h"
 
 uint32_t blendColor(uint32_t originalColor, uint32_t newColor, double alpha);
 
@@ -36,11 +37,11 @@ inline bool isInPoint(int x, int y, int pointX, int pointY, int radius){
 
 void fillRectangle(uint32_t *canvas, uint32_t GUIWidth, uint32_t XYXY[4], uint32_t color = colorBackground);
 
-void drawPoint(uint32_t *canvas, uint32_t GUIWidth, float x, float y, uint32_t color = 0x000000, float size = 5);
+void drawPoint(uint32_t *canvas, uint32_t GUIWidth, float x, float y, uint32_t color = 0xFF000000, float size = 5);
 
-void drawCircle(uint32_t *canvas, uint32_t GUIWidth, uint32_t x, uint32_t y, uint32_t color = 0x000000, uint32_t radius = 20, uint32_t width = 4);
+void drawCircle(uint32_t *canvas, uint32_t GUIWidth, uint32_t x, uint32_t y, uint32_t color = 0xFF000000, uint32_t radius = 20, uint32_t width = 4);
 
-void drawFrame(uint32_t *canvas, uint32_t GUIWidth, uint32_t innerRectangle[4], int thickness = 15, uint32_t color = 0x000000, float alpha = 1);
+void drawFrame(uint32_t *canvas, uint32_t GUIWidth, uint32_t innerRectangle[4], int thickness = 15, uint32_t color = 0xFF000000, float alpha = 1);
 
 void draw3DFrame(uint32_t *canvas, uint32_t GUIWidth, uint32_t innerRectangle[4], uint32_t baseColor, int thickness = 15);
 
@@ -62,8 +63,8 @@ struct TextBoxInfo {
     std::string text;                   // The test to be displayed as string.
     uint32_t position[4];               // The size and position of the textbox in XYXY notation.
     uint32_t frameWidth = 5;            // The width of the frame around the textbox. 0 draws no frame.
-    uint32_t colorText = 0xFFFFFF;      // Color of the text.
-    uint32_t colorFrame = 0x000000;     // Color of the frame.
+    uint32_t colorText = 0xFFFFFFFF;    // Color of the text.
+    uint32_t colorFrame = 0xFF000000;   // Color of the frame.
     float alphaFrame = 1;               // Alpha value of the frame.
 };
 

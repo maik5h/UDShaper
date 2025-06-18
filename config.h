@@ -19,12 +19,6 @@ constexpr float RELATIVE_FRAME_WIDTH_EDITOR = 3. / 1600;    // Width of the fram
 constexpr float RELATIVE_POINT_SIZE_SMALL = 12. / 1600;     // Radius of the curve center points relative to the GUI width.
 constexpr float RELATIVE_POINT_SIZE = 16. / 1600;           // Radius of ShapePoints relative to the GUI width.
 
-
-constexpr uint32_t colorBackground = 0x5F5F5F;
-constexpr uint32_t colorEditorBackground = 0xFEB55A;
-constexpr float alphaGrid = 0.4;
-constexpr uint32_t colorCurve = 0xFFFFFF;
-
 constexpr float SHAPE_MAX_POWER = 30;       // Maximum of the power parameter of ShapePoints.
 constexpr float SHAPE_MIN_OMEGA = 10E-3;    // Minimum omega of SHapePoints.
 

@@ -7,6 +7,7 @@
 #include "assets.h"
 #include "GUILayout.h"
 #include "logging.h"
+#include "../color_palette.h"
 
 long getCurrentTime();
 

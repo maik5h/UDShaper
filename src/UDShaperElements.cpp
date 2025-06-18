@@ -575,8 +575,8 @@ void ShapeEditor::renderGUI(uint32_t *canvas, double beatPosition, double second
         GUIInitialized = true;
     }
 
-    drawGrid(canvas, layout.GUIWidth, layout.editorXYXY, 3, 2, 0xFFFFFF, alphaGrid);
-    drawFrame(canvas, layout.GUIWidth, layout.editorXYXY, static_cast<uint32_t>(RELATIVE_FRAME_WIDTH_EDITOR * layout.GUIWidth), 0xFFFFFF);
+    drawGrid(canvas, layout.GUIWidth, layout.editorXYXY, 3, 2, 0xFFFFFFFF, alphaGrid);
+    drawFrame(canvas, layout.GUIWidth, layout.editorXYXY, static_cast<uint32_t>(RELATIVE_FRAME_WIDTH_EDITOR * layout.GUIWidth), 0xFFFFFFFF);
 
     // first draw all connections between points, then points on top
     for (ShapePoint *point = shapePoints->next; point != nullptr; point = point->next){
@@ -1299,7 +1299,7 @@ void EnvelopeManager::setupFrames(uint32_t *canvas){
             layout.selectorXYXY[1] + static_cast<uint32_t>((i + 1) * boxYRange) + RELATIVE_FRAME_WIDTH * layout.GUIWidth - 0.38 * boxYRange
         };
 
-        uint32_t textColorDark = blendColor(colorBackground, 0xFF000000, 0.45);
+        uint32_t textColorDark = blendColor(colorBackground, 0xFF000000, alphaShadow);
 
         TextBoxInfo textBoxInfo;
         textBoxInfo.GUIWidth = layout.GUIWidth;
@@ -1380,7 +1380,7 @@ void EnvelopeManager::setupForRerender() {
 // Draws the knobs for the ModulatedParameters of the active Envelope to the tool panel. Knobs are positioned next to each other sorted by their index in the modulatedParameters vector of the parent Envelope.
 void EnvelopeManager::drawKnobs(uint32_t *canvas){
     // first reset whole area
-    fillRectangle(canvas, layout.GUIWidth, layout.knobsInnerXYXY, blendColor(colorBackground, 0x000000, 0.1));
+    fillRectangle(canvas, layout.GUIWidth, layout.knobsInnerXYXY, blendColor(colorBackground, 0xFF000000, 0.1));
 
     for (int i=0; i<envelopes[activeEnvelopeIndex].getModulatedParameterNumber(); i++){
         float amount = envelopes[activeEnvelopeIndex].getModAmount(i); // modulation amount of the ith ModulatedParameter
