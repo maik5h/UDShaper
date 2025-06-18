@@ -59,9 +59,11 @@ void UDShaper::processMouseDrag(uint32_t x, uint32_t y) {
         // If the user is trying to add a modulation link, highlight the positions on the GUI where links
         // can be connected.
         // Setting highlightModulatedParameters to true will highlight all possible parameters.
+        // Additionally change the cursor to indicate that the Envelope can be linked to the parameters by dragging.
         if (envelopes->currentDraggingMode == addLink) {
             shapeEditor1->highlightModulatedParameters = true;
             shapeEditor2-> highlightModulatedParameters = true;
+            setCursorDragging();
         }
     }
     else {

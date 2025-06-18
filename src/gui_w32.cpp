@@ -82,41 +82,40 @@ void showDistortionModeMenu(HWND hwnd, int xPos, int yPos) {
 
 // Draws a textbox to canvas. xMin, yMin, xMax and yMax determine the size of the textbox. A frame is drawn outside of these coordinates.
 // The textsize is dependent on the height of the given box.
-void drawTextBox(uint32_t *canvas, uint32_t GUIWidth, uint32_t GUIHeight, const std::string text, uint32_t xMin, uint32_t yMin, uint32_t xMax, uint32_t yMax, uint32_t frameWidth){
+void drawTextBox(uint32_t *canvas, TextBoxInfo info){
 	// Create new device context
 	HDC hdcGUI = CreateCompatibleDC(NULL);
-	BITMAPINFO info = { { sizeof(BITMAPINFOHEADER), GUIWidth, -GUIHeight, 1, 32, BI_RGB } };
+	BITMAPINFO bitmapInfo = { { sizeof(BITMAPINFOHEADER), info.GUIWidth, -info.GUIHeight, 1, 32, BI_RGB } };
 
 	void* pBits = nullptr;
-    HBITMAP hBitmap = CreateDIBSection(hdcGUI, &info, DIB_RGB_COLORS, &pBits, NULL, 0);
+    HBITMAP hBitmap = CreateDIBSection(hdcGUI, &bitmapInfo, DIB_RGB_COLORS, &pBits, NULL, 0);
     HBITMAP oldBitmap = (HBITMAP)SelectObject(hdcGUI, hBitmap);
 
 	// Load GUI bits from canavs to pBits
-	memcpy(pBits, canvas, GUIWidth * GUIHeight * sizeof(uint32_t));
+	memcpy(pBits, canvas, info.GUIWidth * info.GUIHeight * sizeof(uint32_t));
 
 	// draw text to hdcGUI
-	RECT rect{xMin, yMin, xMax, yMax};
+	RECT rect{info.position[0], info.position[1], info.position[2], info.position[3]};
 	HFONT hFont = CreateFont(
-        yMax-yMin, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        info.position[3]-info.position[1], 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
         DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
         DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, TEXT("Arial")
     );
     SelectObject(hdcGUI, hFont);
-	SetTextColor(hdcGUI, RGB(255, 255, 255));
+	SetTextColor(hdcGUI, RGB((info.colorText & 0x00FF0000) >> 16, (info.colorText & 0x0000FF00) >> 8, (info.colorText & 0x000000FF)));
 	SetBkMode(hdcGUI, TRANSPARENT);
-    DrawText(hdcGUI, text.c_str(), -1, &rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    DrawText(hdcGUI, info.text.c_str(), -1, &rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
 
 	// Load updated gui bitmap back into canvas
-	memcpy(canvas, pBits, GUIWidth * GUIHeight * sizeof(uint32_t));
+	memcpy(canvas, pBits, info.GUIWidth * info.GUIHeight * sizeof(uint32_t));
 
     SelectObject(hdcGUI, oldBitmap);
     DeleteObject(hBitmap);
     DeleteDC(hdcGUI);
 
 	// Draw a frame around the text.
-	if (frameWidth) {
-		uint32_t box[4] = {xMin, yMin, xMax, yMax};
-		drawFrame(canvas, GUIWidth, box, frameWidth, 0x000000, 1);
+	if (info.frameWidth) {
+		drawFrame(canvas, info.GUIWidth, info.position, info.frameWidth, info.colorFrame, info.alphaFrame);
 	}
 }
 
@@ -260,3 +259,10 @@ void GUIDestroy(UDShaper *plugin, clap_plugin_descriptor_t pluginDescriptor) {
 
 // Does nothing on windows.
 void GUIOnPOSIXFD(UDShaper *) {}
+
+// Changes the cursor to IDC_HAND to indicate dragging.
+void setCursorDragging() {
+	// Attempt to load dragging cursor IDC_HAND and set cursor if successful.
+	HCURSOR hCursor = LoadCursor(NULL, IDC_HAND);
+	if (hCursor) SetCursor(hCursor);
+}

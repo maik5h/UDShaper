@@ -32,10 +32,22 @@ void TopMenuBar::processDoubleClick(uint32_t x, uint32_t y) {};
 void TopMenuBar::processRightClick(uint32_t x, uint32_t y) {};
 
 void TopMenuBar::renderGUI(uint32_t *canvas, double beatPosition, double secondsPlayed) {
+    // Redraw the logo during window resize.
     if (updateLogo) {
-        drawTextBox(canvas, layout.GUIWidth, layout.GUIHeight, "Logo", layout.logoXYXY[0], layout.logoXYXY[1], layout.logoXYXY[2], layout.logoXYXY[3], 0);
+        TextBoxInfo textBoxInfo;
+        textBoxInfo.GUIWidth = layout.GUIWidth;
+        textBoxInfo.GUIHeight = layout.GUIHeight;
+        textBoxInfo.text = "Logo";
+        textBoxInfo.position[0] = layout.logoXYXY[0];
+        textBoxInfo.position[1] = layout.logoXYXY[1];
+        textBoxInfo.position[2] = layout.logoXYXY[2];
+        textBoxInfo.position[3] = layout.logoXYXY[3];
+        textBoxInfo.frameWidth = 0;
+
+        drawTextBox(canvas, textBoxInfo);
         updateLogo = false;
     }
+    // Redraw mode button when distortion mode has changed or during resize.
     if (updateModeButton) {
         std::string modeText; // The distortion mode as string.
 
@@ -59,8 +71,28 @@ void TopMenuBar::renderGUI(uint32_t *canvas, double beatPosition, double seconds
         }
 
         fillRectangle(canvas, layout.GUIWidth, layout.modeButtonXYXY);
-        drawTextBox(canvas, layout.GUIWidth, layout.GUIHeight, "Distortion mode", layout.modeButtonXYXY[0], layout.modeButtonXYXY[1], layout.modeButtonXYXY[2], (uint32_t) (layout.modeButtonXYXY[3] - layout.modeButtonXYXY[1]) / 2, 0);
-        drawTextBox(canvas, layout.GUIWidth, layout.GUIHeight, modeText, layout.modeButtonXYXY[0], (uint32_t) (layout.modeButtonXYXY[3] - layout.modeButtonXYXY[1]) / 2, layout.modeButtonXYXY[2], layout.modeButtonXYXY[3], static_cast<uint32_t>(RELATIVE_FRAME_WIDTH_NARROW * layout.GUIWidth));
+
+        // Create text "Distortion mode".
+        TextBoxInfo textBoxInfo;
+        textBoxInfo.GUIWidth = layout.GUIWidth;
+        textBoxInfo.GUIHeight = layout.GUIHeight;
+        textBoxInfo.text = "Distortion mode";
+        textBoxInfo.position[0] = layout.modeButtonXYXY[0];
+        textBoxInfo.position[1] = layout.modeButtonXYXY[1];
+        textBoxInfo.position[2] = layout.modeButtonXYXY[2];
+        textBoxInfo.position[3] = static_cast<uint32_t>((uint32_t) (layout.modeButtonXYXY[3] - layout.modeButtonXYXY[1]) / 2);
+        textBoxInfo.frameWidth = 0;
+
+        drawTextBox(canvas, textBoxInfo);
+
+        // Display current distortion mode inside a frame below previous text.
+        textBoxInfo.text = modeText;
+        textBoxInfo.position[1] = static_cast<uint32_t>(layout.modeButtonXYXY[3] - layout.modeButtonXYXY[1]) / 2;
+        textBoxInfo.position[3] = layout.modeButtonXYXY[3];
+        textBoxInfo.frameWidth = static_cast<uint32_t>(RELATIVE_FRAME_WIDTH_NARROW * layout.GUIWidth);
+
+        drawTextBox(canvas, textBoxInfo);
+
         updateModeButton = false;
     }
 }
@@ -904,7 +936,18 @@ void FrequencyPanel::renderCounter(uint32_t *canvas) {
 
     // Draw the counter with the current value.
     fillRectangle(canvas, layout.GUIWidth, layout.counterXYXY);
-    drawTextBox(canvas, layout.GUIWidth, layout.GUIHeight, counterText, layout.counterXYXY[0], layout.counterXYXY[1], layout.counterXYXY[2], layout.counterXYXY[3], static_cast<uint32_t>(RELATIVE_FRAME_WIDTH_NARROW * layout.GUIWidth));
+
+    TextBoxInfo textBoxInfo;
+    textBoxInfo.GUIWidth = layout.GUIWidth;
+    textBoxInfo.GUIHeight = layout.GUIHeight;
+    textBoxInfo.text = counterText;
+    textBoxInfo.position[0] = layout.counterXYXY[0];
+    textBoxInfo.position[1] = layout.counterXYXY[1];
+    textBoxInfo.position[2] = layout.counterXYXY[2];
+    textBoxInfo.position[3] = layout.counterXYXY[3];
+    textBoxInfo.frameWidth = static_cast<uint32_t>(RELATIVE_FRAME_WIDTH_NARROW * layout.GUIWidth);
+
+    drawTextBox(canvas, textBoxInfo);
 }
 
 // Renders the button with the currentLoopMode.
@@ -920,7 +963,18 @@ void FrequencyPanel::renderButton(uint32_t *canvas) {
             break;
     }
     fillRectangle(canvas, layout.GUIWidth, layout.modeButtonXYXY);
-    drawTextBox(canvas, layout.GUIWidth, layout.GUIHeight, buttonText, layout.modeButtonXYXY[0], layout.modeButtonXYXY[1], layout.modeButtonXYXY[2], layout.modeButtonXYXY[3], static_cast<uint32_t>(RELATIVE_FRAME_WIDTH_NARROW * layout.GUIWidth));
+
+    TextBoxInfo textBoxInfo;
+    textBoxInfo.GUIWidth = layout.GUIWidth;
+    textBoxInfo.GUIHeight = layout.GUIHeight;
+    textBoxInfo.text = buttonText;
+    textBoxInfo.position[0] = layout.modeButtonXYXY[0];
+    textBoxInfo.position[1] = layout.modeButtonXYXY[1];
+    textBoxInfo.position[2] = layout.modeButtonXYXY[2];
+    textBoxInfo.position[3] = layout.modeButtonXYXY[3];
+    textBoxInfo.frameWidth = static_cast<uint32_t>(RELATIVE_FRAME_WIDTH_NARROW * layout.GUIWidth);
+
+    drawTextBox(canvas, textBoxInfo);
 }
 
 // Renders two boxes:
@@ -1208,13 +1262,15 @@ void EnvelopeManager::setupFrames(uint32_t *canvas){
     // It indicates which Envelope is currently selected.
     // boxYRange is the Envelope y-range divided by the number of Envelopes.
     float boxYRange = (layout.editorInnerXYXY[3] - layout.editorInnerXYXY[1]) / envelopes.size();
+    uint32_t boxXRange = layout.selectorXYXY[2] - layout.selectorXYXY[0];
 
     // The box to be filled in:
     uint32_t selectorBox[4] = {
         layout.selectorXYXY[0] + RELATIVE_FRAME_WIDTH*layout.GUIWidth,
         layout.selectorXYXY[1] + static_cast<uint32_t>(activeEnvelopeIndex*boxYRange) + RELATIVE_FRAME_WIDTH*layout.GUIWidth,
         layout.selectorXYXY[2],
-        layout.selectorXYXY[1] + static_cast<uint32_t>((activeEnvelopeIndex + 1)*boxYRange) + RELATIVE_FRAME_WIDTH*layout.GUIWidth};
+        layout.selectorXYXY[1] + static_cast<uint32_t>((activeEnvelopeIndex + 1)*boxYRange) + RELATIVE_FRAME_WIDTH*layout.GUIWidth
+    };
 
     // Rounding errors can lead to a mismatch between the box and the Envelope positions. This is only visible when the last Envelope is active.
     // If the last Envelope is selected, set the lower y-position of the box to match the lower y-position of the Envelope.
@@ -1228,6 +1284,54 @@ void EnvelopeManager::setupFrames(uint32_t *canvas){
     // Fill the box with the Envelope background color. The box is larger in x-direction to overlap with the frame around the Envelope.
     selectorBox[2] += RELATIVE_FRAME_WIDTH*layout.GUIWidth;
     fillRectangle(canvas, layout.GUIWidth, selectorBox, colorEditorBackground);
+
+    Logger::logToFile(std::to_string(boxXRange));
+
+    for (int i=0; i<envelopes.size(); i++) {
+        std::string envelopeIdx = std::to_string(i);
+
+        // Size and position of the textbox is calculated relative to the selectorBox and takes the width of the frame into account.
+        // It is shifted half the frame width to the left by default.
+        uint32_t textBoxXYXY[4] = {
+            layout.selectorXYXY[0] + RELATIVE_FRAME_WIDTH * layout.GUIWidth / 2 + 0.23 * boxXRange,
+            layout.selectorXYXY[1] + static_cast<uint32_t>(i * boxYRange) + RELATIVE_FRAME_WIDTH * layout.GUIWidth + 0.38 * boxYRange,
+            layout.selectorXYXY[2] - 0.23 * boxXRange - RELATIVE_FRAME_WIDTH * layout.GUIWidth / 2,
+            layout.selectorXYXY[1] + static_cast<uint32_t>((i + 1) * boxYRange) + RELATIVE_FRAME_WIDTH * layout.GUIWidth - 0.38 * boxYRange
+        };
+
+        uint32_t textColorDark = blendColor(colorBackground, 0xFF000000, 0.45);
+
+        TextBoxInfo textBoxInfo;
+        textBoxInfo.GUIWidth = layout.GUIWidth;
+        textBoxInfo.GUIHeight = layout.GUIHeight;
+        textBoxInfo.text = envelopeIdx;
+        textBoxInfo.position[0] = textBoxXYXY[0];
+        textBoxInfo.position[1] = textBoxXYXY[1];
+        textBoxInfo.position[2] = textBoxXYXY[2];
+        textBoxInfo.position[3] = textBoxXYXY[3];
+        textBoxInfo.frameWidth = static_cast<uint32_t>(RELATIVE_FRAME_WIDTH_EDITOR * layout.GUIWidth);
+        textBoxInfo.colorFrame = textColorDark;
+        textBoxInfo.colorText = textColorDark;
+
+        // For the active Envelope, set the text and frame color to white and shift the box to the right.
+        if (i == activeEnvelopeIndex) {
+            textBoxInfo.colorFrame = 0xFFFFFFFF;
+            textBoxInfo.colorText = 0xFFFFFFFF;
+            textBoxInfo.position[0] += RELATIVE_FRAME_WIDTH * layout.GUIWidth;
+            textBoxInfo.position[2] += RELATIVE_FRAME_WIDTH * layout.GUIWidth;
+
+            drawTextBox(canvas, textBoxInfo);
+
+            // Restore previous values
+            textBoxInfo.colorFrame = textColorDark;
+            textBoxInfo.colorText = textColorDark;
+            textBoxInfo.position[0] -= RELATIVE_FRAME_WIDTH * layout.GUIWidth;
+            textBoxInfo.position[2] -= RELATIVE_FRAME_WIDTH * layout.GUIWidth;
+        }
+        else {
+            drawTextBox(canvas, textBoxInfo);
+            }
+    }
 
     // Draw a 3D frame around the link knobs below the Envelope.
     draw3DFrame(canvas, layout.GUIWidth, layout.knobsInnerXYXY, colorEditorBackground, RELATIVE_FRAME_WIDTH*layout.GUIWidth);

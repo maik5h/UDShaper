@@ -55,4 +55,17 @@ void drawLinkKnob(uint32_t *canvas, uint32_t GUIWidth, uint32_t x, uint32_t y, u
 // The following functions rely on platform dependent packages and are therefore not defined in assets.cpp
 // but win_gui32.cpp. They are declared here instead of GUI.h to avoid circular imports.
 
-void drawTextBox(uint32_t *canvas, uint32_t GUIWidth, uint32_t GUIHeight, const std::string text, uint32_t xMin, uint32_t yMin, uint32_t xMax, uint32_t yMax, uint32_t frameWidth = 5);
+// Container for text box settings that is passed to drawTextBox.
+struct TextBoxInfo {
+    uint32_t GUIWidth;
+    uint32_t GUIHeight;
+    std::string text;
+    uint32_t position[4];
+    uint32_t frameWidth = 5;
+    uint32_t colorText = 0xFFFFFF;
+    uint32_t colorFrame = 0x000000;
+    float alphaFrame = 1;
+};
+
+void drawTextBox(uint32_t *canvas, TextBoxInfo info);
+void setCursorDragging();
