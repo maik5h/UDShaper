@@ -80,8 +80,9 @@ void showDistortionModeMenu(HWND hwnd, int xPos, int yPos) {
     DestroyMenu(hMenu);
 }
 
-// Draws a textbox to canvas. xMin, yMin, xMax and yMax determine the size of the textbox. A frame is drawn outside of these coordinates.
-// The textsize is dependent on the height of the given box.
+// Draws a textbox to canvas. info defines size and colors of text and surrounding frame.
+// The textsize is dependent on the height of the given box. The width of the box must be large enough to contain the
+// full text, else it will be cut off at the sides.
 void drawTextBox(uint32_t *canvas, TextBoxInfo info){
 	// Create new device context
 	HDC hdcGUI = CreateCompatibleDC(NULL);

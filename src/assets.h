@@ -57,14 +57,14 @@ void drawLinkKnob(uint32_t *canvas, uint32_t GUIWidth, uint32_t x, uint32_t y, u
 
 // Container for text box settings that is passed to drawTextBox.
 struct TextBoxInfo {
-    uint32_t GUIWidth;
-    uint32_t GUIHeight;
-    std::string text;
-    uint32_t position[4];
-    uint32_t frameWidth = 5;
-    uint32_t colorText = 0xFFFFFF;
-    uint32_t colorFrame = 0x000000;
-    float alphaFrame = 1;
+    uint32_t GUIWidth;                  // Width of the full plugin window.
+    uint32_t GUIHeight;                 // Height of the full plugin window.
+    std::string text;                   // The test to be displayed as string.
+    uint32_t position[4];               // The size and position of the textbox in XYXY notation.
+    uint32_t frameWidth = 5;            // The width of the frame around the textbox. 0 draws no frame.
+    uint32_t colorText = 0xFFFFFF;      // Color of the text.
+    uint32_t colorFrame = 0x000000;     // Color of the frame.
+    float alphaFrame = 1;               // Alpha value of the frame.
 };
 
 void drawTextBox(uint32_t *canvas, TextBoxInfo info);
