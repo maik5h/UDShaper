@@ -56,13 +56,13 @@ void TopMenuBarLayout::setCoordinates(uint32_t XYXY[4], uint32_t inGUIWidth, uin
     // The plugin logo is displayed at the upper left corner.
     logoXYXY[0] = fullXYXY[0] + 2 * margin;
     logoXYXY[1] = fullXYXY[1];
-    logoXYXY[2] = (uint32_t) (0.15*(fullXYXY[2] - fullXYXY[0] - 4 * margin));
+    logoXYXY[2] = GUIWidth * 0.25 - margin * 0.5;
     logoXYXY[3] = fullXYXY[3];
 
     // The mode button is placed next to the logo.
-    modeButtonXYXY[0] = (uint32_t) (0.256*(fullXYXY[2] - fullXYXY[0]));
+    modeButtonXYXY[0] = GUIWidth * 0.25 + margin * 0.5;
     modeButtonXYXY[1] = fullXYXY[1];
-    modeButtonXYXY[2] = (uint32_t) (0.456*(fullXYXY[2] - fullXYXY[0]));
+    modeButtonXYXY[2] = GUIWidth * 0.5 - 2 * margin;
     modeButtonXYXY[3] = (uint32_t) fullXYXY[3];
 }
 

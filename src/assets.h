@@ -63,6 +63,7 @@ struct TextBoxInfo {
     std::string text;                   // The test to be displayed as string.
     uint32_t position[4];               // The size and position of the textbox in XYXY notation.
     uint32_t frameWidth = 5;            // The width of the frame around the textbox. 0 draws no frame.
+    float textHeight = 1;              // Height of the text relative to the textbox height.
     uint32_t colorText = 0xFFFFFFFF;    // Color of the text.
     uint32_t colorFrame = 0xFF000000;   // Color of the frame.
     float alphaFrame = 1;               // Alpha value of the frame.

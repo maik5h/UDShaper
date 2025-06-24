@@ -97,8 +97,9 @@ void drawTextBox(uint32_t *canvas, TextBoxInfo info){
 
 	// draw text to hdcGUI
 	RECT rect{info.position[0], info.position[1], info.position[2], info.position[3]};
+	uint32_t textHeight = static_cast<uint32_t>(info.textHeight * info.position[3]-info.position[1]);
 	HFONT hFont = CreateFont(
-        info.position[3]-info.position[1], 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        textHeight, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
         DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
         DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, TEXT("Arial")
     );

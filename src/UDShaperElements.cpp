@@ -37,11 +37,12 @@ void TopMenuBar::renderGUI(uint32_t *canvas, double beatPosition, double seconds
         TextBoxInfo textBoxInfo;
         textBoxInfo.GUIWidth = layout.GUIWidth;
         textBoxInfo.GUIHeight = layout.GUIHeight;
-        textBoxInfo.text = "Logo";
+        textBoxInfo.text = "UDShaper";
         textBoxInfo.position[0] = layout.logoXYXY[0];
         textBoxInfo.position[1] = layout.logoXYXY[1];
         textBoxInfo.position[2] = layout.logoXYXY[2];
         textBoxInfo.position[3] = layout.logoXYXY[3];
+        textBoxInfo.textHeight = 0.8;
         textBoxInfo.frameWidth = 0;
 
         drawTextBox(canvas, textBoxInfo);
