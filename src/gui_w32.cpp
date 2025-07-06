@@ -10,6 +10,18 @@ void GUIPaint(UDShaper *plugin, bool internal) {
 	}
 }
 
+void GUI::resize(uint32_t newWidth, uint32_t newHeight) {
+	SetWindowPos(window, NULL, 0, 0, newWidth, newHeight, SWP_NOMOVE | SWP_NOZORDER);
+}
+
+void GUI::setParentWindow(const clap_window_t *parentWindow) {
+	SetParent(window, (HWND) parentWindow->win32);
+}
+
+void GUI::showWindow(bool visible) {
+	ShowWindow(window, (visible) ? SW_SHOW : SW_HIDE);
+}
+
 // Shows a context menu from which the shape of the curve corresponding to the right clicked point can be selected.
 // Current shapes are:
 // 	-Power (default)
@@ -183,7 +195,7 @@ LRESULT CALLBACK GUIWindowProcedure(HWND window, UINT message, WPARAM wParam, LP
 		}
 		// Process the menu selection for all ShapeEditor and Envelope instances.
 		case WM_COMMAND: {
-			plugin->processMenuSelection(wParam);
+			plugin->processMenuSelection(static_cast<int>(wParam));
 			GUIPaint(plugin, true);
 			break;
 		}

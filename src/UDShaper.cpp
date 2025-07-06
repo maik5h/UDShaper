@@ -162,14 +162,14 @@ void UDShaper::renderGUI(uint32_t *canvas) {
 
     // The beatposition is, unlike on the audio threads, not taken from a clap_transport, but calculated for the point in time when this function is called.
     long now = getCurrentTime();
-    WaitForSingleObject(synchProcessStartTime, INFINITE);
+    MutexAcquire(synchProcessStartTime);
 
     // If the host is playing, add the beats that have past since it started playing to the initial beatPosition.
     // The initBeatPosition and startedPlaying are set from the audio threads, where clap_transport is available.
     double beatPosition = hostPlaying ? (initBeatPosition + (now - startedPlaying) / 1000 / 60 * currentTempo) : initBeatPosition;
     // TODO init secondsPlayed has to be calculated from initBeatPosition
     double secondsPlayed = hostPlaying ? (now - startedPlaying) / 1000. : 0;
-    ReleaseMutex(synchProcessStartTime);
+    MutexRelease(synchProcessStartTime);
 
     topMenuBar->renderGUI(canvas);
     shapeEditor1->renderGUI(canvas, beatPosition, secondsPlayed);
@@ -191,11 +191,11 @@ void UDShaper::rescaleGUI(uint32_t width, uint32_t height) {
     envelopes->rescaleGUI(layout.envelopeXYXY, width, height);
 }
 
-void UDShaper::processMenuSelection(WPARAM wParam) {
-    topMenuBar->processMenuSelection(wParam, currentDistortionMode);
-    shapeEditor1->processMenuSelection(wParam);
-    shapeEditor2->processMenuSelection(wParam);
-    envelopes->processMenuSelection(wParam);
+void UDShaper::processMenuSelection(int menuItem) {
+    topMenuBar->processMenuSelection(menuItem, currentDistortionMode);
+    shapeEditor1->processMenuSelection(menuItem);
+    shapeEditor2->processMenuSelection(menuItem);
+    envelopes->processMenuSelection(menuItem);
 }
 
 // Takes the input audio from the input process and writes the output audio into process->audio_outputs.

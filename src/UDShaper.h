@@ -4,6 +4,7 @@
 
 #include <clap/clap.h>
 #include "UDShaperElements.h"
+#include "mutexMacros.h"
 #include "assets.h"
 #include "GUILayout.h"
 #include "logging.h"
@@ -48,7 +49,7 @@ class UDShaper {
 	ShapeEditor *shapeEditor2; // ShapeEditor for downwards, right, side or negative audio.
 	EnvelopeManager *envelopes; // Manages Envelopes and links between Envelopes and parameters.
 
-	HANDLE synchProcessStartTime;
+	Mutex synchProcessStartTime;
 	long startedPlaying = 0;
 	bool hostPlaying;
 	double initBeatPosition;
@@ -67,7 +68,7 @@ class UDShaper {
     void renderGUI(uint32_t *canvas);
 	void rescaleGUI(uint32_t width, uint32_t height);
 
-	void processMenuSelection(WPARAM wparam);
+	void processMenuSelection(int menuItem);
 
     void renderAudio(const clap_process_t *process);
 

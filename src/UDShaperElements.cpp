@@ -105,9 +105,11 @@ void TopMenuBar::rescaleGUI(uint32_t newXYXY[4], uint32_t newWidth, uint32_t new
 }
 
 // Updates plugin distortion mode if different mode was selected from a menu.
-void TopMenuBar::processMenuSelection(WPARAM wparam, distortionMode &pluginDistortionMode) {
+void TopMenuBar::processMenuSelection(int menuItem, distortionMode &pluginDistortionMode) {
     if (MenuRequest::lastRequested == menuDistortionMode) {
-        mode = static_cast<distortionMode>(wparam);
+        // Set distortion mode of this TopMenuBar and the forwarded pluginDistortionMode to
+        // the mode corresponding to the given menuItem.
+        mode = static_cast<distortionMode>(menuItem);
         pluginDistortionMode = mode;
         updateModeButton = true;
     }
@@ -623,7 +625,7 @@ ShapePoint *ShapeEditor::getDeletedPoint() {
 
 // Is called when an option on a ShapePoint context menu was selected. Changes the interpolation mode between points if this option was one of shapePower, shapeSine, etc.
 // Resets rightClicked to nullptr.
-void ShapeEditor::processMenuSelection(WPARAM wParam){
+void ShapeEditor::processMenuSelection(int menuItem){
     // If no point was rightclicked, the menu selection does not concern this ShapeEditor instance.
     if (rightClicked == nullptr){
         return;
@@ -634,7 +636,7 @@ void ShapeEditor::processMenuSelection(WPARAM wParam){
         return;
     }
 
-    switch (wParam) {
+    switch (menuItem) {
         case shapePower:
             rightClicked->mode = shapePower;
             break;
@@ -999,17 +1001,17 @@ void FrequencyPanel::rescaleGUI(uint32_t newXYXY[4], uint32_t newWidth, uint32_t
 }
 
 // Processes a context menu selection if the last opened menu was a Envelope loop mode menu.
-void FrequencyPanel::processMenuSelection(WPARAM wParam) {
+void FrequencyPanel::processMenuSelection(int menuItem) {
     // Only process if last menu was an Envelope loop mode menu.
     if (MenuRequest::lastRequested != menuEnvelopeLoopMode) {
         return;
     }
 
     envelopeLoopMode previous = currentLoopMode;
-    if (wParam == envelopeFrequencyTempo) {
+    if (menuItem == envelopeFrequencyTempo) {
         currentLoopMode = envelopeFrequencyTempo;
     }
-    else if (wParam == envelopeFrequencySeconds) {
+    else if (menuItem == envelopeFrequencySeconds) {
         currentLoopMode = envelopeFrequencySeconds;
     }
     // If the loopMode has changed, rerender both Button and counter on the next renderGUI() call.
@@ -1477,10 +1479,10 @@ void EnvelopeManager::highlightHoveredParameter(uint32_t x, uint32_t y) {
     }
 }
 
-void EnvelopeManager::processMenuSelection(WPARAM wParam){
+void EnvelopeManager::processMenuSelection(int menuItem){
     // If the last menu was a LinkKnob menu and it was selected to remove the link, remove it.
     if (MenuRequest::lastRequested == menuLinkKnob) {
-        if (wParam == removeLink && selectedKnob != -1){
+        if (menuItem == removeLink && selectedKnob != -1){
             envelopes.at(activeEnvelopeIndex).removeModulatedParameter(selectedKnob);
             toolsUpdated = true;
         }
@@ -1490,13 +1492,13 @@ void EnvelopeManager::processMenuSelection(WPARAM wParam){
     // If it was attempted to modulate a point position, add a ModulatedParameter based on the modulationMode.
     // Set attemptedToModulate to nullptr afterwards to make sure no link is created by accident.
     if (MenuRequest::lastRequested == menuPointPosMod) {
-        if (wParam == modPosX){
+        if (menuItem == modPosX){
             if (attemptedToModulate != nullptr) {
                 addModulatedParameter(attemptedToModulate, 1, modPosX);
             }
             attemptedToModulate = nullptr;
         }
-        else if (wParam == modPosY) {
+        else if (menuItem == modPosY) {
             if (attemptedToModulate != nullptr) {
                 addModulatedParameter(attemptedToModulate, 1, modPosY);
             }
@@ -1505,8 +1507,8 @@ void EnvelopeManager::processMenuSelection(WPARAM wParam){
         MenuRequest::lastRequested = menuNone;
     }
 
-    envelopes.at(activeEnvelopeIndex).processMenuSelection(wParam);
-    frequencyPanels.at(activeEnvelopeIndex).processMenuSelection(wParam);
+    envelopes.at(activeEnvelopeIndex).processMenuSelection(menuItem);
+    frequencyPanels.at(activeEnvelopeIndex).processMenuSelection(menuItem);
 }
 
 // Resets currentDraggingMode and selectedKnob. Calls processMouseRelease() on the active Envelope.

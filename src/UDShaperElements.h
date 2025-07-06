@@ -18,7 +18,6 @@
 #include <iomanip>
 #include <assert.h>
 #include <map>
-#include <windows.h>
 #include <clap/clap.h>
 #include "../config.h"
 #include "../color_palette.h"
@@ -87,7 +86,17 @@ enum envelopeLoopMode{
     envelopeFrequencySeconds    // Envelope frequency is set in seconds.
 };
 
-// Stores the the type of menu that is supposed to be opened in the attribute requestedMenu. If any action reuires a context menu to open, this value is set to the required value. As soon as the menu is opened (by functions in gui_w32.cpp), the reset() method is called, which sets requestedMenu to menuNone and save the previous value in lastRequested. This attribute is used to process the menu selection and is reset as soon as it has been processed.
+// Stores the the type of menu that is supposed to be opened in the attribute requestedMenu. If any action requires a context menu to open, this value is set to the required value.
+// As soon as the menu is opened (by functions in gui_w32.cpp), the reset() method is called, which sets requestedMenu to menuNone and save the previous value in lastRequested.
+// This attribute is used to process the menu selection and is reset as soon as it has been processed.
+//
+// TODO: this whole approach should be revised as it is very confusing. When an UDShaper element processes
+// a menu selection, the type of menu is communicated via this class while the selected menu option is passed as
+// a parameter. Additionally, when multiple instances could be concerned by the type of menu, they decide
+// whether to process the menu selection based on recent internal changes
+// (for example if ShapeEditor::rightclicked is a nullptr, ShapeEditors know they are not concerned by the
+// menu selection as the user did not rightclick their interface).
+// These three types of information should be handled together, ideally as arguments of a method.
 class MenuRequest {
     public:
     static contextMenuType requestedMenu; // The type of menu to be displayed.
@@ -121,7 +130,7 @@ class TopMenuBar: InteractiveGUIElement {
     void renderGUI(uint32_t *canvas, double beatPosition = 0, double secondsPlayed = 0);
     void rescaleGUI(uint32_t newXYXY[4], uint32_t newWidth, uint32_t newHeight);
 
-    void processMenuSelection(WPARAM wParam, distortionMode &pluginDistortionMode);
+    void processMenuSelection(int menuItem, distortionMode &pluginDistortionMode);
     void setupForRerender();
 };
 
@@ -167,7 +176,7 @@ class ShapeEditor : public InteractiveGUIElement {
     void processRightClick(uint32_t x, uint32_t y);
     void renderGUI(uint32_t *canvas, double beatPosition = 0, double secondsPlayed = 0);
     void rescaleGUI(uint32_t newXYXY[4], uint32_t newWidth, uint32_t newHeight);
-    void processMenuSelection(WPARAM wParam);
+    void processMenuSelection(int menuItem);
 
     float forward(float input, double beatPosition = 0, double secondsPlayed = 0);
 
@@ -218,7 +227,7 @@ class FrequencyPanel : public InteractiveGUIElement {
     void renderButton(uint32_t *canvas);
     void renderGUI(uint32_t *canvas, double beatPosition, double secondsPlayed);
     void rescaleGUI(uint32_t newXYXY[4], uint32_t newWidth, uint32_t newHeight);
-    void processMenuSelection(WPARAM wParam);
+    void processMenuSelection(int menuItem);
     double getEnvelopePhase(double beatPosition, double secondsPlayed);
     void setupForRerender();
 
@@ -289,7 +298,7 @@ class EnvelopeManager : public InteractiveGUIElement {
 
     void highlightHoveredParameter(uint32_t x, uint32_t y);
 
-    void processMenuSelection(WPARAM wParam);
+    void processMenuSelection(int menuItem);
     void addModulatedParameter(ShapePoint *point, float amount, modulationMode mode);
     void clearLinksToPoint(ShapePoint *point);
 

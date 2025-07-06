@@ -13,6 +13,7 @@
 #include "config.h"
 #include "src/UDShaperElements.h"
 #include "src/GUI.h"
+#include "src/mutexMacros.h"
 #include "src/assets.h"
 #include "src/UDShaper.h"
 #include "src/GUILayout.h"
@@ -30,7 +31,7 @@ void reportPlaybackStatusToMain(UDShaper *plugin, const clap_process_t *process)
 	double processStartPosition = (double)process->transport->song_pos_beats / CLAP_BEATTIME_FACTOR; // The beatPosition at sample 0 of this process.
 	bool isPlaying = (process->transport->flags & CLAP_TRANSPORT_IS_PLAYING);
 
-	WaitForSingleObject(plugin->synchProcessStartTime, INFINITE);
+	MutexAcquire(plugin->synchProcessStartTime);
 
 	plugin->initBeatPosition = processStartPosition;
 
@@ -45,24 +46,8 @@ void reportPlaybackStatusToMain(UDShaper *plugin, const clap_process_t *process)
 		plugin->hostPlaying = false;
 	}
 
-	ReleaseMutex(plugin->synchProcessStartTime);
+	MutexRelease(plugin->synchProcessStartTime);
 }
-
-#ifdef _WIN32
-#include <windows.h>
-typedef HANDLE Mutex;
-#define MutexAcquire(mutex) WaitForSingleObject(mutex, INFINITE)
-#define MutexRelease(mutex) ReleaseMutex(mutex)
-#define MutexInitialise(mutex) (mutex = CreateMutex(nullptr, FALSE, nullptr))
-#define MutexDestroy(mutex) CloseHandle(mutex)
-#else
-#include <pthread.h>
-typedef pthread_mutex_t Mutex;
-#define MutexAcquire(mutex) pthread_mutex_lock(&(mutex))
-#define MutexRelease(mutex) pthread_mutex_unlock(&(mutex))
-#define MutexInitialise(mutex) pthread_mutex_init(&(mutex), nullptr)
-#define MutexDestroy(mutex) pthread_mutex_destroy(&(mutex))
-#endif
 
 static const clap_plugin_descriptor_t pluginDescriptor = {
 	.clap_version = CLAP_VERSION_INIT,
@@ -216,7 +201,7 @@ static const clap_plugin_gui_t extensionGUI = {
 		// Rescale window or else it will not render full size.
 		// Do it only when the size is increased or else it will crash.
 		if (width > previousWidth) {
-			SetWindowPos(plugin->gui->window, NULL, 0, 0, width, height, SWP_NOMOVE | SWP_NOZORDER);
+			plugin->gui->resize(width, height);
 		}
 
 		// Rescale plugin GUI elements.
@@ -229,7 +214,8 @@ static const clap_plugin_gui_t extensionGUI = {
 
 	.set_parent = [] (const clap_plugin_t *_plugin, const clap_window_t *window) -> bool {
 		assert(0 == strcmp(window->api, GUI_API));
-		GUISetParent((UDShaper *) _plugin->plugin_data, window);
+		UDShaper *plugin = (UDShaper *) _plugin->plugin_data;
+		plugin->gui->setParentWindow(window);
 		return true;
 	},
 
@@ -244,12 +230,13 @@ static const clap_plugin_gui_t extensionGUI = {
 		UDShaper *plugin = (UDShaper *) _plugin->plugin_data;
 		plugin->envelopes->setupForRerender();
 		plugin->topMenuBar->setupForRerender();
-		GUISetVisible((UDShaper *) _plugin->plugin_data, true);
+		plugin->gui->showWindow(true);
 		return true;
 	},
 
 	.hide = [] (const clap_plugin_t *_plugin) -> bool {
-		GUISetVisible((UDShaper *) _plugin->plugin_data, false);
+		UDShaper *plugin = (UDShaper *) _plugin->plugin_data;
+		plugin->gui->showWindow(false);
 		return true;
 	},
 };
