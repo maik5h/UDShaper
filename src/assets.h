@@ -9,11 +9,13 @@
 #include <cmath>
 #include "../config.h"
 #include "../color_palette.h"
+#include "enums.h"
 
 uint32_t blendColor(uint32_t originalColor, uint32_t newColor, double alpha);
 
 // Abstract base class for all elements that contribute to the plugin GUI and react to user inputs.
 class InteractiveGUIElement {
+    public:
     virtual void processLeftClick(uint32_t x, uint32_t y) = 0;
     virtual void processMouseDrag(uint32_t x, uint32_t y) = 0;
     virtual void processMouseRelease(uint32_t x, uint32_t y) = 0;
@@ -21,6 +23,7 @@ class InteractiveGUIElement {
     virtual void processRightClick(uint32_t x, uint32_t y) = 0;
     virtual void renderGUI(uint32_t *canvas, double beatPosition, double secondsPlayed) = 0;
     virtual void rescaleGUI(uint32_t *canvas, uint32_t newWidth, uint32_t newHeight) = 0;
+    virtual void processMenuSelection(contextMenuType menuType, int menuItem) = 0;
 };
 
 // Checks if the coordinates x, y are in the given box.

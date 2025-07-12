@@ -78,7 +78,8 @@ void UDShaper::processMouseDrag(uint32_t x, uint32_t y) {
 // Forwards mouse release to all InteractiveGUIElement members and keeps track if any of them requests a context menu to open. Stops tracking the mouse drag.
 void UDShaper::processMouseRelease(uint32_t x, uint32_t y) {
     if (mouseDragging) {
-        // If it was attempted to link the active Envelope to a modulatable parameter, check if a parameter was selected successfully and add a ModulatedParameter instance to the corresponding Envelope.
+        // If it was attempted to link the active Envelope to a modulatable parameter, check if a parameter
+        // was selected successfully and add a ModulatedParameter instance to the corresponding Envelope.
         if (envelopes->currentDraggingMode == addLink){
             // Get the closest points for both ShapeEditors to the position the mouse was dragged to
             ShapePoint *closestPoint1, *closestPoint2;
@@ -88,24 +89,33 @@ void UDShaper::processMouseRelease(uint32_t x, uint32_t y) {
 
             // check if a close point was found
             if ((closestPoint1 != nullptr) | (closestPoint2 != nullptr)){
-                ShapePoint *closest = (closestPoint1 == nullptr) ? closestPoint2 : closestPoint1;
-                // Since getClosestPoint() was called on the ShapeEditor instances, their currentDraggingMode value has been set to either position or curveCenter and can be used to find the correct parameter to modulate.
-                shapeEditorDraggingMode mode = (closestPoint1 == nullptr) ? shapeEditor2->currentDraggingMode : shapeEditor1->currentDraggingMode;
-                
+
+                ShapeEditor *targetEditor;
+                ShapePoint *closest;
+
+                if (!(closestPoint1 == nullptr)) {
+                    closest = closestPoint1;
+                    targetEditor = shapeEditor1;
+                }
+                else {
+                    closest = closestPoint2;
+                    targetEditor = shapeEditor2;
+                }
+
                 // Find the correct parameter to modulate. There are the options curveCenter, posX and posY.
-                if (mode == curveCenter) {
+                if (targetEditor->currentDraggingMode == curveCenter) {
                     envelopes->addModulatedParameter(closest, 1, modCurveCenterY);
                 }
                 // If the point position should be modulated, show context menu to select correct direction.
-                // Exception: last point is selected, which can only be modulated in y-direction. Do not show the menu in this case and directly add the ModulatedParameter.
                 else {
-                    MenuRequest::requestedMenu = menuPointPosMod;
+                    MenuRequest::sendRequest(envelopes, menuPointPosMod);
                 }
 
                 // Add a ModulatedParameter to the active Envelope.
                 envelopes->attemptedToModulate = closest;
             }
         }
+
         envelopes->processMouseRelease(x, y);
 
         shapeEditor1->processMouseRelease(x, y);
@@ -191,13 +201,6 @@ void UDShaper::rescaleGUI(uint32_t width, uint32_t height) {
     envelopes->rescaleGUI(layout.envelopeXYXY, width, height);
 }
 
-void UDShaper::processMenuSelection(int menuItem) {
-    topMenuBar->processMenuSelection(menuItem, currentDistortionMode);
-    shapeEditor1->processMenuSelection(menuItem);
-    shapeEditor2->processMenuSelection(menuItem);
-    envelopes->processMenuSelection(menuItem);
-}
-
 // Takes the input audio from the input process and writes the output audio into process->audio_outputs.
 //
 // The output is mainly dependent on two things: The state of both ShapeEditors (which depends on the host playback position if linked to an Envellope) and the distortion mode:
@@ -226,7 +229,7 @@ void UDShaper::renderAudio(const clap_process_t *process) {
     float *outputL = process->audio_outputs[0].data32[0];
     float *outputR = process->audio_outputs[0].data32[1];
 
-    switch (currentDistortionMode) {
+    switch (topMenuBar->mode) {
         /* TODO Buffer is parallelized into pieces of ~200 samples. I dont know how to access all of them in
         one place so i can not properly decide which shape to choose.
         */
@@ -333,7 +336,7 @@ bool UDShaper::saveState(const clap_ostream_t *stream) {
     if (stream->write(stream, &UDSHAPER_VERSION, 3*sizeof(int)) != 3*sizeof(int)) return false;
 
     // Write current distortion mode:
-    if (stream->write(stream, &currentDistortionMode, sizeof(currentDistortionMode)) != sizeof(currentDistortionMode)) return false;
+    if (stream->write(stream, &topMenuBar->mode, sizeof(topMenuBar->mode)) != sizeof(topMenuBar->mode)) return false;
 
     // Data regarding the ShapeEditors and EnvelopeManager are written by methods of the corresponding instances.
     if (!shapeEditor1->saveState(stream)) return false;
@@ -351,9 +354,9 @@ bool UDShaper::loadState(const clap_istream_t *stream){
     if (stream->read(stream, version, 3*sizeof(int)) != 3*sizeof(int)) return false;
 
     // Second item is the current distortion mode.
-    stream->read(stream, &currentDistortionMode, sizeof(distortionMode));
+    stream->read(stream, &topMenuBar->mode, sizeof(distortionMode));
     // Synch topMenuBar mode and rerender it to display the changes made.
-    topMenuBar->mode = currentDistortionMode;
+    topMenuBar->mode = topMenuBar->mode;
     topMenuBar->setupForRerender();
 
     // Following data corresponds to the states of ShapeEditors and EnvelopeManager.

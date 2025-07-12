@@ -68,8 +68,6 @@ class UDShaper {
     void renderGUI(uint32_t *canvas);
 	void rescaleGUI(uint32_t width, uint32_t height);
 
-	void processMenuSelection(int menuItem);
-
     void renderAudio(const clap_process_t *process);
 
 	bool saveState(const clap_ostream_t *stream);

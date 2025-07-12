@@ -4,19 +4,17 @@
 #pragma once
 
 #include <stdexcept>
+#include <windowsx.h>
 #include "UDShaper.h"
 #include "assets.h"
 #include <clap/clap.h>
 #include "UDShaperElements.h"
+#include "contextMenus.h"
 
 void GUIPaint(UDShaper *plugin, bool internal);
 void GUICreate(UDShaper *plugin, clap_plugin_descriptor_t pluginDescriptor);
 void GUIDestroy(UDShaper *plugin, clap_plugin_descriptor_t pluginDescriptor);
 void GUIOnPOSIXFD(UDShaper *plugin);
-
-#ifdef _WIN32
-
-#include <windowsx.h>
 
 // Struct containing a window, the window bitmap and the current GUI width and height values.
 // This implementation uses windowsx.h.
@@ -32,9 +30,3 @@ struct GUI {
 };
 
 #define GUI_API CLAP_WINDOW_API_WIN32
-
-#else
-
-static_assert(false, "GUI is not implemented for any operating system besides Windows.");
-
-#endif

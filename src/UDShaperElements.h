@@ -24,94 +24,13 @@
 #include "assets.h"
 #include "string_presets.h"
 #include "GUILayout.h"
+#include "contextMenus.h"
 #include "logging.h"
-
-// Distortion modes of the UDShaper plugin.
-enum distortionMode {
-	upDown,             // Splits input audio into samples larger than the previous samples and samples lower than previous.
-	leftRight,          // Splits input audio into left and right channel.
-    midSide,            // Splits input audio into mid and side channel.
-	positiveNegative    // Splits input audio into samples >= 0 and samples < 0.
-};
-
-// Interpolation modes between two points of a ShapeEditor.
-enum Shapes{
-    shapePower, // Curve follows shape of f(x) = (x < 0.5) ? x^power : 1-(1-x)^power, for 0 <= x <= 1, streched to the corresponding x and y intervals.
-    shapeSine,  // Curve is a sine that continuously connects the previous and next point. 
-};
-
-// Decide the actions performed when MouseDrag is processed by a ShapeEditor based on these values.
-enum shapeEditorDraggingMode{
-    none,           // ignore
-    position,       // Moves position of selected point.
-    curveCenter,    // Adjusts curveCenter and therefore parameter of curve function of next point to the right.
-    modulate        // Selects a parameter to be modulated by the active Envelope
-};
-
-// Decide the actions performed when MouseDrag is processed by a Envelope based on these values.
-enum envelopeManagerDraggingMode{
-    envNone, // Dont do anything.
-    addLink, // Trying to find a parameter the activeEnvelope can be linked to.
-    moveKnob // Moving a knob and updating the modulation amount of the corresponding ModulatedParameter.
-};
-
-// Different parameters modulated by envelopes require different treatment. These are the types of parameters that can be modulated.
-enum modulationMode{
-    modNone,            // No modulation.
-    modCurveCenterY,    // Modulation affects whatever value is associated with the curveCenterPosY in the current interpolation mode.
-    modPosX,            // Modulation changes the x-position of the modulated ShapePoint.
-    modPosY             // Modulation changes the y-position of the modulated ShapePoint.
-};
-
-// Types of context menus that can be displayed when clicking on the GUI.
-enum contextMenuType{
-    menuNone,               // Dont show a menu.
-    menuShapePoint,         // Show menu corresponding to a shapePoint, in which the point can be deleted and the interpolation mode can be changed. Opens on rightclick on point.
-    menuLinkKnob,           // Show menu corresponding to a linkKnob, in which the link can be removed. Opens on rightclick on a link knob.
-    menuPointPosMod,        // Show menu to select either x or y-direction for point position modeulation. Opens on left buttom release after modulating a point by an Envelope.
-    menuEnvelopeLoopMode,   // Show menu to select a loop mode for the current active Envelope. Opens on left click on the loop mode button of EnvelopeManager.
-    menuDistortionMode,     // Show menu to select the distortion mode of the plugin. Opens on left click on the mode button in TopMenuBar.
-};
-
-// Corresponds to the options showed in the context menu appearing when rightclicking onto the linkKnobs.
-// TODO add something like set, copy and paste value.
-enum menuLinkKnobOptions{
-    removeLink // Remove the rightclicked link.
-};
-
-// Modes which define the base to express the Envelope frequency.
-// TODO add Hz and maybe a mode where its an arbitrary integer multiple of the beats, not a power of 2.
-enum envelopeLoopMode{
-    envelopeFrequencyTempo,     // Envelope frequency is the multiple of a beat.
-    envelopeFrequencySeconds    // Envelope frequency is set in seconds.
-};
-
-// Stores the the type of menu that is supposed to be opened in the attribute requestedMenu. If any action requires a context menu to open, this value is set to the required value.
-// As soon as the menu is opened (by functions in gui_w32.cpp), the reset() method is called, which sets requestedMenu to menuNone and save the previous value in lastRequested.
-// This attribute is used to process the menu selection and is reset as soon as it has been processed.
-//
-// TODO: this whole approach should be revised as it is very confusing. When an UDShaper element processes
-// a menu selection, the type of menu is communicated via this class while the selected menu option is passed as
-// a parameter. Additionally, when multiple instances could be concerned by the type of menu, they decide
-// whether to process the menu selection based on recent internal changes
-// (for example if ShapeEditor::rightclicked is a nullptr, ShapeEditors know they are not concerned by the
-// menu selection as the user did not rightclick their interface).
-// These three types of information should be handled together, ideally as arguments of a method.
-class MenuRequest {
-    public:
-    static contextMenuType requestedMenu; // The type of menu to be displayed.
-    static contextMenuType lastRequested; // The type of menu that has been shown last.
-
-    // Resets the current requestedMenu to menuNone and writes its previous value to lastRequested.
-    static void reset() {
-        lastRequested = requestedMenu;
-        requestedMenu = menuNone;
-    }
-};
+#include "enums.h"
 
 // Renders the menu bar at the top of the plugin and handles all user inputs on this area.
 // The menu bar will consist of: The plugin logo (TODO), a button to select the distortion mode and a panel to select presets (TODO).
-class TopMenuBar: InteractiveGUIElement {
+class TopMenuBar: public InteractiveGUIElement {
     TopMenuBarLayout layout; // Stores the box coordinates of elements belonging to this TopMenuBar instance.
     bool updateModeButton = true; // Rerenders mode button in next renderGUI call if true.
     bool updateLogo = true; // Renders plugin logo in next renderGUI call if true.
@@ -129,8 +48,8 @@ class TopMenuBar: InteractiveGUIElement {
     void processRightClick(uint32_t x, uint32_t y);
     void renderGUI(uint32_t *canvas, double beatPosition = 0, double secondsPlayed = 0);
     void rescaleGUI(uint32_t newXYXY[4], uint32_t newWidth, uint32_t newHeight);
+    void processMenuSelection(contextMenuType menuType, int menuItem);
 
-    void processMenuSelection(int menuItem, distortionMode &pluginDistortionMode);
     void setupForRerender();
 };
 
@@ -176,7 +95,7 @@ class ShapeEditor : public InteractiveGUIElement {
     void processRightClick(uint32_t x, uint32_t y);
     void renderGUI(uint32_t *canvas, double beatPosition = 0, double secondsPlayed = 0);
     void rescaleGUI(uint32_t newXYXY[4], uint32_t newWidth, uint32_t newHeight);
-    void processMenuSelection(int menuItem);
+    void processMenuSelection(contextMenuType menuType, int menuItem);
 
     float forward(float input, double beatPosition = 0, double secondsPlayed = 0);
 
@@ -227,7 +146,7 @@ class FrequencyPanel : public InteractiveGUIElement {
     void renderButton(uint32_t *canvas);
     void renderGUI(uint32_t *canvas, double beatPosition, double secondsPlayed);
     void rescaleGUI(uint32_t newXYXY[4], uint32_t newWidth, uint32_t newHeight);
-    void processMenuSelection(int menuItem);
+    void processMenuSelection(contextMenuType menuType, int menuItem);
     double getEnvelopePhase(double beatPosition, double secondsPlayed);
     void setupForRerender();
 
@@ -294,11 +213,11 @@ class EnvelopeManager : public InteractiveGUIElement {
     void processRightClick(uint32_t x, uint32_t y);
     void renderGUI(uint32_t	*canvas, double beatPosition = 0, double secondsPlayed = 0);
     void rescaleGUI(uint32_t newXYXY[4], uint32_t newWidth, uint32_t newHeight);
+    void processMenuSelection(contextMenuType menuType, int menuItem);
     void setupForRerender();
 
     void highlightHoveredParameter(uint32_t x, uint32_t y);
 
-    void processMenuSelection(int menuItem);
     void addModulatedParameter(ShapePoint *point, float amount, modulationMode mode);
     void clearLinksToPoint(ShapePoint *point);
 

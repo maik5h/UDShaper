@@ -22,76 +22,6 @@ void GUI::showWindow(bool visible) {
 	ShowWindow(window, (visible) ? SW_SHOW : SW_HIDE);
 }
 
-// Shows a context menu from which the shape of the curve corresponding to the right clicked point can be selected.
-// Current shapes are:
-// 	-Power (default)
-// 	-Sine (not implemented)
-void showShapeMenu(HWND hwnd, int xPos, int yPos) {
-    HMENU hMenu = CreatePopupMenu();
-
-    // title and separator
-    AppendMenu(hMenu, MF_STRING | MF_DISABLED | MF_GRAYED, 0, "Function:");
-    AppendMenu(hMenu, MF_SEPARATOR, 0, NULL);
-
-    AppendMenu(hMenu, MF_STRING, shapePower, "Power");
-    AppendMenu(hMenu, MF_STRING, shapeSine, "Sine");
-
-    TrackPopupMenu(hMenu, TPM_LEFTALIGN | TPM_TOPALIGN, xPos, yPos, 0, hwnd, NULL);
-
-    DestroyMenu(hMenu);
-}
-
-// Shows a context corresponding to a link knob. Currently the only option is to remove the knob.
-void showLinkKnobMenu(HWND hwnd, int xPos, int yPos) {
-    HMENU hMenu = CreatePopupMenu();
-
-    AppendMenu(hMenu, MF_STRING, removeLink, "Remove Link");
-
-    TrackPopupMenu(hMenu, TPM_LEFTALIGN | TPM_TOPALIGN, xPos, yPos, 0, hwnd, NULL);
-
-    DestroyMenu(hMenu);
-}
-
-// Shows a context menu from which the modulation mode of a ShapePoint can be selected, if the user tries to link an Envelope to this point.
-void showPointPositionModMenu(HWND hwnd, int xPos, int yPos, bool hideX = false) {
-	HMENU hMenu = CreatePopupMenu();
-
-	if (!hideX) {
-		AppendMenu(hMenu, MF_STRING, modPosX, "X");
-	}
-	AppendMenu(hMenu, MF_STRING, modPosY, "Y");
-
-    TrackPopupMenu(hMenu, TPM_LEFTALIGN | TPM_TOPALIGN, xPos, yPos, 0, hwnd, NULL);
-
-    DestroyMenu(hMenu);
-}
-
-// Dropdown menu to select a Envelope loop mode.
-void showLoopModeMenu(HWND hwnd, int xPos, int yPos) {
-	HMENU hMenu = CreatePopupMenu();
-
-	AppendMenu(hMenu, MF_STRING, envelopeFrequencyTempo, "Tempo");
-	AppendMenu(hMenu, MF_STRING, envelopeFrequencySeconds, "Seconds");
-
-    TrackPopupMenu(hMenu, TPM_LEFTALIGN | TPM_TOPALIGN, xPos, yPos, 0, hwnd, NULL);
-
-    DestroyMenu(hMenu);
-}
-
-// Dropdown menu to select the distortion mode.
-void showDistortionModeMenu(HWND hwnd, int xPos, int yPos) {
-	HMENU hMenu = CreatePopupMenu();
-
-	AppendMenu(hMenu, MF_STRING, upDown, "Up/Down");
-	AppendMenu(hMenu, MF_STRING, leftRight, "Left/Right");
-	AppendMenu(hMenu, MF_STRING, midSide, "Mid/Side");
-	AppendMenu(hMenu, MF_STRING, positiveNegative, "+/-");
-
-    TrackPopupMenu(hMenu, TPM_LEFTALIGN | TPM_TOPALIGN, xPos, yPos, 0, hwnd, NULL);
-
-    DestroyMenu(hMenu);
-}
-
 // Draws a textbox to canvas. info defines size and colors of text and surrounding frame.
 // The textsize is dependent on the height of the given box. The width of the box must be large enough to contain the
 // full text, else it will be cut off at the sides.
@@ -174,28 +104,14 @@ LRESULT CALLBACK GUIWindowProcedure(HWND window, UINT message, WPARAM wParam, LP
 			SetCapture(window);
 
 			plugin->processRightClick(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+			MenuRequest::showMenu(window, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
 
-			// If any of the processRightClick functions returned true, open the context menu for points. Information about which point was rightclicked is handled inside the ShapeEditor and Envelope instances.
-			if (MenuRequest::requestedMenu != menuNone){
-				if (MenuRequest::requestedMenu == menuShapePoint){
-					RECT rect; // rect to store window coordinates
-					GetWindowRect(window, &rect);
-					showShapeMenu(window, rect.left + GET_X_LPARAM(lParam), rect.top + GET_Y_LPARAM(lParam));
-					MenuRequest::reset();
-				}
-				else if (MenuRequest::requestedMenu == menuLinkKnob){
-					RECT rect; // rect to store window coordinates
-					GetWindowRect(window, &rect);
-					showLinkKnobMenu(window, rect.left + GET_X_LPARAM(lParam), rect.top + GET_Y_LPARAM(lParam));
-					MenuRequest::reset();
-				}
-			}
 			GUIPaint(plugin, true);
 			break;
 		}
 		// Process the menu selection for all ShapeEditor and Envelope instances.
 		case WM_COMMAND: {
-			plugin->processMenuSelection(static_cast<int>(wParam));
+			MenuRequest::processSelection(static_cast<int>(wParam));
 			GUIPaint(plugin, true);
 			break;
 		}
@@ -205,27 +121,12 @@ LRESULT CALLBACK GUIWindowProcedure(HWND window, UINT message, WPARAM wParam, LP
 		case WM_LBUTTONUP: {
 			ReleaseCapture();
 			plugin->processMouseRelease(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+			MenuRequest::showMenu(window, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
 
 			// After processing of mouse release, it might be necessary to open a context menu. Find out requested
 			// menu and open it.
-			if (MenuRequest::requestedMenu == menuPointPosMod) {
-				RECT rect;
-				GetWindowRect(window, &rect);
-				showPointPositionModMenu(window, rect.left + GET_X_LPARAM(lParam), rect.top + GET_Y_LPARAM(lParam));
-				MenuRequest::reset();
-			}
-			else if (MenuRequest::requestedMenu == menuEnvelopeLoopMode) {
-				RECT rect;
-				GetWindowRect(window, &rect);
-				showLoopModeMenu(window, rect.left + GET_X_LPARAM(lParam), rect.top + GET_Y_LPARAM(lParam));
-				MenuRequest::reset();
-			}
-			else if (MenuRequest::requestedMenu == menuDistortionMode) {
-				RECT rect;
-				GetWindowRect(window, &rect);
-				showDistortionModeMenu(window, rect.left + GET_X_LPARAM(lParam), rect.top + GET_Y_LPARAM(lParam));
-				MenuRequest::reset();
-			};
+
+
 			GUIPaint(plugin, true);
 			break;
 		}
