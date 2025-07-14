@@ -63,7 +63,7 @@ void TopMenuBarLayout::setCoordinates(uint32_t XYXY[4], uint32_t inGUIWidth, uin
     modeButtonXYXY[0] = GUIWidth * 0.25 + margin * 0.5;
     modeButtonXYXY[1] = fullXYXY[1];
     modeButtonXYXY[2] = GUIWidth * 0.5 - 2 * margin;
-    modeButtonXYXY[3] = (uint32_t) fullXYXY[3];
+    modeButtonXYXY[3] = static_cast<uint32_t>(fullXYXY[3]);
 }
 
 // Sets the coordinates of all sub-elements according to the area given in XYXY.
@@ -99,15 +99,14 @@ void EnvelopeManagerLayout::setCoordinates(uint32_t XYXY[4], uint32_t inGUIWidth
         }
 
         // Width and height of the EnvelopeManager. 
-        // 10% on left and 405 on the bottom are reserved for other GUI elements, rest is for Envelopes.
         uint32_t width = fullXYXY[2] - fullXYXY[0];
         uint32_t height = fullXYXY[3] - fullXYXY[1];
 
         // The Envelope is positioned at the upper right corner of the EnvelopeManager.
-        editorXYXY[0] = (uint32_t)(fullXYXY[0] + 0.1*width);
+        editorXYXY[0] = static_cast<uint32_t>(fullXYXY[0] + 0.1*width);
         editorXYXY[1] = fullXYXY[1];
         editorXYXY[2] = fullXYXY[2];
-        editorXYXY[3] = (uint32_t)(fullXYXY[3] - 0.3*height);
+        editorXYXY[3] = static_cast<uint32_t>(fullXYXY[3] - 0.3*height);
 
         editorInnerXYXY[0] = editorXYXY[0] + RELATIVE_FRAME_WIDTH * GUIWidth;
         editorInnerXYXY[1] = editorXYXY[1] + RELATIVE_FRAME_WIDTH * GUIWidth;
@@ -125,9 +124,9 @@ void EnvelopeManagerLayout::setCoordinates(uint32_t XYXY[4], uint32_t inGUIWidth
         // The knobs are positioned below the Envelope, with the same x-extent as the Envelope.
         // For y-position, take width of the 3D frame around the active Envelope into account.
         knobsXYXY[0] = editorXYXY[0];
-        knobsXYXY[1] = (uint32_t)(fullXYXY[3] - 0.3*height) + RELATIVE_FRAME_WIDTH * GUIWidth;
+        knobsXYXY[1] = static_cast<uint32_t>(fullXYXY[3] - 0.3*height) + RELATIVE_FRAME_WIDTH * GUIWidth;
         knobsXYXY[2] = fullXYXY[2];
-        knobsXYXY[3] = (uint32_t)(fullXYXY[3] - 0.15*height);
+        knobsXYXY[3] = static_cast<uint32_t>(fullXYXY[3] - 0.15*height);
 
         knobsInnerXYXY[0] = knobsXYXY[0] + RELATIVE_FRAME_WIDTH * GUIWidth;
         knobsInnerXYXY[1] = knobsXYXY[1] + RELATIVE_FRAME_WIDTH * GUIWidth;
@@ -136,7 +135,7 @@ void EnvelopeManagerLayout::setCoordinates(uint32_t XYXY[4], uint32_t inGUIWidth
 
         // Tools are positioned below knobs.
         toolsXYXY[0] = editorXYXY[0];
-        toolsXYXY[1] = (uint32_t)(fullXYXY[3] - 0.15*height) + RELATIVE_FRAME_WIDTH * GUIWidth;
+        toolsXYXY[1] = static_cast<uint32_t>(fullXYXY[3] - 0.15*height) + RELATIVE_FRAME_WIDTH * GUIWidth;
         toolsXYXY[2] = fullXYXY[2];
         toolsXYXY[3] = fullXYXY[3];
     }

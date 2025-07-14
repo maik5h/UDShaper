@@ -16,6 +16,8 @@ The biggest and most noticeable TODOs of this project:
 
 - FL Studio destroys and reinitializes plugin when loading a preset, so the current implementation works fine. If other hosts do not destroy the plugin, i.e. just load the parameters into the existing instance, some methods might cause problems (EnvelopeManager::loadState assumes that the three default Envelopes are there and not more).
 
+- Editing of curve center positions and possibly point positions should be disabled while the host is playing. Currently ShapeEditors do not have access to the playback status, so maybe it is the easiest solution to disable inside UDShaper::processMouseDrag.
+
 No functionality, only convenience:
 
 - When editing curveCenter, the center should not be set to the mouse position, but rather move slower the further from the center it is, to allow for more control. Also detach the exact position on the screen from the power value to allow for finer steps in power.

@@ -11,13 +11,9 @@
 #include <chrono>
 #include <clap/clap.h>
 #include "config.h"
-#include "src/UDShaperElements.h"
 #include "src/GUI.h"
 #include "src/mutexMacros.h"
-#include "src/assets.h"
 #include "src/UDShaper.h"
-#include "src/GUILayout.h"
-#include "src/logging.h"
 
 // GUI is rendered on the main thread, while the song position is only available on the audio threads.
 // This function compares the process corresponding to the thread it is called in with the last process written to the UDShaper object.
@@ -120,7 +116,6 @@ static const clap_plugin_params_t extensionParams = {
 	.flush = [] (const clap_plugin_t *_plugin, const clap_input_events_t *in, const clap_output_events_t *out) {
 		UDShaper *plugin = (UDShaper *) _plugin->plugin_data;
 		const uint32_t eventCount = in->size(in);
-		// PluginSyncMainToAudio(plugin, out);
 	},
 };
 
@@ -223,13 +218,11 @@ static const clap_plugin_gui_t extensionGUI = {
 		return false;
 	},
 
-	.suggest_title = [] (const clap_plugin_t *_plugin, const char *title) {
-	},
+	.suggest_title = [] (const clap_plugin_t *_plugin, const char *title) {},
 
 	.show = [] (const clap_plugin_t *_plugin) -> bool {
 		UDShaper *plugin = (UDShaper *) _plugin->plugin_data;
-		plugin->envelopes->setupForRerender();
-		plugin->topMenuBar->setupForRerender();
+		plugin->setupForRerender();
 		plugin->gui->showWindow(true);
 		return true;
 	},
@@ -241,19 +234,11 @@ static const clap_plugin_gui_t extensionGUI = {
 	},
 };
 
-static const clap_plugin_posix_fd_support_t extensionPOSIXFDSupport = {
-	.on_fd = [] (const clap_plugin_t *_plugin, int fd, clap_posix_fd_flags_t flags) {
-		UDShaper *plugin = (UDShaper *) _plugin->plugin_data;
-		GUIOnPOSIXFD(plugin);
-	},
-};
-
-
 static const clap_plugin_timer_support_t extensionTimerSupport = {
 	.on_timer = [] (const clap_plugin_t *_plugin, clap_id timerID) {
 		UDShaper *plugin = (UDShaper *) _plugin->plugin_data;
 
-		// repaint plugin so Modulation is also visible when user is not giving input
+		// Repaint plugin so Modulation is also visible when user is not giving input.
 		GUIPaint(plugin, true);
 	},
 };
@@ -326,24 +311,20 @@ static const clap_plugin_t pluginClass = {
 		return true;
 	},
 
-	.deactivate = [] (const clap_plugin *_plugin) {
-	},
+	.deactivate = [] (const clap_plugin *_plugin) {},
 
 	.start_processing = [] (const clap_plugin *_plugin) -> bool {
 		return true;
 	},
 
-	.stop_processing = [] (const clap_plugin *_plugin) {
-	},
+	.stop_processing = [] (const clap_plugin *_plugin) {},
 
-	.reset = [] (const clap_plugin *_plugin) {
-		UDShaper *plugin = (UDShaper *) _plugin->plugin_data;
-	},
+	.reset = [] (const clap_plugin *_plugin) {},
 
 	.process = [] (const clap_plugin *_plugin, const clap_process_t *process) -> clap_process_status {
 		UDShaper *plugin = (UDShaper *) _plugin->plugin_data;
 
-		// Firstly report start and end of the process to the main thread
+		// Firstly report start of the process to the main thread.
 		reportPlaybackStatusToMain(plugin, process);
 
 		plugin->renderAudio(process);
@@ -355,15 +336,13 @@ static const clap_plugin_t pluginClass = {
 		if (0 == strcmp(id, CLAP_EXT_AUDIO_PORTS     )) return &extensionAudioPorts;
 		if (0 == strcmp(id, CLAP_EXT_PARAMS          )) return &extensionParams;
 		if (0 == strcmp(id, CLAP_EXT_GUI             )) return &extensionGUI;
-		if (0 == strcmp(id, CLAP_EXT_POSIX_FD_SUPPORT)) return &extensionPOSIXFDSupport;
 		if (0 == strcmp(id, CLAP_EXT_TIMER_SUPPORT   )) return &extensionTimerSupport;
 		if (0 == strcmp(id, CLAP_EXT_STATE           )) return &extensionPluginState;
 		if (0 == strcmp(id, CLAP_EXT_STATE_CONTEXT   )) return &extensionPluginStateContext;
 		return nullptr;
 	},
 
-	.on_main_thread = [] (const clap_plugin *_plugin) {
-	},
+	.on_main_thread = [] (const clap_plugin *_plugin) {},
 };
 
 static const clap_plugin_factory_t pluginFactory = {

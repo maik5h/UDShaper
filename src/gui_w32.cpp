@@ -15,18 +15,14 @@ void GUI::resize(uint32_t newWidth, uint32_t newHeight) {
 }
 
 void GUI::setParentWindow(const clap_window_t *parentWindow) {
-	SetParent(window, (HWND) parentWindow->win32);
+	SetParent(window, static_cast<HWND>(parentWindow->win32));
 }
 
 void GUI::showWindow(bool visible) {
 	ShowWindow(window, (visible) ? SW_SHOW : SW_HIDE);
 }
 
-// Draws a textbox to canvas. info defines size and colors of text and surrounding frame.
-// The textsize is dependent on the height of the given box. The width of the box must be large enough to contain the
-// full text, else it will be cut off at the sides.
 void drawTextBox(uint32_t *canvas, TextBoxInfo info){
-	// Create new device context
 	HDC hdcGUI = CreateCompatibleDC(NULL);
 	BITMAPINFO bitmapInfo = { { sizeof(BITMAPINFOHEADER), info.GUIWidth, -info.GUIHeight, 1, 32, BI_RGB } };
 
@@ -34,10 +30,10 @@ void drawTextBox(uint32_t *canvas, TextBoxInfo info){
     HBITMAP hBitmap = CreateDIBSection(hdcGUI, &bitmapInfo, DIB_RGB_COLORS, &pBits, NULL, 0);
     HBITMAP oldBitmap = (HBITMAP)SelectObject(hdcGUI, hBitmap);
 
-	// Load GUI bits from canavs to pBits
+	// Load GUI bits from canvas to pBits.
 	memcpy(pBits, canvas, info.GUIWidth * info.GUIHeight * sizeof(uint32_t));
 
-	// draw text to hdcGUI
+	// Draw text to hdcGUI.
 	RECT rect{info.position[0], info.position[1], info.position[2], info.position[3]};
 	uint32_t textHeight = static_cast<uint32_t>(info.textHeight * info.position[3]-info.position[1]);
 	HFONT hFont = CreateFont(
@@ -50,14 +46,13 @@ void drawTextBox(uint32_t *canvas, TextBoxInfo info){
 	SetBkMode(hdcGUI, TRANSPARENT);
     DrawText(hdcGUI, info.text.c_str(), -1, &rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
 
-	// Load updated gui bitmap back into canvas
+	// Load updated gui bitmap back into canvas.
 	memcpy(canvas, pBits, info.GUIWidth * info.GUIHeight * sizeof(uint32_t));
 
     SelectObject(hdcGUI, oldBitmap);
     DeleteObject(hBitmap);
     DeleteDC(hdcGUI);
 
-	// Draw a frame around the text.
 	if (info.frameWidth) {
 		drawFrame(canvas, info.GUIWidth, info.position, info.frameWidth, info.colorFrame, info.alphaFrame);
 	}
@@ -66,9 +61,7 @@ void drawTextBox(uint32_t *canvas, TextBoxInfo info){
 LRESULT CALLBACK GUIWindowProcedure(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
 	UDShaper *plugin = (UDShaper *) GetWindowLongPtr(window, 0);
 
-	if (!plugin) {
-		return DefWindowProc(window, message, wParam, lParam);
-	}
+	if (!plugin) return DefWindowProc(window, message, wParam, lParam);
 
 	switch (message){
 		// Copies plugin->gui->bits to the window DC.
@@ -97,9 +90,6 @@ LRESULT CALLBACK GUIWindowProcedure(HWND window, UINT message, WPARAM wParam, LP
 			GUIPaint(plugin, true);
 			break;
 		}
-		// Can open one of the following context menus:
-		// 	- menu to select curve shape, when rightclicked on a ShapePoint
-		// 	- menu with link knob options, when rightclicked on a link knob
 		case WM_RBUTTONUP: {
 			SetCapture(window);
 
@@ -115,17 +105,11 @@ LRESULT CALLBACK GUIWindowProcedure(HWND window, UINT message, WPARAM wParam, LP
 			GUIPaint(plugin, true);
 			break;
 		}
-		// Can open one of the following context menus:
-		//	- Menu to select either X or Y direction, if mouse has dragged from an Envelope and was released on a ShapePoint.
-		//	- Menu to select a loopMode for the active Envelope.
 		case WM_LBUTTONUP: {
 			ReleaseCapture();
+
 			plugin->processMouseRelease(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
 			MenuRequest::showMenu(window, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
-
-			// After processing of mouse release, it might be necessary to open a context menu. Find out requested
-			// menu and open it.
-
 
 			GUIPaint(plugin, true);
 			break;
@@ -136,7 +120,8 @@ LRESULT CALLBACK GUIWindowProcedure(HWND window, UINT message, WPARAM wParam, LP
 	return 0;
 }
 
-// Creates windowclass and window and draws some elements on the GUI, that are not updated afterwards, such as frames around elements.
+// Creates windowclass and window and draws elements on the GUI that are not updated afterwards,
+// such as frames around elements.
 void GUICreate(UDShaper *plugin, clap_plugin_descriptor_t pluginDescriptor) {
 	plugin->gui = new GUI();
 	plugin->gui->width = GUI_WIDTH_INIT;
@@ -171,9 +156,6 @@ void GUIDestroy(UDShaper *plugin, clap_plugin_descriptor_t pluginDescriptor) {
 		UnregisterClass(pluginDescriptor.id, NULL);
 	}
 }
-
-// Does nothing on windows.
-void GUIOnPOSIXFD(UDShaper *) {}
 
 // Changes the cursor to IDC_HAND to indicate dragging.
 void setCursorDragging() {

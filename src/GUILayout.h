@@ -3,7 +3,7 @@
 // and the EnvelopeManager. The setCoordinates method calculates the coordinates of all elements corresonding
 // to a given GUI size. ShapeEditorCoordinates, FrequencyPanelCoordinates and TopMenuBarCoordinates work similar.
 //
-// Rendering of the GUI is handled in the individual GUI elements of the plugin in shapeEditor.cpp.
+// Rendering of the GUI is handled in the individual GUI elements of the plugin in UDShaperElements.cpp.
 
 #pragma once
 

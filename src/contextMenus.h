@@ -14,7 +14,9 @@ void showShapeMenu(HWND hwnd, int xPos, int yPos);
 void showLinkKnobMenu(HWND hwnd, int xPos, int yPos);
 
 // Shows a context menu from which the modulation mode of a ShapePoint can be selected, if the user
-// tries to link an Envelope to this point.
+// tries to link an Envelope to this point. Menu options are:
+//  - modPosX
+//  - modPosY
 void showPointPositionModMenu(HWND hwnd, int xPos, int yPos);
 
 // Shows a context menu to select an Envelope loop mode.
@@ -32,8 +34,8 @@ void showLoopModeMenu(HWND hwnd, int xPos, int yPos);
 void showDistortionModeMenu(HWND hwnd, int xPos, int yPos);
 
 
-// MenuRequest is a static class to manage context menus. It acts as a bridge between the plugin
-// logic and windows dependent features.
+// MenuRequest is a class with static methods to manage context menus. It acts as a bridge between the plugin
+// logic in UDShaperElements.cpp and windows dependent features in gui_w32.cpp.
 //
 // The intended life-cycle of a context menu is:
 //  - An InteractiveGUIElement sends a request through MenuRequest::sendRequest.
@@ -41,7 +43,7 @@ void showDistortionModeMenu(HWND hwnd, int xPos, int yPos);
 //  - If the user selects an option, MenuRequest::processSelection is called, which forwards the
 //    selected menu item to the InteractiveGUIElement that initially requested the menu.
 class MenuRequest {
-    static InteractiveGUIElement *requestOwner; // The element that submitted the request.
+    static InteractiveGUIElement *requestOwner; // The element that has submitted the request.
     static contextMenuType requestedMenu;       // The type of menu to be displayed.
     static contextMenuType currentMenu;         // The type of menu currently being displayed.
 

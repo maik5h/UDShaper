@@ -1,6 +1,5 @@
 #include "assets.h"
 
-// Blends between originalColor and newColor, such that for alpha = 0 the original color is preserved and for alpha = 1 the new color is chosen.
 uint32_t blendColor(uint32_t originalColor, uint32_t newColor, double alpha){
     uint8_t r1 = (originalColor >> 16) & 0xFF;
     uint8_t g1 = (originalColor >> 8) & 0xFF;
@@ -17,31 +16,34 @@ uint32_t blendColor(uint32_t originalColor, uint32_t newColor, double alpha){
     return (r << 16) | (g << 8) | b;
 }
 
-// Fills the area given by box with color. Assumes input canvas is the GUI.
-void fillRectangle(uint32_t *canvas, uint32_t GUIWidth, uint32_t box[4], uint32_t color){
-    for (int y=box[1]; y<box[3]; y++){
-        for (int x=box[0]; x<box[2]; x++){
+void fillRectangle(uint32_t *canvas, uint32_t GUIWidth, uint32_t XYXY[4], uint32_t color){
+    for (int y=XYXY[1]; y<XYXY[3]; y++){
+        for (int x=XYXY[0]; x<XYXY[2]; x++){
             canvas[x + y * GUIWidth] = color;
         }
     }
 }
 
-// Draws a point of color and size at position x, y onto canvas.
-void drawPoint(uint32_t *canvas, uint32_t GUIWidth, float x, float y, uint32_t color, float size){
-    for (int i=(int)-size/2; i<(int)size/2; i++){
-        for (int j=(int)-size/2; j<(int)size/2; j++){
-            if (i*i + j*j <= size*size/4){
-                canvas[(int)x + i + ((int)y + j) * GUIWidth] = color;
+void drawPoint(uint32_t *canvas, uint32_t GUIWidth, float posX, float posY, uint32_t color, float size){
+    int xMin = static_cast<int>(posX - size / 2);
+    int xMax = static_cast<int>(posX + size / 2);
+    int yMin = static_cast<int>(posY - size / 2);
+    int yMax = static_cast<int>(posY + size / 2);
+
+    for (int y=yMin; y<yMax; y++){
+        for (int x=xMin; x<xMax; x++){
+            if ((x - posX) * (x - posX) + (y - posY) * (y - posY) <= size*size/4){
+                canvas[x + y * GUIWidth] = color;
             }
         }
     }
 }
 
-// Draws a circle with a given width and radius to position (x, y) on canvas. radius gives the radius of the
-// outer edge.
 void drawCircle(uint32_t *canvas, uint32_t GUIWidth, uint32_t posX, uint32_t posY, uint32_t color, uint32_t radius, uint32_t width) {
-    for (int y=-static_cast<int>(radius); y<static_cast<int>(radius); y++) {
-        for (int x=-static_cast<int>(radius); x<static_cast<int>(radius); x++) {
+    int rad = static_cast<int>(radius);
+    
+    for (int y=-rad; y<rad; y++) {
+        for (int x=-rad; x<rad; x++) {
             if (x*x + y*y <= radius*radius && x*x + y*y > (radius - width)*(radius - width)) {
                 canvas[(y + posY)*GUIWidth + posX + x] = color;
             }
@@ -49,20 +51,18 @@ void drawCircle(uint32_t *canvas, uint32_t GUIWidth, uint32_t posX, uint32_t pos
     }
 }
 
-// Draws a simple frame to canvas. The frame extends the number of pixel given in thickness from the innerBox.
 void drawFrame(uint32_t *canvas, uint32_t GUIWidth, uint32_t innerBox[4], int thickness, uint32_t color, float alpha){
-    for (int i=innerBox[1] - thickness; i<innerBox[3] + thickness; i++){
-        for (int j=innerBox[0] - thickness; j<innerBox[2] + thickness; j++){
-            if (isInBox(j, i, innerBox)){
+    for (int y=innerBox[1] - thickness; y<innerBox[3] + thickness; y++){
+        for (int x=innerBox[0] - thickness; x<innerBox[2] + thickness; x++){
+            if (isInBox(x, y, innerBox)){
                 continue;
             }
 
-            canvas[j + i * GUIWidth] = blendColor(canvas[j + i * GUIWidth], color, alpha);
+            canvas[x + y * GUIWidth] = blendColor(canvas[x + y * GUIWidth], color, alpha);
         }
     }
 };
 
-// Draw a frame that has each side shaded in a different color to create the impression of depth.
 void draw3DFrame(uint32_t *canvas, uint32_t GUIWidth, uint32_t innerBox[4], uint32_t baseColor, int thickness){
     uint32_t colorBright1 = blendColor(colorBackground, 0xFFFFFFFF, 0.52);
     uint32_t colorBright2 = blendColor(colorBackground, 0xFFFFFFFF, 0.4);
@@ -98,7 +98,6 @@ void draw3DFrame(uint32_t *canvas, uint32_t GUIWidth, uint32_t innerBox[4], uint
     }
 };
 
-// Draws a 3D frame similar to the function draw3DFrame, but the segment on the right is missing and connects to another 3D frame positioned to the right.
 void drawPartial3DFrame(uint32_t *canvas, uint32_t GUIWidth, uint32_t innerBox[4], uint32_t baseColor, uint32_t thickness) {
     uint32_t colorBright1 = blendColor(colorBackground, 0xFFFFFF, 0.52);
     uint32_t colorBright2 = blendColor(colorBackground, 0xFFFFFF, 0.4);
@@ -127,19 +126,16 @@ void drawPartial3DFrame(uint32_t *canvas, uint32_t GUIWidth, uint32_t innerBox[4
     }
 }
 
-// Draws a grid inside box to canvas. Thickness is not yet implemented.
 void drawGrid(uint32_t *canvas, uint32_t GUIWidth, uint32_t box[4], int numberLines, int thickness, uint32_t color, float alpha){
     int distanceX = (int)(box[2] - box[0]) / (numberLines + 1);
     int distanceY = (int)(box[3] - box[1]) / (numberLines + 1);
 
-    // horizontal lines
     for (uint32_t y=1; y<=numberLines; y++){
         for (uint32_t x=box[0]; x<box[2]; x++){
             canvas[box[1] * GUIWidth + x + y * distanceY * GUIWidth] = blendColor(canvas[box[1] * GUIWidth + x + y * distanceY * GUIWidth], color, alpha);
         }
     }
 
-    // vertical lines
     for (uint32_t y=box[1]; y<box[3]; y++){
         for (int x=1; x<=numberLines; x++){
             canvas[box[0] + x * distanceX + y * GUIWidth] = blendColor(canvas[x * distanceX + y * GUIWidth], color, alpha);
@@ -147,14 +143,16 @@ void drawGrid(uint32_t *canvas, uint32_t GUIWidth, uint32_t box[4], int numberLi
     }
 }
 
-// Draws a LinkKnob at (posX, posY) to canvas. The knob is ring shaped and filled with color from the very top up to value, where value = +-1 fills the whole circle. The area is filled clockwise for positive and counter clockwise for negative values. It is used to control the links between Envelopes and Parameters, hence the name.
+// The knob this function draws is ring shaped and partially filled with color. The colored segment always
+// starts at the top of the ring and extends clockwise or counterclowise up to certain angle. This angle is
+// given by value, where +-1 stands for a fully filled ring.
 void drawLinkKnob(uint32_t *canvas, uint32_t GUIWidth, uint32_t posX, uint32_t posY, uint32_t size, float value, uint32_t color){
     float thickness = 0.45; // Relative thickness of the ring
-    float r; // squared distance to center
-    float phi; // angle
+    float r;                // squared distance to center
+    float phi;              // angle
 
-    int cX = posX; // x-center as signed int
-    int cY = posY; // y-center as signed int
+    int cX = posX;          // x-center as signed int
+    int cY = posY;          // y-center as signed int
 
     for (int y=posY-size/2; y<=posY+size/2; y++){
         for (int x=posX-size/2; x<posX+size/2; x++){
