@@ -26,10 +26,10 @@ void UDShaperLayout::setCoordinates(float width, float height) {
   editor1Rect.R = GUIWidth * 0.25f - margin * 0.5f;
   editor1Rect.B = GUIHeight - 2 * margin;
 
-  editor1Rect.L = GUIWidth * 0.25f + margin * 0.5f;
-  editor1Rect.T = topMenuRect.B + 2 * margin;
-  editor1Rect.R = GUIWidth * 0.5f - 2 * margin;
-  editor1Rect.B = GUIHeight - 2 * margin;
+  editor2Rect.L = GUIWidth * 0.25f + margin * 0.5f;
+  editor2Rect.T = topMenuRect.B + 2 * margin;
+  editor2Rect.R = GUIWidth * 0.5f - 2 * margin;
+  editor2Rect.B = GUIHeight - 2 * margin;
 
   // Editor frame is drawn around the two ShapeEditors.
   editorFrameRect.L = margin;
