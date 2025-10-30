@@ -1,13 +1,17 @@
-// The following values define the color scheme of the UDShaper GUI.
-// Base colors are given as 32-bit unsigned integers in 0xAARRGGBB notation.
+// The UDShaper color palette.
 
 #pragma once
 
-#include <cstdint>
+#include "../IGraphicsStructs.h"
+using namespace iplug;
+using namespace igraphics;
 
-constexpr uint32_t colorBackground = 0xFF5F5F5F;          // Background color of the plugin.
-constexpr uint32_t colorEditorBackground = 0xFFFEB55A;    // Background color of the ShapeEditors.
-constexpr uint32_t colorCurve = 0xFFFFFFFF;               // Color of the curves and frame on ShapeEditors.
+const IColor UDS_GREY(255, 95, 95, 95);
+const IColor UDS_ORANGE(255, 254, 181, 90);
+const IColor UDS_WHITE(255, 255, 255, 255);
 
-constexpr float alphaGrid = 0.4;        // Alpha value of the grid on the ShapeEditor background. Grid has color colorCurve.
-constexpr float alphaShadow = 0.45;     // Percantage of black (0xFF000000) being mixed to the base color to create a darker variation.
+// Alpha value of the grid on the ShapeEditor background.
+const float ALPHA_GRID = 0.4;
+
+// Alpha value of shadows.
+const float ALPHA_SHADOW = 0.45;

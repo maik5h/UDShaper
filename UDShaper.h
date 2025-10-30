@@ -1,7 +1,7 @@
 #pragma once
 
 #include "IPlug_include_in_plug_hdr.h"
-//#include "src/UDShaper_dsp.h"
+#include "src/color_palette.h"
 
 const int kNumPresets = 1;
 

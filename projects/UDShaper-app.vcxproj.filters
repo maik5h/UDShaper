@@ -258,6 +258,9 @@
     <ClInclude Include="..\..\..\IPlug\ISender.h">
       <Filter>IPlug</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\color_palette.h">
+      <Filter>core</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="resources">
@@ -291,7 +294,7 @@
       <UniqueIdentifier>{649c5de3-b4c2-4de9-8d57-3b1762646259}</UniqueIdentifier>
     </Filter>
     <Filter Include="core">
-      <UniqueIdentifier>{204d229d-020b-424e-a17b-1c9202baa654}</UniqueIdentifier>
+      <UniqueIdentifier>{0fe2faca-6c06-4c1f-9394-3f5b942e4577}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
