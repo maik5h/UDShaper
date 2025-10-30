@@ -7,8 +7,8 @@
 #include <cstdint>
 #include <string>
 #include <cmath>
-#include "../config.h"
-#include "../color_palette.h"
+#include "config.h"
+#include "color_palette.h"
 #include "enums.h"
 
 // Blends between originalColor and newColor, such that for alpha = 0 the original color is preserved

@@ -1,37 +1,59 @@
-#pragma once
+#define PLUG_NAME "UDShaper"
+#define PLUG_MFR "maik5h"
+#define PLUG_VERSION_HEX 0x00010000
+#define PLUG_VERSION_STR "1.0.0"
+#define PLUG_UNIQUE_ID 'udsp'
+#define PLUG_MFR_ID 'Acme'
+#define PLUG_URL_STR "https://iplug2.github.io"
+#define PLUG_EMAIL_STR "spam@me.com"
+#define PLUG_COPYRIGHT_STR "Copyright 2020 Acme Inc"
+#define PLUG_CLASS_NAME UDShaper
 
-#include <cstdint>
+#define BUNDLE_NAME "UDShaper"
+#define BUNDLE_MFR "maik5h"
+#define BUNDLE_DOMAIN "com"
 
-constexpr int UDSHAPER_VERSION[3] = {1, 0, 0};  // The version of this UDShaper instance.
-#define UDSHAPER_VERSION_STRING "1.0.0"         // Version as an array of chars. Must be equivalent to UDSHAPER_VERSION.
+#define SHARED_RESOURCES_SUBPATH "UDShaper"
 
-// TODO the default values are good for my screen. On other systems it is probably too large.
-constexpr uint32_t GUI_WIDTH_INIT = 1600;                   // Default GUI window width in pixel.
-constexpr uint32_t GUI_HEIGHT_INIT = 800;                   // Sefault GUI window height in pixel.
-constexpr uint32_t GUI_WIDTH_MIN = 320;                     // Minimum GUI width in pixel.
-constexpr uint32_t GUI_HEIGHT_MIN = 160;                    // Minimum GUI height in pixel.
-constexpr uint32_t GUI_WIDTH_MAX = 2400;                    // Maximum GUI width in pixel.
-constexpr uint32_t GUI_HEIGHT_MAX = 1200;                   // Maximum GUI height in pixel.
+#define PLUG_CHANNEL_IO "1-1 2-2"
 
-constexpr float RELATIVE_FRAME_WIDTH = 16. / 1600;          // Width of 3D frames around ShapeEditors relative to the GUI width.
-constexpr float RELATIVE_FRAME_WIDTH_NARROW = 5. / 1600;    // Width of narrow frames relative to the GUI width.
-constexpr float RELATIVE_FRAME_WIDTH_EDITOR = 3. / 1600;    // Width of the frames around ShapeEditor interfaces relative to the GUI width.
-constexpr float RELATIVE_POINT_SIZE_SMALL = 12. / 1600;     // Radius of the curve center points relative to the GUI width.
-constexpr float RELATIVE_POINT_SIZE = 16. / 1600;           // Radius of ShapePoints relative to the GUI width.
+#define PLUG_LATENCY 0
+#define PLUG_TYPE 0
+#define PLUG_DOES_MIDI_IN 0
+#define PLUG_DOES_MIDI_OUT 0
+#define PLUG_DOES_MPE 0
+#define PLUG_DOES_STATE_CHUNKS 0
+#define PLUG_HAS_UI 1
+#define PLUG_WIDTH 600
+#define PLUG_HEIGHT 600
+#define PLUG_FPS 60
+#define PLUG_SHARED_RESOURCES 0
+#define PLUG_HOST_RESIZE 0
 
-constexpr float SHAPE_MAX_POWER = 30;                       // Maximum of the power parameter of ShapePoints.
-constexpr float SHAPE_MIN_OMEGA = 10E-3;                    // Minimum omega of SHapePoints.
+#define AUV2_ENTRY UDShaper_Entry
+#define AUV2_ENTRY_STR "UDShaper_Entry"
+#define AUV2_FACTORY UDShaper_Factory
+#define AUV2_VIEW_CLASS UDShaper_View
+#define AUV2_VIEW_CLASS_STR "UDShaper_View"
 
-constexpr uint32_t MAX_NUMBER_LINKS = 12;                   // Maximum number of links to a ModulatedParameter for a single Envelope.
-constexpr float RELATIVE_LINK_KNOB_SIZE = 40. / 1600;       // Diameter of the link knobs below the active Envelope of the EnvelopeManager relative to the GUI width.
-constexpr float KNOB_SENSITIVITY = 1./150;                  // How much the value of a knob changes when the mouse moves one pixel on the screen.
-constexpr float COUNTER_SENSITIVITY = 1./40;                // How much the value of the counter changer when the mouse moves one pixel on the screen.
+#define AAX_TYPE_IDS 'IEF1', 'IEF2'
+#define AAX_TYPE_IDS_AUDIOSUITE 'IEA1', 'IEA2'
+#define AAX_PLUG_MFR_STR "Acme"
+#define AAX_PLUG_NAME_STR "UDShaper\nIPEF"
+#define AAX_PLUG_CATEGORY_STR "Effect"
+#define AAX_DOES_AUDIOSUITE 1
 
-// Square of the minimum distance between the mouse and an object in pixels in order to let them interact.
-constexpr float REQUIRED_SQUARED_DISTANCE = 200;
+#define VST3_SUBCATEGORY "Fx"
 
-// Time in ms until GUI is rerendered.
-constexpr uint32_t GUI_REFRESH_INTERVAL = 15;
+#define CLAP_MANUAL_URL "https://iplug2.github.io/manuals/example_manual.pdf"
+#define CLAP_SUPPORT_URL "https://github.com/iPlug2/iPlug2/wiki"
+#define CLAP_DESCRIPTION "A simple audio effect for modifying gain"
+#define CLAP_FEATURES "audio-effect"//, "utility"
 
- // The maxmium number of Envelopes.
-constexpr int MAX_NUMBER_ENVELOPES = 10;
+#define APP_NUM_CHANNELS 2
+#define APP_N_VECTOR_WAIT 0
+#define APP_MULT 1
+#define APP_COPY_AUV3 0
+#define APP_SIGNAL_VECTOR_SIZE 64
+
+#define ROBOTO_FN "Roboto-Regular.ttf"

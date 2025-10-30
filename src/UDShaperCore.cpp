@@ -1,4 +1,4 @@
-#include "UDShaper.h"
+#include "UDShaperCore.h"
 
 
 long getCurrentTime(){
@@ -138,39 +138,40 @@ void UDShaper::processRightClick(uint32_t x, uint32_t y) {
 }
 
 void UDShaper::renderGUI(uint32_t *canvas) {
-    // clap_plugin_gui_t->create() is not automatically called when the plugin is created, it might be postponed to
-    // when the plugin window is first opened. This guard takes care that the GUI is only rendered after it has
-    // been created.
-    if (gui == nullptr) return;
+    return;
+     // clap_plugin_gui_t->create() is not automatically called when the plugin is created, it might be postponed to
+     // when the plugin window is first opened. This guard takes care that the GUI is only rendered after it has
+     // been created.
+     if (gui == nullptr) return;
 
-    // Draw GUI elements that do not change over time:
-    //  - GUI background
-    //  - EnvelopeManager frames
-    //  - Frame around both ShapeEditors
-    // They will not be rerendered every frame.
-    if (!GUIInitialized) {
-        fillRectangle(canvas, layout.GUIWidth, layout.fullXYXY, colorBackground);
-        envelopes->setupFrames(canvas);
-        drawFrame(canvas, layout.GUIWidth, layout.editorFrameXYXY, RELATIVE_FRAME_WIDTH_NARROW * layout.GUIWidth, 0xFF000000, alphaShadow);
+     // Draw GUI elements that do not change over time:
+     //  - GUI background
+     //  - EnvelopeManager frames
+     //  - Frame around both ShapeEditors
+     // They will not be rerendered every frame.
+     if (!GUIInitialized) {
+         fillRectangle(canvas, layout.GUIWidth, layout.fullXYXY, colorBackground);
+         envelopes->setupFrames(canvas);
+         drawFrame(canvas, layout.GUIWidth, layout.editorFrameXYXY, RELATIVE_FRAME_WIDTH_NARROW * layout.GUIWidth, 0xFF000000, alphaShadow);
 
-        GUIInitialized = true;
-    }
+         GUIInitialized = true;
+     }
 
-    // The beatposition is calculated for the point in time when this function is called.
-    long now = getCurrentTime();
-    MutexAcquire(synchProcessStartTime);
+     // The beatposition is calculated for the point in time when this function is called.
+     long now = getCurrentTime();
+     MutexAcquire(synchProcessStartTime);
 
-    // If the host is playing, add the beats that have passed since it started playing to the initial beatPosition.
-    // The initBeatPosition and startedPlaying are set from the audio threads, where clap_transport is available.
-    double beatPosition = hostPlaying ? (initBeatPosition + (now - startedPlaying) / 1000 / 60 * currentTempo) : initBeatPosition;
-    // TODO init secondsPlayed has to be calculated from initBeatPosition
-    double secondsPlayed = hostPlaying ? (now - startedPlaying) / 1000. : 0;
-    MutexRelease(synchProcessStartTime);
+     // If the host is playing, add the beats that have passed since it started playing to the initial beatPosition.
+     // The initBeatPosition and startedPlaying are set from the audio threads, where clap_transport is available.
+     double beatPosition = hostPlaying ? (initBeatPosition + (now - startedPlaying) / 1000 / 60 * currentTempo) : initBeatPosition;
+     // TODO init secondsPlayed has to be calculated from initBeatPosition
+     double secondsPlayed = hostPlaying ? (now - startedPlaying) / 1000. : 0;
+     MutexRelease(synchProcessStartTime);
 
-    topMenuBar->renderGUI(canvas);
-    shapeEditor1->renderGUI(canvas, beatPosition, secondsPlayed);
-    shapeEditor2->renderGUI(canvas, beatPosition, secondsPlayed);
-    envelopes->renderGUI(canvas);
+     topMenuBar->renderGUI(canvas);
+     shapeEditor1->renderGUI(canvas, beatPosition, secondsPlayed);
+     shapeEditor2->renderGUI(canvas, beatPosition, secondsPlayed);
+     envelopes->renderGUI(canvas);
 }
 
 void UDShaper::rescaleGUI(uint32_t width, uint32_t height) {

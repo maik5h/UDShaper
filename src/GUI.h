@@ -5,7 +5,7 @@
 
 #include <stdexcept>
 #include <windowsx.h>
-#include "UDShaper.h"
+#include "UDShaperCore.h"
 #include "assets.h"
 #include <clap/clap.h>
 #include "UDShaperElements.h"

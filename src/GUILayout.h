@@ -7,7 +7,7 @@
 
 #pragma once
 
-#include "../config.h"
+#include "config.h"
 
 // Stores box coordinates of the main elements of UDShaper.
 // Box coordinates corresponding to a specific window width and height are calculated by setCoordinates().

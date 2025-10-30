@@ -19,8 +19,8 @@
 #include <assert.h>
 #include <map>
 #include <clap/clap.h>
-#include "../config.h"
-#include "../color_palette.h"
+#include "config.h"
+#include "color_palette.h"
 #include "assets.h"
 #include "string_presets.h"
 #include "GUILayout.h"

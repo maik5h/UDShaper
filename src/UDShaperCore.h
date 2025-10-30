@@ -1,13 +1,13 @@
 #pragma once
 
-#include <clap/clap.h>
+//#include <clap/clap.h>
 #include <exception>
 #include "UDShaperElements.h"
 #include "mutexMacros.h"
 #include "assets.h"
 #include "GUILayout.h"
 #include "logging.h"
-#include "../color_palette.h"
+#include "color_palette.h"
 
 // Returns the current time since Unix epoch in milliseconds.
 long getCurrentTime();
@@ -23,9 +23,9 @@ long getCurrentTime();
 // renderAudio is used to process the input audio depending on the state of the ShapeEditors.
 class UDShaper {
     public:
-	clap_plugin_t plugin;
-	const clap_host_t *host;
-	clap_id timerID;
+	//clap_plugin_t plugin;
+	//const clap_host_t *host;
+	//clap_id timerID;
 	struct GUI *gui = nullptr;
 	bool GUIInitialized = false;
 	UDShaperLayout layout;
@@ -59,13 +59,13 @@ class UDShaper {
 	~UDShaper();
 
 	// The following methods forward user inputs to all members inheriting that that are supposed to react to it.
-    void processLeftClick(uint32_t x, uint32_t y);
-    void processMouseDrag(uint32_t x, uint32_t y);
-    void processMouseRelease(uint32_t x, uint32_t y);
-    void processDoubleClick(uint32_t x, uint32_t y);
-    void processRightClick(uint32_t x, uint32_t y);
-    void renderGUI(uint32_t *canvas);
-	void rescaleGUI(uint32_t width, uint32_t height);
+  void processLeftClick(uint32_t x, uint32_t y);
+  void processMouseDrag(uint32_t x, uint32_t y);
+  void processMouseRelease(uint32_t x, uint32_t y);
+  void processDoubleClick(uint32_t x, uint32_t y);
+  void processRightClick(uint32_t x, uint32_t y);
+  void renderGUI(uint32_t *canvas);
+  void rescaleGUI(uint32_t width, uint32_t height);
 
 	// After being called, will inform subelements that they have to rerender their GUI. Must be called when showing
 	// the plugin window for the first time or after being hidden.
@@ -82,7 +82,7 @@ class UDShaper {
 	//  - leftRight:		shapeEditor1 is used on the left channel, shapeEditor2 on the right channel.
 	//  - midSide:			shapeEditor1 is used on the mid channel, shapeEditor2 on the side channel.
 	//  - positiveNegative:	shapeEditor1 is used on samples > 0, shapeEditor2 on samples < 0. samples = 0 stay 0.
-    void renderAudio(const clap_process_t *process);
+  void renderAudio(const clap_process_t *process);
 
 	// Saves the UDShaper state by consecutively calling the saveState methods of the
 	// InteractiveGUIElement members.
