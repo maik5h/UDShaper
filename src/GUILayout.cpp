@@ -1,164 +1,168 @@
 #include "GUILayout.h"
 
 // Sets the coordinates of all sub-elements according to the given width and height values.
-void UDShaperLayout::setCoordinates(uint32_t width, uint32_t height) {
-        GUIWidth = width;
-        GUIHeight = height;
-        
-        uint32_t margin = RELATIVE_FRAME_WIDTH * GUIWidth; // Free space around edges of GUI.
-        
-        fullXYXY[0] = 0;
-        fullXYXY[1] = 0;
-        fullXYXY[2] = width;
-        fullXYXY[3] = height;
+void UDShaperLayout::setCoordinates(float width, float height) {
+  GUIWidth = width;
+  GUIHeight = height;
 
-        // Top menu starts at upper left corner and extends over the whole width of the GUI.
-        topMenuXYXY[0] = 0;
-        topMenuXYXY[1] = 0;
-        topMenuXYXY[2] = GUIWidth;
-        topMenuXYXY[3] = GUIHeight * 0.125; // Top menu bar takes up 12.5% of the GUI height.
+  // Free space around edges of GUI.
+  float margin = RELATIVE_FRAME_WIDTH * GUIWidth;
 
-        // Two ShapeEditors are positioned below the top menu on the left side of the remaining area.
-        editor1XYXY[0] = 2 * margin;
-        editor1XYXY[1] = topMenuXYXY[3] + 2 * margin;
-        editor1XYXY[2] = GUIWidth * 0.25 - margin * 0.5;
-        editor1XYXY[3] = GUIHeight - 2 * margin;
+  fullRect.L = 0;
+  fullRect.T = 0;
+  fullRect.R = GUIWidth;
+  fullRect.B = GUIHeight;
 
-        editor2XYXY[0] = GUIWidth * 0.25 + margin * 0.5;
-        editor2XYXY[1] = topMenuXYXY[3] + 2 * margin;
-        editor2XYXY[2] = GUIWidth * 0.5 - 2 * margin;
-        editor2XYXY[3] = GUIHeight - 2 * margin;
+  // Top menu starts at upper left corner and extends over the whole width of the GUI.
+  // It takes up 12.5% of the GUI height.
+  topMenuRect.L = 0;
+  topMenuRect.T = 0;
+  topMenuRect.R = GUIWidth;
+  topMenuRect.B = GUIHeight * 0.125f;
 
-        // Editor frame is drawn around the two ShapeEditors.
-        editorFrameXYXY[0] = margin;
-        editorFrameXYXY[1] = topMenuXYXY[3] + margin;
-        editorFrameXYXY[2] = GUIWidth * 0.5 - margin;
-        editorFrameXYXY[3] = GUIHeight - margin;
+  // Two ShapeEditors are positioned below the top menu on the left side of the remaining area.
+  editor1Rect.L = 2 * margin;
+  editor1Rect.T = topMenuRect.B + 2 * margin;
+  editor1Rect.R = GUIWidth * 0.25f - margin * 0.5f;
+  editor1Rect.B = GUIHeight - 2 * margin;
 
-        // EnvelopeManager is located below the top menu bar and right to the ShapeEditors.
-        envelopeXYXY[0] = GUIWidth * 0.5 + margin;
-        envelopeXYXY[1] = topMenuXYXY[3] + margin;
-        envelopeXYXY[2] = GUIWidth - margin;
-        envelopeXYXY[3] = GUIHeight - margin;
-    }
+  editor1Rect.L = GUIWidth * 0.25f + margin * 0.5f;
+  editor1Rect.T = topMenuRect.B + 2 * margin;
+  editor1Rect.R = GUIWidth * 0.5f - 2 * margin;
+  editor1Rect.B = GUIHeight - 2 * margin;
 
-// Sets the coordinates of all sub-elements according to the area given in XYXY.
-void TopMenuBarLayout::setCoordinates(uint32_t XYXY[4], uint32_t inGUIWidth, uint32_t inGUIHeight) {
-    GUIWidth = inGUIWidth;
-    GUIHeight = inGUIHeight;
+  // Editor frame is drawn around the two ShapeEditors.
+  editorFrameRect.L = margin;
+  editorFrameRect.T = topMenuRect.B + margin;
+  editorFrameRect.R = GUIWidth * 0.5f - margin;
+  editorFrameRect.B = GUIHeight - margin;
 
-    uint32_t margin = RELATIVE_FRAME_WIDTH * GUIWidth; // Free space around edges of GUI.
-
-    for (int i=0; i<4; i++) {
-        fullXYXY[i] = XYXY[i];
-    }
-
-    // The plugin logo is displayed at the upper left corner.
-    logoXYXY[0] = fullXYXY[0] + 2 * margin;
-    logoXYXY[1] = fullXYXY[1];
-    logoXYXY[2] = GUIWidth * 0.25 - margin * 0.5;
-    logoXYXY[3] = fullXYXY[3];
-
-    // The mode button is placed next to the logo.
-    modeButtonXYXY[0] = GUIWidth * 0.25 + margin * 0.5;
-    modeButtonXYXY[1] = fullXYXY[1];
-    modeButtonXYXY[2] = GUIWidth * 0.5 - 2 * margin;
-    modeButtonXYXY[3] = static_cast<uint32_t>(fullXYXY[3]);
+  // EnvelopeManager is located below the top menu bar and right to the ShapeEditors.
+  envelopeRect.L = GUIWidth * 0.5f + margin;
+  envelopeRect.T = topMenuRect.B + margin;
+  envelopeRect.R = GUIWidth - margin;
+  envelopeRect.B = GUIHeight - margin;
 }
 
 // Sets the coordinates of all sub-elements according to the area given in XYXY.
-void ShapeEditorLayout::setCoordinates(uint32_t XYXY[4], uint32_t inGUIWidth, uint32_t inGUIHeight) {
-        // Get the current GUI size. This is required to render correctly.
-        GUIWidth = inGUIWidth;
-        GUIHeight = inGUIHeight;
+void TopMenuBarLayout::setCoordinates(IRECT rect, float inGUIWidth, float inGUIHeight)
+{
+  GUIWidth = inGUIWidth;
+  GUIHeight = inGUIHeight;
 
-        for (int i=0; i<4; i++) {
-            fullXYXY[i] = XYXY[i];
-        }
+  // Free space around edges of GUI.
+  float margin = RELATIVE_FRAME_WIDTH * GUIWidth;
+
+  fullRect = rect;
+  //fullRect.L = rect.L;
+  //fullRect.T = rect.T;
+  //fullRect.R = rect.R;
+  //fullRect.B = rect.B;
+
+
+  // The plugin logo is displayed at the upper left corner.
+  logoRect.L = fullRect.L + 2 * margin;
+  logoRect.T = fullRect.T;
+  logoRect.R = GUIWidth * 0.25f - margin * 0.5f;
+  logoRect.B = fullRect.B;
+
+  // The mode button is placed next to the logo.
+  modeButtonRect.L = GUIWidth * 0.25f + margin * 0.5f;
+  modeButtonRect.T = fullRect.T;
+  modeButtonRect.R = GUIWidth * 0.5f - 2 * margin;
+  modeButtonRect.B = fullRect.B;
+}
+
+// Sets the coordinates of all sub-elements according to the area given in XYXY.
+void ShapeEditorLayout::setCoordinates(IRECT rect, float inGUIWidth, float inGUIHeight)
+{
+  // Get the current GUI size. This is required to render correctly.
+  GUIWidth = inGUIWidth;
+  GUIHeight = inGUIHeight;
+
+  fullRect = rect;
         
-        // Inner area is one RELATIVE_FRAME_WIDTH apart from outer area.
-        innerXYXY[0] = fullXYXY[0] + RELATIVE_FRAME_WIDTH * GUIWidth;
-        innerXYXY[1] = fullXYXY[1] + RELATIVE_FRAME_WIDTH * GUIWidth;
-        innerXYXY[2] = fullXYXY[2] - RELATIVE_FRAME_WIDTH * GUIWidth;
-        innerXYXY[3] = fullXYXY[3] - RELATIVE_FRAME_WIDTH * GUIWidth;
+  // Inner area is one RELATIVE_FRAME_WIDTH apart from outer area.
+  innerRect.L = fullRect.L + RELATIVE_FRAME_WIDTH * GUIWidth;
+  innerRect.T = fullRect.T + RELATIVE_FRAME_WIDTH * GUIWidth;
+  innerRect.R = fullRect.R - RELATIVE_FRAME_WIDTH * GUIWidth;
+  innerRect.B = fullRect.B - RELATIVE_FRAME_WIDTH * GUIWidth;
 
-        // Editor area is one RELATIVE_FRAME_WIDTH apart from inner area.
-        editorXYXY[0] = innerXYXY[0] + RELATIVE_FRAME_WIDTH * GUIWidth;
-        editorXYXY[1] = innerXYXY[1] + RELATIVE_FRAME_WIDTH * GUIWidth;
-        editorXYXY[2] = innerXYXY[2] - RELATIVE_FRAME_WIDTH * GUIWidth;
-        editorXYXY[3] = innerXYXY[3] - RELATIVE_FRAME_WIDTH * GUIWidth;
-    }
-
-// Sets the coordinates of all sub-elements according to the area given in XYXY.
-void EnvelopeManagerLayout::setCoordinates(uint32_t XYXY[4], uint32_t inGUIWidth, uint32_t inGUIHeight) {
-        GUIWidth = inGUIWidth;
-        GUIHeight = inGUIHeight;
-
-        for (int i; i<4; i++) {
-            fullXYXY[i] = XYXY[i];
-        }
-
-        // Width and height of the EnvelopeManager. 
-        uint32_t width = fullXYXY[2] - fullXYXY[0];
-        uint32_t height = fullXYXY[3] - fullXYXY[1];
-
-        // The Envelope is positioned at the upper right corner of the EnvelopeManager.
-        editorXYXY[0] = static_cast<uint32_t>(fullXYXY[0] + 0.1*width);
-        editorXYXY[1] = fullXYXY[1];
-        editorXYXY[2] = fullXYXY[2];
-        editorXYXY[3] = static_cast<uint32_t>(fullXYXY[3] - 0.3*height);
-
-        editorInnerXYXY[0] = editorXYXY[0] + RELATIVE_FRAME_WIDTH * GUIWidth;
-        editorInnerXYXY[1] = editorXYXY[1] + RELATIVE_FRAME_WIDTH * GUIWidth;
-        editorInnerXYXY[2] = editorXYXY[2] - RELATIVE_FRAME_WIDTH * GUIWidth;
-        editorInnerXYXY[3] = editorXYXY[3] - RELATIVE_FRAME_WIDTH * GUIWidth;
-
-        // The selector panel is positioned directly to the left of Envelope, with the same y-extent as the Envelope.
-        // editorXYXY is the full size of the graph editor. selectorXYXY has to take the width of the 3D into account.
-        // It is expanded by one pixel in x-direction to connect to the editorXYXY.
-        selectorXYXY[0] = fullXYXY[0];
-        selectorXYXY[1] = fullXYXY[1];
-        selectorXYXY[2] = editorXYXY[0] + 1;
-        selectorXYXY[3] = editorXYXY[3];
-
-        // The knobs are positioned below the Envelope, with the same x-extent as the Envelope.
-        // For y-position, take width of the 3D frame around the active Envelope into account.
-        knobsXYXY[0] = editorXYXY[0];
-        knobsXYXY[1] = static_cast<uint32_t>(fullXYXY[3] - 0.3*height) + RELATIVE_FRAME_WIDTH * GUIWidth;
-        knobsXYXY[2] = fullXYXY[2];
-        knobsXYXY[3] = static_cast<uint32_t>(fullXYXY[3] - 0.15*height);
-
-        knobsInnerXYXY[0] = knobsXYXY[0] + RELATIVE_FRAME_WIDTH * GUIWidth;
-        knobsInnerXYXY[1] = knobsXYXY[1] + RELATIVE_FRAME_WIDTH * GUIWidth;
-        knobsInnerXYXY[2] = knobsXYXY[2] - RELATIVE_FRAME_WIDTH * GUIWidth;
-        knobsInnerXYXY[3] = knobsXYXY[3] - RELATIVE_FRAME_WIDTH * GUIWidth;
-
-        // Tools are positioned below knobs.
-        toolsXYXY[0] = editorXYXY[0];
-        toolsXYXY[1] = static_cast<uint32_t>(fullXYXY[3] - 0.15*height) + RELATIVE_FRAME_WIDTH * GUIWidth;
-        toolsXYXY[2] = fullXYXY[2];
-        toolsXYXY[3] = fullXYXY[3];
-    }
+  // Editor area is one RELATIVE_FRAME_WIDTH apart from inner area.
+  editorRect.L = innerRect.L + RELATIVE_FRAME_WIDTH * GUIWidth;
+  editorRect.T = innerRect.T + RELATIVE_FRAME_WIDTH * GUIWidth;
+  editorRect.R = innerRect.R - RELATIVE_FRAME_WIDTH * GUIWidth;
+  editorRect.B = innerRect.B - RELATIVE_FRAME_WIDTH * GUIWidth;
+}
 
 // Sets the coordinates of all sub-elements according to the area given in XYXY.
-void FrequencyPanelLayout::setCoordinates(uint32_t XYXY[4], uint32_t inGUIWidth, uint32_t inGUIHeight) {
-    GUIWidth = inGUIWidth;
-    GUIHeight = inGUIHeight;
+void EnvelopeManagerLayout::setCoordinates(IRECT rect, float inGUIWidth, float inGUIHeight)
+{
+  GUIWidth = inGUIWidth;
+  GUIHeight = inGUIHeight;
 
-    for (int i=0; i<4; i++) {
-        fullXYXY[i] = XYXY[i];
-    }
+  fullRect = rect;
 
-    uint32_t frame_width = static_cast<uint32_t>(RELATIVE_FRAME_WIDTH_NARROW * GUIWidth);
+  // Width and height of the EnvelopeManager. 
+  float width = fullRect.R - fullRect.L;
+  float height = fullRect.B - fullRect.T;
 
-    // TODO for now counter and button are just split in half. There is room for visual improvement
-    counterXYXY[0] = fullXYXY[0] + frame_width;
-    counterXYXY[1] = fullXYXY[1] + frame_width;
-    counterXYXY[2] = (uint32_t) (fullXYXY[2] + fullXYXY[0]) / 2 - frame_width;
-    counterXYXY[3] = fullXYXY[3] - frame_width;
+  // The Envelope is positioned at the upper right corner of the EnvelopeManager.
+  editorRect.L = fullRect.L + 0.1f * width;
+  editorRect.T = fullRect.T;
+  editorRect.R = fullRect.R;
+  editorRect.B = fullRect.B - 0.3f * height;
 
-    modeButtonXYXY[0] = (uint32_t) (fullXYXY[2] + fullXYXY[0]) / 2 + frame_width;
-    modeButtonXYXY[1] = fullXYXY[1] + frame_width;
-    modeButtonXYXY[2] = fullXYXY[2] - frame_width;
-    modeButtonXYXY[3] = fullXYXY[3] - frame_width;
+  editorInnerRect.L = editorRect.L + RELATIVE_FRAME_WIDTH * GUIWidth;
+  editorInnerRect.T = editorRect.T + RELATIVE_FRAME_WIDTH * GUIWidth;
+  editorInnerRect.R = editorRect.R - RELATIVE_FRAME_WIDTH * GUIWidth;
+  editorInnerRect.B = editorRect.B - RELATIVE_FRAME_WIDTH * GUIWidth;
+
+  // The selector panel is positioned directly to the left of Envelope, with the same y-extent as the Envelope.
+  // editorXYXY is the full size of the graph editor. selectorXYXY has to take the width of the 3D into account.
+  // It is expanded by one pixel in x-direction to connect to the editorXYXY.
+  selectorRect.L = fullRect.L;
+  selectorRect.T = fullRect.T;
+  selectorRect.R = editorRect.L + 1;
+  selectorRect.B = editorRect.B;
+
+  // The knobs are positioned below the Envelope, with the same x-extent as the Envelope.
+  // For y-position, take width of the 3D frame around the active Envelope into account.
+  knobsRect.L = editorRect.L;
+  knobsRect.T = fullRect.B - 0.3f * height + RELATIVE_FRAME_WIDTH * GUIWidth;
+  knobsRect.R = fullRect.R;
+  knobsRect.B = fullRect.B - 0.15f * height;
+
+  knobsInnerRect.L = knobsRect.L + RELATIVE_FRAME_WIDTH * GUIWidth;
+  knobsInnerRect.T = knobsRect.T + RELATIVE_FRAME_WIDTH * GUIWidth;
+  knobsInnerRect.R = knobsRect.R - RELATIVE_FRAME_WIDTH * GUIWidth;
+  knobsInnerRect.B = knobsRect.B - RELATIVE_FRAME_WIDTH * GUIWidth;
+
+  // Tools are positioned below knobs.
+  toolsRect.L = editorRect.L;
+  toolsRect.T = fullRect.B - 0.15f * height + RELATIVE_FRAME_WIDTH * GUIWidth;
+  toolsRect.R = fullRect.R;
+  toolsRect.B = fullRect.B;
+}
+
+// Sets the coordinates of all sub-elements according to the area given in XYXY.
+void FrequencyPanelLayout::setCoordinates(IRECT rect, float inGUIWidth, float inGUIHeight)
+{
+  GUIWidth = inGUIWidth;
+  GUIHeight = inGUIHeight;
+
+  fullRect = rect;
+
+  float frame_width = RELATIVE_FRAME_WIDTH_NARROW * GUIWidth;
+
+  // TODO for now counter and button are just split in half. There is room for visual improvement
+  counterRect.L = fullRect.L + frame_width;
+  counterRect.T = fullRect.T + frame_width;
+  counterRect.R = (fullRect.R + fullRect.L) / 2 - frame_width;
+  counterRect.B = fullRect.B - frame_width;
+
+  modeButtonRect.L = (fullRect.R + fullRect.L) / 2 + frame_width;
+  modeButtonRect.T = fullRect.T + frame_width;
+  modeButtonRect.R = fullRect.R - frame_width;
+  modeButtonRect.B = fullRect.B - frame_width;
 }
