@@ -77,6 +77,9 @@
     <ClCompile Include="..\..\..\IGraphics\Drawing\IGraphicsSkia.cpp">
       <Filter>IGraphics\Drawing</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\GUILayout.cpp">
+      <Filter>core</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\UDShaper.h" />
@@ -259,6 +262,12 @@
       <Filter>IPlug</Filter>
     </ClInclude>
     <ClInclude Include="..\src\color_palette.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\GUILayout.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\assets.h">
       <Filter>core</Filter>
     </ClInclude>
   </ItemGroup>

@@ -44,7 +44,7 @@ void UDShaperLayout::setCoordinates(float width, float height) {
   envelopeRect.B = GUIHeight - margin;
 }
 
-// Sets the coordinates of all sub-elements according to the area given in XYXY.
+// Sets the coordinates of all sub-elements according to the given IRECT.
 void TopMenuBarLayout::setCoordinates(IRECT rect, float inGUIWidth, float inGUIHeight)
 {
   GUIWidth = inGUIWidth;
@@ -54,11 +54,6 @@ void TopMenuBarLayout::setCoordinates(IRECT rect, float inGUIWidth, float inGUIH
   float margin = RELATIVE_FRAME_WIDTH * GUIWidth;
 
   fullRect = rect;
-  //fullRect.L = rect.L;
-  //fullRect.T = rect.T;
-  //fullRect.R = rect.R;
-  //fullRect.B = rect.B;
-
 
   // The plugin logo is displayed at the upper left corner.
   logoRect.L = fullRect.L + 2 * margin;
@@ -73,7 +68,7 @@ void TopMenuBarLayout::setCoordinates(IRECT rect, float inGUIWidth, float inGUIH
   modeButtonRect.B = fullRect.B;
 }
 
-// Sets the coordinates of all sub-elements according to the area given in XYXY.
+// Sets the coordinates of all sub-elements according to the given IRECT.
 void ShapeEditorLayout::setCoordinates(IRECT rect, float inGUIWidth, float inGUIHeight)
 {
   // Get the current GUI size. This is required to render correctly.
@@ -95,7 +90,7 @@ void ShapeEditorLayout::setCoordinates(IRECT rect, float inGUIWidth, float inGUI
   editorRect.B = innerRect.B - RELATIVE_FRAME_WIDTH * GUIWidth;
 }
 
-// Sets the coordinates of all sub-elements according to the area given in XYXY.
+// Sets the coordinates of all sub-elements according to the given IRECT.
 void EnvelopeManagerLayout::setCoordinates(IRECT rect, float inGUIWidth, float inGUIHeight)
 {
   GUIWidth = inGUIWidth;
@@ -119,8 +114,8 @@ void EnvelopeManagerLayout::setCoordinates(IRECT rect, float inGUIWidth, float i
   editorInnerRect.B = editorRect.B - RELATIVE_FRAME_WIDTH * GUIWidth;
 
   // The selector panel is positioned directly to the left of Envelope, with the same y-extent as the Envelope.
-  // editorXYXY is the full size of the graph editor. selectorXYXY has to take the width of the 3D into account.
-  // It is expanded by one pixel in x-direction to connect to the editorXYXY.
+  // editorXRect is the full size of the graph editor. selectorRect has to take the width of the frame into account.
+  // It is expanded by one pixel in x-direction to connect to the editorRect.
   selectorRect.L = fullRect.L;
   selectorRect.T = fullRect.T;
   selectorRect.R = editorRect.L + 1;
@@ -145,7 +140,7 @@ void EnvelopeManagerLayout::setCoordinates(IRECT rect, float inGUIWidth, float i
   toolsRect.B = fullRect.B;
 }
 
-// Sets the coordinates of all sub-elements according to the area given in XYXY.
+// Sets the coordinates of all sub-elements according to the given IRECT.
 void FrequencyPanelLayout::setCoordinates(IRECT rect, float inGUIWidth, float inGUIHeight)
 {
   GUIWidth = inGUIWidth;
