@@ -8,7 +8,11 @@
 UDShaper::UDShaper(const InstanceInfo& info)
 : iplug::Plugin(info, MakeConfig(kNumParams, kNumPresets))
 {
-  GetParam(kGain)->InitDouble("Gain", 0., 0., 100.0, 0.01, "%");
+  GetParam(distMode)->InitEnum("Distortion mode", 0, 4);
+  GetParam(distMode)->SetDisplayText(0, "Up/Down");
+  GetParam(distMode)->SetDisplayText(1, "Left/Right");
+  GetParam(distMode)->SetDisplayText(2, "Mid/Side");
+  GetParam(distMode)->SetDisplayText(3, "+/-");
 
 #if IPLUG_EDITOR // http://bit.ly/2S64BDd
   mMakeGraphicsFunc = [&]() {
@@ -26,6 +30,10 @@ UDShaper::UDShaper(const InstanceInfo& info)
     ShapeEditorLayout se1Layout = ShapeEditorLayout();
     ShapeEditorLayout se2Layout = ShapeEditorLayout();
     layout.setCoordinates(b.R, b.B);
+
+    menuBar.setCoordinates(layout.topMenuRect, b.R, b.B);
+    menuBar.attachUI(pGraphics);
+
     tmLayout.setCoordinates(layout.topMenuRect, b.R, b.B);
     se1Layout.setCoordinates(layout.editor1Rect, b.R, b.B);
     se2Layout.setCoordinates(layout.editor2Rect, b.R, b.B);
@@ -52,14 +60,5 @@ UDShaper::UDShaper(const InstanceInfo& info)
 }
 
 #if IPLUG_DSP
-void UDShaper::ProcessBlock(sample** inputs, sample** outputs, int nFrames)
-{
-  const double gain = GetParam(kGain)->Value() / 100.;
-  const int nChans = NOutChansConnected();
-  for (int s = 0; s < nFrames; s++) {
-    for (int c = 0; c < nChans; c++) {
-      outputs[c][s] = inputs[c][s] * gain;
-    }
-  }
-}
+void UDShaper::ProcessBlock(sample** inputs, sample** outputs, int nFrames) {}
 #endif

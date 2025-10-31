@@ -61,11 +61,17 @@ void TopMenuBarLayout::setCoordinates(IRECT rect, float inGUIWidth, float inGUIH
   logoRect.R = GUIWidth * 0.25f - margin * 0.5f;
   logoRect.B = fullRect.B;
 
-  // The mode button is placed next to the logo.
-  modeButtonRect.L = GUIWidth * 0.25f + margin * 0.5f;
-  modeButtonRect.T = fullRect.T;
-  modeButtonRect.R = GUIWidth * 0.5f - 2 * margin;
-  modeButtonRect.B = fullRect.B;
+  // The mode menu is placed next to the logo and extends over half the height of the menu bar.
+  modeMenuRect.L = GUIWidth * 0.25f + margin * 0.5f;
+  modeMenuRect.T = fullRect.T + fullRect.H() / 2;
+  modeMenuRect.R = GUIWidth * 0.5f - 2 * margin;
+  modeMenuRect.B = fullRect.B;
+
+  // The menu title is above the mode menu.
+  menuTitleRect.L = modeMenuRect.L;
+  menuTitleRect.T = fullRect.T;
+  menuTitleRect.R = modeMenuRect.R;
+  menuTitleRect.B = modeMenuRect.T;
 }
 
 // Sets the coordinates of all sub-elements according to the given IRECT.

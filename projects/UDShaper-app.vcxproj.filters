@@ -80,6 +80,9 @@
     <ClCompile Include="..\src\GUILayout.cpp">
       <Filter>core</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\UDShaperElements\TopMenuBar.cpp">
+      <Filter>core\UDShaper_elements</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\UDShaper.h" />
@@ -270,6 +273,18 @@
     <ClInclude Include="..\src\assets.h">
       <Filter>core</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\config.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\UDShaperElements.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\UDShaperElements\TopMenuBar.h">
+      <Filter>core\UDShaper_elements</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\UDShaperParameters.h">
+      <Filter>core</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="resources">
@@ -305,6 +320,9 @@
     <Filter Include="core">
       <UniqueIdentifier>{0fe2faca-6c06-4c1f-9394-3f5b942e4577}</UniqueIdentifier>
     </Filter>
+    <Filter Include="core\UDShaper_elements">
+      <UniqueIdentifier>{81805931-cfae-43c5-b060-ca856fc60317}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="..\resources\main.rc">
@@ -329,5 +347,8 @@
     <Image Include="..\resources\UDShaper.ico">
       <Filter>resources</Filter>
     </Image>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="..\TODO.txt" />
   </ItemGroup>
 </Project>

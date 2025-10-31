@@ -35,7 +35,8 @@ struct TopMenuBarLayout {
   float GUIHeight;                // Height of the full UDShaper GUI.
   IRECT fullRect = IRECT();       // Box coordinates of the full TopMenuBar.
   IRECT logoRect = IRECT();       // Box coordinates of the plugin logo (upper left corner).
-  IRECT modeButtonRect = IRECT(); // Box coordinates of the button to select the distortion mode.
+  IRECT modeMenuRect = IRECT();   // Box coordinates of the menu to select the distortion mode.
+  IRECT menuTitleRect = IRECT();  // Box coordinates of the menu title text.
 
   void setCoordinates(IRECT rect, float GUIWidth, float GUIHeight);
 };

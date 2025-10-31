@@ -319,7 +319,11 @@
     <ClInclude Include="..\..\..\IPlug\ISender.h" />
     <ClInclude Include="..\src\assets.h" />
     <ClInclude Include="..\src\color_palette.h" />
+    <ClInclude Include="..\src\config.h" />
     <ClInclude Include="..\src\GUILayout.h" />
+    <ClInclude Include="..\src\UDShaperElements.h" />
+    <ClInclude Include="..\src\UDShaperElements\TopMenuBar.h" />
+    <ClInclude Include="..\src\UDShaperParameters.h" />
     <ClInclude Include="..\UDShaper.h" />
     <ClInclude Include="..\resources\resource.h" />
   </ItemGroup>
@@ -364,6 +368,7 @@
     <ClCompile Include="..\..\..\IPlug\IPlugProcessor.cpp" />
     <ClCompile Include="..\..\..\IPlug\IPlugTimer.cpp" />
     <ClCompile Include="..\src\GUILayout.cpp" />
+    <ClCompile Include="..\src\UDShaperElements\TopMenuBar.cpp" />
     <ClCompile Include="..\UDShaper.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -379,6 +384,9 @@
       <SubType>Designer</SubType>
     </None>
     <None Include="..\config\UDShaper-mac.xcconfig" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="..\TODO.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
