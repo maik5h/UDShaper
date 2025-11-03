@@ -50,6 +50,15 @@
     <ClCompile Include="..\..\..\IPlug\CLAP\IPlugCLAP.cpp">
       <Filter>IPlug\CLAP</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\GUILayout.cpp">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\UDShaperElements\TopMenuBar.cpp">
+      <Filter>core\UDShaper_elements</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\UDShaperElements\ShapeEditor.cpp">
+      <Filter>core\UDShaper_elements</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="../config.h" />
@@ -186,6 +195,27 @@
     <ClInclude Include="..\..\..\IPlug\CLAP\IPlugCLAP.h">
       <Filter>IPlug\CLAP</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\assets.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\color_palette.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\config.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\GUILayout.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\UDShaperParameters.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\UDShaperElements\TopMenuBar.h">
+      <Filter>core\UDShaper_elements</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\UDShaperElements\ShapeEditor.h">
+      <Filter>core\UDShaper_elements</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="IPlug">
@@ -211,6 +241,12 @@
     </Filter>
     <Filter Include="IPlug\CLAP">
       <UniqueIdentifier>{35a9e026-dde0-499a-9432-4ee1754ffba8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="core">
+      <UniqueIdentifier>{84069ffc-e419-4fe0-8edd-f53c4f096b34}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="core\UDShaper_elements">
+      <UniqueIdentifier>{9d3688f4-6dce-4958-8d23-f05abcbd60d6}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

@@ -83,6 +83,9 @@
     <ClCompile Include="..\src\UDShaperElements\TopMenuBar.cpp">
       <Filter>core\UDShaper_elements</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\UDShaperElements\ShapeEditor.cpp">
+      <Filter>core\UDShaper_elements</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\UDShaper.h" />
@@ -276,14 +279,14 @@
     <ClInclude Include="..\src\config.h">
       <Filter>core</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\UDShaperElements.h">
-      <Filter>core</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\UDShaperElements\TopMenuBar.h">
       <Filter>core\UDShaper_elements</Filter>
     </ClInclude>
     <ClInclude Include="..\src\UDShaperParameters.h">
       <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\UDShaperElements\ShapeEditor.h">
+      <Filter>core\UDShaper_elements</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

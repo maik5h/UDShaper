@@ -321,7 +321,7 @@
     <ClInclude Include="..\src\color_palette.h" />
     <ClInclude Include="..\src\config.h" />
     <ClInclude Include="..\src\GUILayout.h" />
-    <ClInclude Include="..\src\UDShaperElements.h" />
+    <ClInclude Include="..\src\UDShaperElements\ShapeEditor.h" />
     <ClInclude Include="..\src\UDShaperElements\TopMenuBar.h" />
     <ClInclude Include="..\src\UDShaperParameters.h" />
     <ClInclude Include="..\UDShaper.h" />
@@ -368,6 +368,7 @@
     <ClCompile Include="..\..\..\IPlug\IPlugProcessor.cpp" />
     <ClCompile Include="..\..\..\IPlug\IPlugTimer.cpp" />
     <ClCompile Include="..\src\GUILayout.cpp" />
+    <ClCompile Include="..\src\UDShaperElements\ShapeEditor.cpp" />
     <ClCompile Include="..\src\UDShaperElements\TopMenuBar.cpp" />
     <ClCompile Include="..\UDShaper.cpp" />
   </ItemGroup>

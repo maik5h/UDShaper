@@ -44,7 +44,7 @@
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <CharacterSet>MultiByte</CharacterSet>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
@@ -297,6 +297,13 @@
     <ClInclude Include="..\..\..\IPlug\IPlugUtilities.h" />
     <ClInclude Include="..\..\..\IPlug\IPlug_include_in_plug_hdr.h" />
     <ClInclude Include="..\..\..\IPlug\IPlug_include_in_plug_src.h" />
+    <ClInclude Include="..\src\assets.h" />
+    <ClInclude Include="..\src\color_palette.h" />
+    <ClInclude Include="..\src\config.h" />
+    <ClInclude Include="..\src\GUILayout.h" />
+    <ClInclude Include="..\src\UDShaperElements\ShapeEditor.h" />
+    <ClInclude Include="..\src\UDShaperElements\TopMenuBar.h" />
+    <ClInclude Include="..\src\UDShaperParameters.h" />
     <ClInclude Include="..\UDShaper.h" />
     <ClInclude Include="..\resources\resource.h" />
   </ItemGroup>
@@ -331,6 +338,9 @@
     <ClCompile Include="..\..\..\IPlug\IPlugPluginBase.cpp" />
     <ClCompile Include="..\..\..\IPlug\IPlugProcessor.cpp" />
     <ClCompile Include="..\..\..\IPlug\IPlugTimer.cpp" />
+    <ClCompile Include="..\src\GUILayout.cpp" />
+    <ClCompile Include="..\src\UDShaperElements\ShapeEditor.cpp" />
+    <ClCompile Include="..\src\UDShaperElements\TopMenuBar.cpp" />
     <ClCompile Include="..\UDShaper.cpp" />
   </ItemGroup>
   <ItemGroup>

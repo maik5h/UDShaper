@@ -16,22 +16,8 @@ enum contextMenuType{
 enum distortionMode {
 	upDown,             // Splits input audio into samples larger than the previous samples and samples lower than previous.
 	leftRight,          // Splits input audio into left and right channel.
-    midSide,            // Splits input audio into mid and side channel.
+  midSide,            // Splits input audio into mid and side channel.
 	positiveNegative    // Splits input audio into samples >= 0 and samples < 0.
-};
-
-// Interpolation modes between two points of a ShapeEditor.
-enum Shapes{
-    shapePower, // Curve follows shape of f(x) = (x < 0.5) ? x^power : 1-(1-x)^power, for 0 <= x <= 1, streched to the corresponding x and y intervals.
-    shapeSine,  // Curve is a sine that continuously connects the previous and next point. 
-};
-
-// Decide the actions performed when MouseDrag is processed by a ShapeEditor based on these values.
-enum shapeEditorDraggingMode{
-    none,           // ignore
-    position,       // Moves position of selected point.
-    curveCenter,    // Adjusts curveCenter and therefore parameter of curve function of next point to the right.
-    modulate        // Selects a parameter to be modulated by the active Envelope
 };
 
 // Decide the actions performed when MouseDrag is processed by a Envelope based on these values.
