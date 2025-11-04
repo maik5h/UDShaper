@@ -2,6 +2,7 @@
 
 #include "IPlug_include_in_plug_hdr.h"
 #include "src/color_palette.h"
+#include "src/string_presets.h"
 #include "src/UDShaperElements/TopMenuBar.h"
 #include "src/UDShaperElements/ShapeEditor.h"
 #include "src/UDShaperParameters.h"
@@ -13,9 +14,11 @@ using namespace igraphics;
 
 class UDShaper final : public Plugin
 {
-  TopMenuBar menuBar = TopMenuBar();
-  ShapeEditor shapeEditor1 = ShapeEditor(0);
-  ShapeEditor shapeEditor2 = ShapeEditor(1);
+  UDShaperLayout layout = UDShaperLayout();
+
+  TopMenuBar menuBar;
+  ShapeEditor shapeEditor1;
+  ShapeEditor shapeEditor2;
 
 public:
   UDShaper(const InstanceInfo& info);
