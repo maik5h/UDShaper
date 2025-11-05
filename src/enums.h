@@ -40,10 +40,3 @@ enum modulationMode{
 enum menuLinkKnobOptions{
     removeLink // Remove the rightclicked link.
 };
-
-// Modes which define the base to express the Envelope frequency.
-// TODO add Hz and maybe a mode where its an arbitrary integer multiple of the beats, not a power of 2.
-enum envelopeLoopMode{
-    envelopeFrequencyTempo,     // Envelope frequency is the multiple of a beat.
-    envelopeFrequencySeconds    // Envelope frequency is set in seconds.
-};

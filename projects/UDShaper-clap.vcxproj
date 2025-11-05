@@ -170,7 +170,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>$(CLAP_DEFS);$(DEBUG_DEFS);$(EXTRA_DEBUG_DEFS);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>$(CLAP_DEFS);$(DEBUG_DEFS);$(EXTRA_DEBUG_DEFS);%(PreprocessorDefinitions);GRAYED_ALPHA=0.f</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <AdditionalIncludeDirectories>$(CLAP_INC_PATHS);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
@@ -206,7 +206,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>$(CLAP_DEFS);$(RELEASE_DEFS);$(EXTRA_RELEASE_DEFS);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>$(CLAP_DEFS);$(RELEASE_DEFS);$(EXTRA_RELEASE_DEFS);%(PreprocessorDefinitions);GRAYED_ALPHA=0.f</PreprocessorDefinitions>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <AdditionalIncludeDirectories>$(CLAP_INC_PATHS);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -241,7 +241,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>$(CLAP_DEFS);$(TRACER_DEFS);$(EXTRA_TRACER_DEFS);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>$(CLAP_DEFS);$(TRACER_DEFS);$(EXTRA_TRACER_DEFS);%(PreprocessorDefinitions);GRAYED_ALPHA=0.f</PreprocessorDefinitions>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <AdditionalIncludeDirectories>$(CLAP_INC_PATHS);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
@@ -301,6 +301,8 @@
     <ClInclude Include="..\src\color_palette.h" />
     <ClInclude Include="..\src\config.h" />
     <ClInclude Include="..\src\GUILayout.h" />
+    <ClInclude Include="..\src\string_presets.h" />
+    <ClInclude Include="..\src\UDShaperElements\LFOController.h" />
     <ClInclude Include="..\src\UDShaperElements\ShapeEditor.h" />
     <ClInclude Include="..\src\UDShaperElements\TopMenuBar.h" />
     <ClInclude Include="..\src\UDShaperParameters.h" />
@@ -339,8 +341,10 @@
     <ClCompile Include="..\..\..\IPlug\IPlugProcessor.cpp" />
     <ClCompile Include="..\..\..\IPlug\IPlugTimer.cpp" />
     <ClCompile Include="..\src\GUILayout.cpp" />
+    <ClCompile Include="..\src\UDShaperElements\LFOController.cpp" />
     <ClCompile Include="..\src\UDShaperElements\ShapeEditor.cpp" />
     <ClCompile Include="..\src\UDShaperElements\TopMenuBar.cpp" />
+    <ClCompile Include="..\src\UDShaperParameters.cpp" />
     <ClCompile Include="..\UDShaper.cpp" />
   </ItemGroup>
   <ItemGroup>

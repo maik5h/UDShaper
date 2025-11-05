@@ -59,6 +59,12 @@
     <ClCompile Include="..\src\UDShaperElements\ShapeEditor.cpp">
       <Filter>core\UDShaper_elements</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\UDShaperElements\LFOController.cpp">
+      <Filter>core\UDShaper_elements</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\UDShaperParameters.cpp">
+      <Filter>core</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="../config.h" />
@@ -215,6 +221,12 @@
     </ClInclude>
     <ClInclude Include="..\src\UDShaperElements\ShapeEditor.h">
       <Filter>core\UDShaper_elements</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\UDShaperElements\LFOController.h">
+      <Filter>core\UDShaper_elements</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\string_presets.h">
+      <Filter>core</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

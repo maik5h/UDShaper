@@ -12,6 +12,10 @@ MIGRATING TO IPLUG2:
 
 - Can I get the exact song position for every audio buffer?? That would be important.
 
+- Make the SecondsBoxControl background opaque (how? Maybe explicitly add a drawRect to Draw or behind it)
+
+- I dont think many if statements in OnParamChange are efficient... Maybe store references to IParam in individual elements so they can access them directly and dont rely on synchronizing internal values with IParams?
+
 Else:
 
 - Logging is done by printing text to file. For reasons beyond me, the host i am using (FL Studio) does not support the CLAP logging feature. Meaningfull logging using the clap feature should still be added to the plugin.

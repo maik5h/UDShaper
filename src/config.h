@@ -33,5 +33,5 @@ constexpr float REQUIRED_SQUARED_DISTANCE = 200;
 // Time in ms until GUI is rerendered.
 constexpr uint32_t GUI_REFRESH_INTERVAL = 15;
 
- // The maxmium number of Envelopes.
-constexpr int MAX_NUMBER_ENVELOPES = 10;
+ // The maxmium number of LFOs.
+constexpr int MAX_NUMBER_LFOS = 10;
