@@ -15,12 +15,12 @@ using namespace igraphics;
 
 class UDShaper final : public Plugin
 {
-  UDShaperLayout layout = UDShaperLayout();
+  UDShaperLayout layout = UDShaperLayout(PLUG_WIDTH, PLUG_HEIGHT);
 
   TopMenuBar menuBar;
   ShapeEditor shapeEditor1;
   ShapeEditor shapeEditor2;
-  FrequencyPanel testFP;
+  LFOController LFOs;
 
 public:
   UDShaper(const InstanceInfo& info);

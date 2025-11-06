@@ -1,5 +1,8 @@
 #include "GUILayout.h"
 
+UDShaperLayout::UDShaperLayout(float width, float height)
+{ setCoordinates(width, height); }
+
 // Sets the coordinates of all sub-elements according to the given width and height values.
 void UDShaperLayout::setCoordinates(float width, float height) {
   GUIWidth = width;
@@ -37,11 +40,11 @@ void UDShaperLayout::setCoordinates(float width, float height) {
   editorFrameRect.R = GUIWidth * 0.5f - margin;
   editorFrameRect.B = GUIHeight - margin;
 
-  // EnvelopeManager is located below the top menu bar and right to the ShapeEditors.
-  envelopeRect.L = GUIWidth * 0.5f + margin;
-  envelopeRect.T = topMenuRect.B + margin;
-  envelopeRect.R = GUIWidth - margin;
-  envelopeRect.B = GUIHeight - margin;
+  // LFOController is located below the top menu bar and right to the ShapeEditors.
+  LFORect.L = GUIWidth * 0.5f + margin;
+  LFORect.T = topMenuRect.B + margin;
+  LFORect.R = GUIWidth - margin;
+  LFORect.B = GUIHeight - margin;
 }
 
 // Sets the coordinates of all sub-elements according to the given IRECT.
@@ -96,39 +99,50 @@ void ShapeEditorLayout::setCoordinates(IRECT rect, float inGUIWidth, float inGUI
   editorRect.B = innerRect.B - RELATIVE_FRAME_WIDTH * GUIWidth;
 }
 
+LFOControlLayout::LFOControlLayout(IRECT rect, float GUIWidth, float GUIHeight)
+{ setCoordinates(rect, GUIWidth, GUIHeight); }
+
 // Sets the coordinates of all sub-elements according to the given IRECT.
-void EnvelopeManagerLayout::setCoordinates(IRECT rect, float inGUIWidth, float inGUIHeight)
+void LFOControlLayout::setCoordinates(IRECT rect, float inGUIWidth, float inGUIHeight)
 {
   GUIWidth = inGUIWidth;
   GUIHeight = inGUIHeight;
 
   fullRect = rect;
 
-  // Width and height of the EnvelopeManager. 
+  // Width and height of the LFOControl.
   float width = fullRect.R - fullRect.L;
   float height = fullRect.B - fullRect.T;
 
-  // The Envelope is positioned at the upper right corner of the EnvelopeManager.
-  editorRect.L = fullRect.L + 0.1f * width;
-  editorRect.T = fullRect.T;
-  editorRect.R = fullRect.R;
-  editorRect.B = fullRect.B - 0.3f * height;
+  // The LFO editors are positioned at the upper right corner of the LFOControl.
+  // Similar to the implementation in ShapeEditorLayout, there are three concentric rects.
+  // one frame width apart.
+  editorFullRect.L = fullRect.L + 0.1f * width;
+  editorFullRect.T = fullRect.T;
+  editorFullRect.R = fullRect.R;
+  editorFullRect.B = fullRect.B - 0.3f * height;
+
+  editorRect.L = editorFullRect.L + RELATIVE_FRAME_WIDTH * GUIWidth;
+  editorRect.T = editorFullRect.T + RELATIVE_FRAME_WIDTH * GUIWidth;
+  editorRect.R = editorFullRect.R - RELATIVE_FRAME_WIDTH * GUIWidth;
+  editorRect.B = editorFullRect.B - RELATIVE_FRAME_WIDTH * GUIWidth;
 
   editorInnerRect.L = editorRect.L + RELATIVE_FRAME_WIDTH * GUIWidth;
   editorInnerRect.T = editorRect.T + RELATIVE_FRAME_WIDTH * GUIWidth;
   editorInnerRect.R = editorRect.R - RELATIVE_FRAME_WIDTH * GUIWidth;
   editorInnerRect.B = editorRect.B - RELATIVE_FRAME_WIDTH * GUIWidth;
 
-  // The selector panel is positioned directly to the left of Envelope, with the same y-extent as the Envelope.
-  // editorXRect is the full size of the graph editor. selectorRect has to take the width of the frame into account.
-  // It is expanded by one pixel in x-direction to connect to the editorRect.
+  // The selector panel is positioned directly to the left of the LFO editor, with the
+  // same y-extent. editorRect is the full size of the graph editor. selectorRect has
+  // to take the width of the frame into account. It is expanded by one pixel in
+  // x-direction to connect to the editorRect.
   selectorRect.L = fullRect.L;
   selectorRect.T = fullRect.T;
   selectorRect.R = editorRect.L + 1;
-  selectorRect.B = editorRect.B;
+  selectorRect.B = editorFullRect.B;
 
-  // The knobs are positioned below the Envelope, with the same x-extent as the Envelope.
-  // For y-position, take width of the 3D frame around the active Envelope into account.
+  // The knobs are positioned below the LFO editor, with the same x-extent.
+  // For y-position, take width of the 3D frame around the active LFO into account.
   knobsRect.L = editorRect.L;
   knobsRect.T = fullRect.B - 0.3f * height + RELATIVE_FRAME_WIDTH * GUIWidth;
   knobsRect.R = fullRect.R;
@@ -145,6 +159,9 @@ void EnvelopeManagerLayout::setCoordinates(IRECT rect, float inGUIWidth, float i
   toolsRect.R = fullRect.R;
   toolsRect.B = fullRect.B;
 }
+
+FrequencyPanelLayout::FrequencyPanelLayout(IRECT rect, float GUIWidth, float GUIHeight)
+{ setCoordinates(rect, GUIWidth, GUIHeight); }
 
 // Sets the coordinates of all sub-elements according to the given IRECT.
 void FrequencyPanelLayout::setCoordinates(IRECT rect, float inGUIWidth, float inGUIHeight)

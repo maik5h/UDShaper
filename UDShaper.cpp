@@ -10,14 +10,13 @@ UDShaper::UDShaper(const InstanceInfo& info)
   , menuBar()
   , shapeEditor1(0)
   , shapeEditor2(1)
-  , testFP()
+  , LFOs(layout.LFORect, PLUG_WIDTH, PLUG_HEIGHT)
 {
   layout.setCoordinates(PLUG_WIDTH, PLUG_HEIGHT);
   
   menuBar.setCoordinates(layout.topMenuRect, PLUG_WIDTH, PLUG_HEIGHT);
   shapeEditor1.setCoordinates(layout.editor1Rect, PLUG_WIDTH, PLUG_HEIGHT);
   shapeEditor2.setCoordinates(layout.editor2Rect, PLUG_WIDTH, PLUG_HEIGHT);
-  testFP.setCoordinates(layout.envelopeRect, PLUG_WIDTH, PLUG_HEIGHT);
 
   IParam* param = GetParam(distMode);
   param->InitEnum("Distortion mode", 0, 4);
@@ -25,6 +24,9 @@ UDShaper::UDShaper(const InstanceInfo& info)
   param->SetDisplayText(1, "Left/Right");
   param->SetDisplayText(2, "Mid/Side");
   param->SetDisplayText(3, "+/-");
+
+  param = GetParam(activeLFOIdx);
+  param->InitInt("Active LFO", 0, 0, MAX_NUMBER_LFOS);
 
   // Add parameters for the LFOs.
   for (int i = 0; i < MAX_NUMBER_LFOS; i++)
@@ -64,7 +66,7 @@ UDShaper::UDShaper(const InstanceInfo& info)
     menuBar.attachUI(pGraphics);
     shapeEditor1.attachUI(pGraphics);
     shapeEditor2.attachUI(pGraphics);
-    testFP.attachUI(pGraphics);
+    LFOs.attachUI(pGraphics);
   };
 #endif
 }
@@ -75,20 +77,31 @@ void UDShaper::ProcessBlock(sample** inputs, sample** outputs, int nFrames) {}
 
 void UDShaper::OnParamChange(int idx)
 {
-  // If an LFO loopMode has been changed, update the frequency panel.
-  if (idx == getLFOParameterIndex(0, mode))
+  if (idx < EParams::kNumParams)
   {
-    LFOLoopMode loopMode = static_cast<LFOLoopMode>(GetParam(idx)->Value());
-    testFP.setLoopMode(loopMode);
-  }
+    if (idx == activeLFOIdx)
+    {
+      int newLFOIdx = GetParam(idx)->Value();
 
-  // If an LFO frequency value has changed, update the internal value.
-  if (idx == getLFOParameterIndex(0, freqSeconds))
-  {
-    testFP.setValue(LFOFrequencySeconds, GetParam(idx)->Value());
-  }
-  if (idx == getLFOParameterIndex(0, freqTempo))
-  {
-    testFP.setValue(LFOFrequencyTempo, GetParam(idx)->Value());
+      // Inform the LFOController about the new active LFO.
+      // This connects controls with the new LFO in the background.
+      LFOs.setActiveLFO(newLFOIdx);
+      SendCurrentParamValuesFromDelegate();
+
+      // The new LFO might have a different loop mode selected than the previous.
+      // The LFOController must be informed of the new loop mode to update the UI.
+      LFOLoopMode loopMode = static_cast<LFOLoopMode>(GetParam(getLFOParameterIndex(newLFOIdx, mode))->Value());
+      LFOs.setLoopMode(loopMode);
+    }
+
+    // The index within the set of LFO parameters.
+    int i = idx - LFOsStart;
+
+    // If an LFO loopMode has been changed, update the frequency panel.
+    if (i % kNumLFOParams == mode)
+    {
+      LFOLoopMode loopMode = static_cast<LFOLoopMode>(GetParam(idx)->Value());
+      LFOs.setLoopMode(loopMode);
+    }
   }
 }

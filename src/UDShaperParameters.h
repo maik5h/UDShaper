@@ -17,8 +17,13 @@ enum EParams
   // Plugin distortion mode, switches between Up/Down, Left/Right, Mid/Side and +/-.
   distMode = 0,
 
+  // Index of the LFO that is currently editable.
+  // The host does not necessarily need to know about this, but it makes internal
+  // communication way easier.
+  activeLFOIdx = 1,
+
   // LFO parameters start here.
-  LFOsStart = 1,
+  LFOsStart = 2,
 
   // Total number of parameters.
   kNumParams = MAX_NUMBER_LFOS * kNumLFOParams + LFOsStart

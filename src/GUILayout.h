@@ -1,6 +1,6 @@
 // Structs to manage the sizes and positions of GUI elements are defined in the following.
 // The struct UDShaperLayout stores rectangles corresponding to all UDShaper GUI elements such as ShapeEditors
-// and the EnvelopeManager. The setCoordinates method calculates the coordinates of all elements corresonding
+// and the LFOControl. The setCoordinates method calculates the coordinates of all elements corresponding
 // to a given GUI size. ShapeEditorLayout, FrequencyPanelLayout and TopMenuBarLayout work similar.
 
 #pragma once
@@ -20,8 +20,9 @@ struct UDShaperLayout {
   IRECT editorFrameRect = IRECT();  // Box coordinates of the Frame around both ShapeEditors.
   IRECT editor1Rect = IRECT();      // Box coordinates of ShapeEditor 1.
   IRECT editor2Rect = IRECT();      // Box coordinates of ShapeEditor 2.
-  IRECT envelopeRect = IRECT();     // Box coordinates of the EnvelopeManager.
+  IRECT LFORect = IRECT();          // Box coordinates of the LFOControl.
 
+  UDShaperLayout(float width, float height);
   void setCoordinates(float width, float height);
 };
 
@@ -58,30 +59,32 @@ struct ShapeEditorLayout {
   void setCoordinates(IRECT rect, float GUIWidth, float GUIHeight);
 };
 
-// Stores box coordinates of elements of an EnvelopeManager instance:
+// Stores box coordinates of elements of an LFOController instance:
 // - A selector panel in the upper left corner (selectorRect).
 // - A graph editor right of the selector panel (editorRect).
 // - A knob bar below both previous elements (knobsRect).
 // - A tool bar below the knob bar (toolsRect).
 //
 // The setCoordinates method calculates coordinates of the elements such that they fit into a given rectangle.
-struct EnvelopeManagerLayout {
+struct LFOControlLayout {
   float GUIWidth;                   // Width of the full UDShaper GUI.
   float GUIHeight;                  // Height of the full UDShaper GUI.
-  IRECT fullRect = IRECT();         // Box coordinates of the full EnvelopeManager.
-  IRECT editorRect = IRECT();       // Box coordinates of the full graph editor.
-  IRECT editorInnerRect = IRECT();  // Box coordinates of the graph editor without the outer 3D frame.
+  IRECT fullRect = IRECT();         // Box coordinates of the full LFOControl.
+  IRECT editorFullRect = IRECT();   // Box coordinates of the full graph editor.
+  IRECT editorRect = IRECT();       // Box coordinates of the graph editor without the outer 3D frame.
+  IRECT editorInnerRect = IRECT();  // Box coordinates of the curve editor.
   IRECT selectorRect = IRECT();     // Box coordinates of the selector panel left to the editor.
   IRECT knobsRect = IRECT();        // Box coordinates of the full knob panel below the editor and selector panel.
   IRECT knobsInnerRect = IRECT();   // Box coordinates of the knob panel without the outer 3D frame.
   IRECT toolsRect = IRECT();        // Box coordinates of the tool panel below the knob panel.
 
+  LFOControlLayout(IRECT rect, float GUIWidth, float GUIHeight);
   void setCoordinates(IRECT rect, float GUIWidth, float GUIHeight);
 };
 
 // Stores box coordinates of elements of a FrequencyPanel instance:
 // - A counter to the left (counterRect).
-// - A button to select the Envelope loop mode to the right (modeButtonRect).
+// - A button to select the LFO loop mode to the right (modeButtonRect).
 //
 // The setCoordinates method calculates coordinates of the elements such that they fit into a given rectangle.
 struct FrequencyPanelLayout {
@@ -91,5 +94,6 @@ struct FrequencyPanelLayout {
   IRECT counterRect = IRECT();    // Box coordinates of the counter on the left side of this FrequencyPanel.
   IRECT modeButtonRect = IRECT(); // Box coordinates of the mode button on the right side of this FrequencyPanel.
 
+  FrequencyPanelLayout(IRECT rect, float GUIWidth, float GUIHeight);
   void setCoordinates(IRECT rect, float GUIWidth, float GUIHeight);
 };

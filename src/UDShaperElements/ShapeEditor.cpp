@@ -765,8 +765,16 @@ ShapeEditorControl::ShapeEditorControl(const IRECT& bounds, const IRECT& editorB
   //menu.AddItem("Sine", 3);
 }
 
+void ShapeEditorControl::setEditor(ShapeEditor* newEditor)
+{
+  editor = newEditor;
+  SetDirty(true);
+}
+
 void ShapeEditorControl::Draw(IGraphics& g)
 {
+  if (editor == nullptr) return;
+
   float hdiv = editorRect.W() / static_cast<float>(mHorizontalDivisions);
   float vdiv = editorRect.H() / static_cast<float>(mVerticalDivisions);
 

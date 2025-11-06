@@ -10,12 +10,28 @@ SecondsBoxControl::SecondsBoxControl(IRECT rect, int parameterIdx)
   mLargeIncrement = 0.1;
 }
 
+
+void SecondsBoxControl::SetDisabled(bool disable)
+{
+  ForAllChildrenFunc([disable](int childIdx, IControl* pChild) { pChild->SetDisabled(disable); });
+
+  IControl::SetDisabled(disable);
+
+  // Trigger redraw of contents after enabling.
+  if (!disable && mTextReadout != nullptr)
+  {
+    OnValueChanged();
+  }
+}
+
 void SecondsBoxControl::OnValueChanged(bool preventAction)
 {
   mRealValue = Clip(mRealValue, mMinValue, mMaxValue);
 
-  // Snap to .5 before displaying.
-  double outValue = static_cast<double>(static_cast<int>(mRealValue * 20)) / 20;
+  // Snap to .05 before displaying.
+  // Casting x to int rounds down to next int. Casting x + 0.5 to int rounds to nearest int.
+  // Rounding 20 * x to nearest int is equivalent as snapping to .05.
+  double outValue = static_cast<double>(static_cast<int>(mRealValue * 20 + 0.5)) / 20;
 
   // Make increments smaller for small values.
   if (mRealValue <= 1)
@@ -35,7 +51,7 @@ void SecondsBoxControl::OnValueChanged(bool preventAction)
     mLargeIncrement = 0.2;
   }
 
-  if (mRealValue >= 1)
+  if (mRealValue >= 0.95)
   {
     mTextReadout->SetStrFmt(32, fmtSeconds.Get(), outValue);
   }
@@ -74,6 +90,19 @@ BeatsBoxControl::BeatsBoxControl(IRECT rect, int parameterIdx)
   mLargeIncrement = 1.;
 }
 
+void BeatsBoxControl::SetDisabled(bool disable)
+{
+  ForAllChildrenFunc([disable](int childIdx, IControl* pChild){ pChild->SetDisabled(disable); });
+
+  IControl::SetDisabled(disable);
+
+  // Trigger redraw of contents after enabling.
+  if (!disable && mTextReadout != nullptr)
+  {
+    OnValueChanged();
+  }
+}
+
 void BeatsBoxControl::OnValueChanged(bool preventAction)
 {
   mRealValue = Clip(mRealValue, mMinValue, mMaxValue);
@@ -104,20 +133,12 @@ void BeatsBoxControl::OnMouseDrag(float x, float y, float dX, float dY, const IM
   OnValueChanged();
 }
 
-FrequencyPanel::FrequencyPanel(LFOLoopMode initMode, double initValue)
+FrequencyPanel::FrequencyPanel(IRECT rect, float GUIWidth, float GUIHeight, LFOLoopMode initMode, double initValue)
+  : currentLoopMode(initMode)
+  , layout(rect, GUIWidth, GUIHeight)
 {
-  currentLoopMode = initMode;
   counterValue.at(initMode) = initValue;
 
-  // These are set in setCoordinates, since the available rect must be known.
-  modeControl = nullptr;
-  freqBeatsControl = nullptr;
-  freqSecondsControl = nullptr;
-}
-
-void FrequencyPanel::setCoordinates(IRECT rect, float GUIWidth, float GUIHeight)
-{
-  layout.setCoordinates(rect, GUIWidth, GUIHeight);
   modeControl = new ICaptionControl(layout.modeButtonRect, getLFOParameterIndex(0, mode), IText(24.f), DEFAULT_FGCOLOR, false);
   freqBeatsControl = new BeatsBoxControl(layout.counterRect, getLFOParameterIndex(0, freqTempo));
   freqSecondsControl = new SecondsBoxControl(layout.counterRect, getLFOParameterIndex(0, freqSeconds));
@@ -186,6 +207,48 @@ double FrequencyPanel::getLFOPhase(double beatPosition, double secondsPlayed)
 //  return true;
 //}
 
+LFOSelectorControl::LFOSelectorControl(IRECT rect)
+  : IControl(rect, EParams::activeLFOIdx)
+{
+  activeRect = rect;
+}
+
+void LFOSelectorControl::Draw(IGraphics& g)
+{
+  // Divide area in a horizontal segment for each LFO.
+  float h = mRECT.H() / numberLFOs;
+
+  // Fill the segment corresponding to the active LFO orange.
+  activeRect.T = mRECT.T + activeLFOIdx * h;
+  activeRect.B = mRECT.T + (activeLFOIdx + 1) * h;
+  g.FillRect(UDS_ORANGE, activeRect);
+
+  // Draw LFO numbers.
+  IRECT rect = activeRect;
+  for (int i = 0; i < numberLFOs; i++)
+  {
+    rect.T = mRECT.T + i * h;
+    rect.B = mRECT.T + (i + 1) * h;
+    g.DrawText(IText(14, UDS_WHITE), std::to_string(i).data(), rect);
+  }
+}
+
+void LFOSelectorControl::OnMouseDown(float x, float y, const IMouseMod& mod)
+{
+  // I dont think this should be necessary but it is.
+  if (!mRECT.Contains(x, y)) return;
+
+  // Find the horizontal segment under the cursor and the corresponding
+  // LFO. Set it as active LFO.
+  if (mod.L)
+  {
+    y -= mRECT.T;
+    activeLFOIdx = static_cast<int>(y / (mRECT.H() / numberLFOs));
+    SetValue(GetParam()->ToNormalized(activeLFOIdx));
+    SetDirty(true);
+  }
+}
+
 void FrequencyPanel::attachUI(IGraphics* pGraphics)
 {
   assert(!layout.fullRect.Empty());
@@ -206,10 +269,16 @@ void FrequencyPanel::setDisabled(bool disable)
   freqBeatsControl->SetDisabled(disable);
 }
 
+void FrequencyPanel::setLFOIdx(int idx)
+{
+  // Set parameter indices. This affects to which LFO the controls are connected.
+  modeControl->SetParamIdx(getLFOParameterIndex(idx, mode));
+  freqSecondsControl->SetParamIdx(getLFOParameterIndex(idx, freqSeconds));
+  freqBeatsControl->SetParamIdx(getLFOParameterIndex(idx, freqTempo));
+}
+
 void FrequencyPanel::setLoopMode(LFOLoopMode mode)
 {
-  currentLoopMode = mode;
-
   // Disable all elements.
   setDisabled(true);
 
@@ -230,4 +299,57 @@ void FrequencyPanel::setLoopMode(LFOLoopMode mode)
 void FrequencyPanel::setValue(LFOLoopMode mode, double value)
 {
   counterValue.at(mode) = value;
+}
+
+LFOController::LFOController(IRECT rect, float GUIWidth, float GUIHeight)
+  : layout(rect, GUIWidth, GUIHeight)
+  , frequencyPanel(layout.toolsRect, GUIWidth, GUIHeight)
+  , selectorControl(layout.selectorRect)
+  , editorControl(layout.editorRect, layout.editorInnerRect, nullptr, 256)
+{
+  // Create editors.
+  for (int i = 0; i < MAX_NUMBER_LFOS; i++)
+  {
+    // Assign the index -1 to ShapeEditors that act as LFO editors.
+    editors.emplace_back(-1);
+  }
+
+  for (int i = 0; i < editors.size(); i++)
+  {
+    editors.at(i).setCoordinates(layout.editorFullRect, GUIWidth, GUIHeight);
+  }
+
+  // Connect editorControl to active editor.
+  editorControl.setEditor(editors.data() + activeLFOIdx);
+}
+
+void LFOController::attachUI(IGraphics* pGraphics)
+{
+  frequencyPanel.attachUI(pGraphics);
+  frequencyPanel.setLFOIdx(activeLFOIdx);
+
+  pGraphics->AttachControl(&selectorControl);
+
+  // Editor background.
+  pGraphics->AttachControl(new FillRectangle(layout.editorRect, UDS_ORANGE));
+  pGraphics->AttachControl(new DrawFrame(layout.editorInnerRect, UDS_WHITE, RELATIVE_FRAME_WIDTH_EDITOR * layout.GUIWidth));
+
+  // Do not call attachUI on the ShapeEditors, but use a single ShapeEditorControl for all editors.
+  pGraphics->AttachControl(&editorControl);
+}
+
+void LFOController::setLoopMode(LFOLoopMode mode)
+{
+  frequencyPanel.setLoopMode(mode);
+}
+
+void LFOController::setActiveLFO(int idx)
+{
+  activeLFOIdx = idx;
+
+  // Connect the editorControl to the new active LFO editor.
+  editorControl.setEditor(editors.data() + idx);
+
+  // Connect the frequencyPanel to the parameters of the new active LFO.
+  frequencyPanel.setLFOIdx(idx);
 }

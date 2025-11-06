@@ -158,6 +158,9 @@ public:
   // * @param useLayer A flag to draw the control layer
   ShapeEditorControl(const IRECT& bounds, const IRECT& editorBounds, ShapeEditor* shapeEditor, int numPoints, bool useLayer = false);
 
+  // Sets the ShapeEditor associated with this control to editor.
+  void setEditor(ShapeEditor* editor);
+
   void Draw(IGraphics& g) override;
 
   void OnResize() override;
