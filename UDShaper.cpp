@@ -7,16 +7,8 @@
 
 UDShaper::UDShaper(const InstanceInfo& info)
 : iplug::Plugin(info, MakeConfig(kNumParams, kNumPresets))
-  , menuBar()
-  , shapeEditor1(0)
-  , shapeEditor2(1)
-  , LFOs(layout.LFORect, PLUG_WIDTH, PLUG_HEIGHT)
 {
   layout.setCoordinates(PLUG_WIDTH, PLUG_HEIGHT);
-  
-  menuBar.setCoordinates(layout.topMenuRect, PLUG_WIDTH, PLUG_HEIGHT);
-  shapeEditor1.setCoordinates(layout.editor1Rect, PLUG_WIDTH, PLUG_HEIGHT);
-  shapeEditor2.setCoordinates(layout.editor2Rect, PLUG_WIDTH, PLUG_HEIGHT);
 
   IParam* param = GetParam(distMode);
   param->InitEnum("Distortion mode", 0, 4);

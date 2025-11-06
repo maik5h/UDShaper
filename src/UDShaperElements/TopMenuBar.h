@@ -18,11 +18,11 @@ class TopMenuBar
   // UDShaper distortion mode.
   distortionMode mode = upDown;
 
-  // Assign an IRECT to this instance.
+  // Create a TopMenuBar instance.
   // * @param rect The rectangle on the UI this instance will render in
   // * @param GUIWidth The width of the full UI in pixels
   // * @param GUIHeight The height of the full UI in pixels
-  void setCoordinates(IRECT rect, float GUIWidth, float GUIHeight);
+  TopMenuBar(IRECT rect, float GUIWidth, float GUIHeight);
 
   // Attach the TopMenuBar UI to the given graphics context.
   //

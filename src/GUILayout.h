@@ -39,6 +39,7 @@ struct TopMenuBarLayout {
   IRECT modeMenuRect = IRECT();   // Box coordinates of the menu to select the distortion mode.
   IRECT menuTitleRect = IRECT();  // Box coordinates of the menu title text.
 
+  TopMenuBarLayout(IRECT rect, float GUIWidth, float GUIHeight);
   void setCoordinates(IRECT rect, float GUIWidth, float GUIHeight);
 };
 
@@ -56,6 +57,7 @@ struct ShapeEditorLayout {
   IRECT innerRect = IRECT();  // Box coordinates of the ShapeEditor instance inside the 3D frame.
   IRECT editorRect = IRECT(); // Box coordinates of the curve editor.
 
+  ShapeEditorLayout(IRECT rect, float GUIWidth, float GUIHeight);
   void setCoordinates(IRECT rect, float GUIWidth, float GUIHeight);
 };
 

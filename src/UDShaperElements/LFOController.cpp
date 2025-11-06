@@ -308,15 +308,11 @@ LFOController::LFOController(IRECT rect, float GUIWidth, float GUIHeight)
   , editorControl(layout.editorRect, layout.editorInnerRect, nullptr, 256)
 {
   // Create editors.
+  editors.reserve(MAX_NUMBER_LFOS);
   for (int i = 0; i < MAX_NUMBER_LFOS; i++)
   {
     // Assign the index -1 to ShapeEditors that act as LFO editors.
-    editors.emplace_back(-1);
-  }
-
-  for (int i = 0; i < editors.size(); i++)
-  {
-    editors.at(i).setCoordinates(layout.editorFullRect, GUIWidth, GUIHeight);
+    editors.emplace_back(layout.editorFullRect, GUIWidth, GUIHeight, - 1);
   }
 
   // Connect editorControl to active editor.

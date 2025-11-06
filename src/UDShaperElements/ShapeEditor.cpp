@@ -343,12 +343,10 @@ static void insertPointBefore(ShapePoint* next, ShapePoint* point)
   next->previous = point;
 }
 
-ShapeEditor::ShapeEditor(int shapeEditorIndex) : index(shapeEditorIndex) {}
-
-void ShapeEditor::setCoordinates(IRECT rect, float inGUIWidth, float inGUIHeight)
+ShapeEditor::ShapeEditor(IRECT rect, float GUIWidth, float GUIHeight, int shapeEditorIndex)
+  : index(shapeEditorIndex)
+  , layout(rect, GUIWidth, GUIHeight)
 {
-  layout.setCoordinates(rect, inGUIWidth, inGUIHeight);
-
   // There is a special ShapePoint at x=0, y=0, which can not be moved and is not displayed
   // to assure f(0) = 0. The last ShapePoint at x=1 may be moved, but only in y-direction.
   // None of these points can be removed to assure that the function is always well defined

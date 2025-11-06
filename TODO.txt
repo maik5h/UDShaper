@@ -1,5 +1,7 @@
 The biggest and most noticeable TODOs of this project:
 
+- Destructor of ShapeEditors is NOT safe !!! Must be fixed !
+
 MIGRATING TO IPLUG2:
 
 - Implement the UIs of the UDShaper elements. I think it makes sense to have, instead of the previous renderGUI() method, a method in each class which adds the controls to a given graphics content.

@@ -1,9 +1,8 @@
 #include "TopMenuBar.h"
 
 
-void TopMenuBar::setCoordinates(IRECT rect, float GUIWidth, float GUIHeight) {
-  layout.setCoordinates(rect, GUIWidth, GUIHeight);
-}
+TopMenuBar::TopMenuBar(IRECT rect, float GUIWidth, float GUIHeight)
+: layout(rect, GUIWidth, GUIHeight) {}
 
 void TopMenuBar::attachUI(IGraphics* pGraphics) {
   // UI must be created after a rect has been assigned to this instance.

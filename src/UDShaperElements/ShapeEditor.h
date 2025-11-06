@@ -77,18 +77,15 @@ class ShapeEditor
 
   // Create a ShapeEditor instance.
   // Each ShapeEditor carries a unique index, which identifies it from other instances.
+  // * @param rect The rectangle on the UI this instance will render in
+  // * @param GUIWidth The width of the full UI in pixels
+  // * @param GUIHeight The height of the full UI in pixels
   // * @param shapeEditorIndex Index of this instance. Must be unique between all ShapeEditor instances.
-  ShapeEditor(int shapeEditorIndex);
+  ShapeEditor(IRECT rect, float GUIWidth, float GUIHeight, int shapeEditorIndex);
 
   // Deletes all ShapePoints and frees the allocated memory.
   // TODO use vector instead of linked list and this is not necessary.
   ~ShapeEditor();
-
-  // Assign an IRECT to this instance.
-  // * @param rect The rectangle on the UI this instance will render in
-  // * @param GUIWidth The width of the full UI in pixels
-  // * @param GUIHeight The height of the full UI in pixels
-  void setCoordinates(IRECT rect, float GUIWidth, float GUIHeight);
 
   // Finds the closest ShapePoint or curve center point to the coordinates (x, y).
   // Returns pointer to the corresponding point if it is closer than the squareroot

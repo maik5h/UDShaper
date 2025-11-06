@@ -47,6 +47,9 @@ void UDShaperLayout::setCoordinates(float width, float height) {
   LFORect.B = GUIHeight - margin;
 }
 
+TopMenuBarLayout::TopMenuBarLayout(IRECT rect, float GUIWidth, float GUIHeight)
+{ setCoordinates(rect, GUIWidth, GUIHeight); }
+
 // Sets the coordinates of all sub-elements according to the given IRECT.
 void TopMenuBarLayout::setCoordinates(IRECT rect, float inGUIWidth, float inGUIHeight)
 {
@@ -76,6 +79,9 @@ void TopMenuBarLayout::setCoordinates(IRECT rect, float inGUIWidth, float inGUIH
   menuTitleRect.R = modeMenuRect.R;
   menuTitleRect.B = modeMenuRect.T;
 }
+
+ShapeEditorLayout::ShapeEditorLayout(IRECT rect, float GUIWidth, float GUIHeight)
+{ setCoordinates(rect, GUIWidth, GUIHeight); }
 
 // Sets the coordinates of all sub-elements according to the given IRECT.
 void ShapeEditorLayout::setCoordinates(IRECT rect, float inGUIWidth, float inGUIHeight)

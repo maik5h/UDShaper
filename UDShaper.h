@@ -17,10 +17,10 @@ class UDShaper final : public Plugin
 {
   UDShaperLayout layout = UDShaperLayout(PLUG_WIDTH, PLUG_HEIGHT);
 
-  TopMenuBar menuBar;
-  ShapeEditor shapeEditor1;
-  ShapeEditor shapeEditor2;
-  LFOController LFOs;
+  TopMenuBar menuBar = TopMenuBar(layout.topMenuRect, PLUG_WIDTH, PLUG_HEIGHT);
+  ShapeEditor shapeEditor1 = ShapeEditor(layout.editor1Rect, PLUG_WIDTH, PLUG_HEIGHT, 0);
+  ShapeEditor shapeEditor2 = ShapeEditor(layout.editor2Rect, PLUG_WIDTH, PLUG_HEIGHT, 1);
+  LFOController LFOs = LFOController(layout.LFORect, PLUG_WIDTH, PLUG_HEIGHT);
 
 public:
   UDShaper(const InstanceInfo& info);
