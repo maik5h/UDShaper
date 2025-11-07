@@ -48,13 +48,13 @@ UDShaper::UDShaper(const InstanceInfo& info)
     IRECT b = pGraphics->GetBounds();
 
     // Draw a frame around the two ShapeEditors.
-    pGraphics->AttachControl(new DrawFrame(layout.editorFrameRect, UDS_BLACK, RELATIVE_FRAME_WIDTH_NARROW * PLUG_WIDTH, ALPHA_SHADOW));
+    pGraphics->AttachControl(new DrawFrame(layout.editorFrameRect, UDS_BLACK, FRAME_WIDTH_NARROW, ALPHA_SHADOW));
 
     // Draw 3D frames around ShapeEditors and LFOController.
     LFOControlLayout LFOLayout = LFOControlLayout(layout.LFORect, b.R, b.B);
-    pGraphics->AttachControl(new Frame3D(shapeEditor1.layout.fullRect, RELATIVE_FRAME_WIDTH * b.R, UDS_GREY));
-    pGraphics->AttachControl(new Frame3D(shapeEditor2.layout.fullRect, RELATIVE_FRAME_WIDTH * b.R, UDS_GREY));
-    pGraphics->AttachControl(new Frame3D(LFOLayout.editorFullRect, RELATIVE_FRAME_WIDTH * b.R, UDS_GREY));
+    pGraphics->AttachControl(new Frame3D(shapeEditor1.layout.fullRect, FRAME_WIDTH, UDS_GREY));
+    pGraphics->AttachControl(new Frame3D(shapeEditor2.layout.fullRect, FRAME_WIDTH, UDS_GREY));
+    pGraphics->AttachControl(new Frame3D(LFOLayout.editorFullRect, FRAME_WIDTH, UDS_GREY));
 
     menuBar.attachUI(pGraphics);
     shapeEditor1.attachUI(pGraphics);

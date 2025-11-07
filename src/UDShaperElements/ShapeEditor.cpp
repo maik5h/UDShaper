@@ -737,7 +737,7 @@ const void ShapeEditor::attachUI(IGraphics* g) {
   assert(!layout.fullRect.Empty());
 
   g->AttachControl(new FillRectangle(layout.innerRect, UDS_ORANGE));
-  g->AttachControl(new DrawFrame(layout.editorRect, UDS_WHITE, RELATIVE_FRAME_WIDTH_EDITOR*layout.GUIWidth));
+  g->AttachControl(new DrawFrame(layout.editorRect, UDS_WHITE, FRAME_WIDTH_EDITOR));
   g->AttachControl(new ShapeEditorControl(layout.innerRect, layout.editorRect, this, 256));
 }
 
@@ -801,8 +801,8 @@ void ShapeEditorControl::Draw(IGraphics& g)
       float posY = point->getAbsPosY();
       float curveCenterPosX = point->getCurveCenterAbsPosX();
       float curveCenterPosY = point->getCurveCenterAbsPosY();
-      g.FillCircle(UDS_WHITE, posX, posY, 0.4 * RELATIVE_POINT_SIZE * editor->layout.GUIWidth);
-      g.FillCircle(UDS_WHITE, curveCenterPosX, curveCenterPosY, 0.4 * RELATIVE_POINT_SIZE_SMALL * editor->layout.GUIWidth);
+      g.FillCircle(UDS_WHITE, posX, posY, POINT_SIZE);
+      g.FillCircle(UDS_WHITE, curveCenterPosX, curveCenterPosY, POINT_SIZE_SMALL);
       point = point->next;
     }
   };

@@ -349,7 +349,7 @@ void LFOController::attachUI(IGraphics* pGraphics)
 
   // Editor background.
   pGraphics->AttachControl(new FillRectangle(layout.editorRect, UDS_ORANGE));
-  pGraphics->AttachControl(new DrawFrame(layout.editorInnerRect, UDS_WHITE, RELATIVE_FRAME_WIDTH_EDITOR * layout.GUIWidth));
+  pGraphics->AttachControl(new DrawFrame(layout.editorInnerRect, UDS_WHITE, FRAME_WIDTH_EDITOR));
 
   // Do not call attachUI on the ShapeEditors, but use a single ShapeEditorControl for all editors.
   pGraphics->AttachControl(&editorControl);
