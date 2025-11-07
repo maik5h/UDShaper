@@ -218,10 +218,31 @@ void LFOSelectorControl::Draw(IGraphics& g)
   // Divide area in a horizontal segment for each LFO.
   float h = mRECT.H() / numberLFOs;
 
+  // Draw a variation of the 3D frame that connects with the frame around the editor.
+  // TODO replace with actual value.
+  float fw = 10;
+
   // Fill the segment corresponding to the active LFO orange.
   activeRect.T = mRECT.T + activeLFOIdx * h;
   activeRect.B = mRECT.T + (activeLFOIdx + 1) * h;
-  g.FillRect(UDS_ORANGE, activeRect);
+  g.FillRect(UDS_ORANGE, activeRect.GetOffset(fw, fw, 0, -fw));
+
+  // Define vertices of one trapezoid and two parallelograms that define segments of the frame
+  // that will be shaded.
+  float topX[4] = {activeRect.L, activeRect.L + fw, activeRect.R, activeRect.R - fw};
+  float topY[4] = {activeRect.T, activeRect.T + fw, activeRect.T + fw, activeRect.T};
+  float leftX[4] = {activeRect.L, activeRect.L + fw, activeRect.L + fw, activeRect.L};
+  float leftY[4] = {activeRect.T, activeRect.T + fw, activeRect.B - fw, activeRect.B};
+  float bottomX[4] = {activeRect.L, activeRect.L + fw, activeRect.R, activeRect.R - fw};
+  float bottomY[4] = {activeRect.B, activeRect.B - fw, activeRect.B - fw, activeRect.B};
+
+  IColor topColor = IColor::LinearInterpolateBetween(UDS_GREY, UDS_BLACK, ALPHA_3DFRAME_DARK2);
+  IColor leftColor = IColor::LinearInterpolateBetween(UDS_GREY, UDS_WHITE, ALPHA_3DFRAME_LIGHT1);
+  IColor bottomColor = IColor::LinearInterpolateBetween(UDS_GREY, UDS_WHITE, ALPHA_3DFRAME_LIGHT2);
+
+  g.FillConvexPolygon(topColor, topX, topY, 4);
+  g.FillConvexPolygon(leftColor, leftX, leftY, 4);
+  g.FillConvexPolygon(bottomColor, bottomX, bottomY, 4);
 
   // Draw LFO numbers.
   IRECT rect = activeRect;

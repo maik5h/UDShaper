@@ -50,10 +50,11 @@ UDShaper::UDShaper(const InstanceInfo& info)
     // Draw a frame around the two ShapeEditors.
     pGraphics->AttachControl(new DrawFrame(layout.editorFrameRect, UDS_BLACK, RELATIVE_FRAME_WIDTH_NARROW * PLUG_WIDTH, ALPHA_SHADOW));
 
-    // This should be 3D frame.
-    //float margin = RELATIVE_FRAME_WIDTH * PLUG_WIDTH;
-    // TODO I do not know why this factor of two is necessary. No idea.
-    //pGraphics->AttachControl(new DrawFrame(se2Layout.fullRect, UDS_BLACK, 2 * RELATIVE_FRAME_WIDTH * b.R));
+    // Draw 3D frames around ShapeEditors and LFOController.
+    LFOControlLayout LFOLayout = LFOControlLayout(layout.LFORect, b.R, b.B);
+    pGraphics->AttachControl(new Frame3D(shapeEditor1.layout.fullRect, RELATIVE_FRAME_WIDTH * b.R, UDS_GREY));
+    pGraphics->AttachControl(new Frame3D(shapeEditor2.layout.fullRect, RELATIVE_FRAME_WIDTH * b.R, UDS_GREY));
+    pGraphics->AttachControl(new Frame3D(LFOLayout.editorFullRect, RELATIVE_FRAME_WIDTH * b.R, UDS_GREY));
 
     menuBar.attachUI(pGraphics);
     shapeEditor1.attachUI(pGraphics);
