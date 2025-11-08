@@ -1,6 +1,6 @@
 The biggest and most noticeable TODOs of this project:
 
-- Destructor of ShapeEditors is NOT safe !!! Must be fixed !
+- Crash on reopen UI, probably dangling pointer in DSP part?
 
 - Enter text does not work properly on FrequencyPanels: Seconds: switches to wrong format if <1s, Tempo: should be disabled completely.
 

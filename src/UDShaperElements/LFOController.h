@@ -3,6 +3,7 @@
 #include <map>
 #include "../GUILayout.h"
 #include "../UDShaperParameters.h"
+#include "../controlTags.h"
 #include "../string_presets.h"
 #include "ShapeEditor.h"
 #include "IControls.h"
@@ -24,7 +25,7 @@ enum LFOLoopMode
 class SecondsBoxControl : public IVNumberBoxControl
 {
 protected:
-  WDL_String fmtSeconds = WDL_String ("%.2f s");
+  WDL_String fmtSeconds = WDL_String("%.2f s");
   WDL_String fmtMilliseconds = WDL_String("%2.f ms");
 
   // Modified such that the format changes depending on the value.
@@ -55,7 +56,11 @@ protected:
   void OnValueChanged(bool preventAction = false);
 
 public:
-  BeatsBoxControl(IRECT rect, int parameterIdx);
+  // Construct a BeatsBoxControl object.
+  // * @param rect The IRECT of this IControl
+  // * @param parameterIdx Initial index of the parameter corresponding to this instance.
+  // * @param initValue The initial parameter value, corresponds to an index for FREQUENCY_COUNTER_STRINGS and must be in [0, 13].
+  BeatsBoxControl(IRECT rect, int parameterIdx, int initValue);
 
   // Override to redraw contents after enabling.
   void SetDisabled(bool disable) override;
@@ -81,26 +86,16 @@ private:
   // Mapping between all loop modes and their current frequency values.
   std::map<LFOLoopMode, double> counterValue = {{LFOFrequencyTempo, 6.}, {LFOFrequencySeconds, 1.}};
 
-  // Control to select the frequency mode.
-  ICaptionControl* modeControl;
-
-  // Control to select the loop frequency in beats.
-  BeatsBoxControl* freqBeatsControl;
-
-  // Control to select the loop frequency in seconds.
-  SecondsBoxControl* freqSecondsControl;
-
-  // The current loop mode, can be based on tempo or seconds.
-  LFOLoopMode currentLoopMode = LFOFrequencyTempo;
+  // Pointer to the parent plugin.
+  IPluginBase* mPlugin;
 
 public:
   // Constructs a FrequencyPanel
   // * @param rect The rectangle on the UI this instance will render in
   // * @param GUIWidth The width of the full UI in pixels
   // * @param GUIHeight The height of the full UI in pixels
-  // * @param initMode Initial loop mode
-  // * @param initValue Initial loop frequency value
-  FrequencyPanel(IRECT rect, float GUIWidth, float GUIHeight, LFOLoopMode initMode = LFOFrequencyTempo, double initValue = 6.);
+  // * @param plugin Pointer to the parent IPlugBase object.
+  FrequencyPanel(IRECT rect, float GUIWidth, float GUIHeight, IPluginBase* plugin);
 
   void attachUI(IGraphics* pGraphics);
 
@@ -119,9 +114,6 @@ public:
   //
   // Enables the controls needed to set the loop frequency for this mode.
   void setLoopMode(LFOLoopMode mode);
-
-  // Set the frequency of mode to value.
-  void setValue(LFOLoopMode mode, double value);
 
   // Returns the phase value at beatPosition/ secondsPlayed normalized to [0, 1]
   double getLFOPhase(double beatPosition, double secondsPlayed);
@@ -173,14 +165,11 @@ class LFOController
   // Panel to set LFO frequency.
   FrequencyPanel frequencyPanel;
 
-  // Panel to switch the active LFO.
-  LFOSelectorControl selectorControl;
-
-  // UI representation of the active LFO curve.
-  ShapeEditorControl editorControl;
+  // Pointer to parent plugin.
+  IPluginBase* mPlugin;
 
 public:
-  LFOController(IRECT rect, float GUIWidth, float GUIHeight);
+  LFOController(IRECT rect, float GUIWidth, float GUIHeight, IPluginBase* plugin);
 
   void attachUI(IGraphics* pGraphics);
 

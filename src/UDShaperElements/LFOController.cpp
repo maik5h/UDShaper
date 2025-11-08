@@ -83,8 +83,8 @@ void SecondsBoxControl::OnMouseDrag(float x, float y, float dX, float dY, const 
   OnValueChanged();
 }
 
-BeatsBoxControl::BeatsBoxControl(IRECT rect, int parameterIdx)
-  : IVNumberBoxControl(rect, parameterIdx, nullptr, "", DEFAULT_STYLE, false, 6., 0., 12., "1/1", false)
+BeatsBoxControl::BeatsBoxControl(IRECT rect, int parameterIdx, int initValue)
+  : IVNumberBoxControl(rect, parameterIdx, nullptr, "", DEFAULT_STYLE, false, initValue, 0., 12., FREQUENCY_COUNTER_STRINGS[initValue].data(), false)
 {
   mSmallIncrement = 0.05;
   mLargeIncrement = 1.;
@@ -133,21 +133,19 @@ void BeatsBoxControl::OnMouseDrag(float x, float y, float dX, float dY, const IM
   OnValueChanged();
 }
 
-FrequencyPanel::FrequencyPanel(IRECT rect, float GUIWidth, float GUIHeight, LFOLoopMode initMode, double initValue)
-  : currentLoopMode(initMode)
-  , layout(rect, GUIWidth, GUIHeight)
-{
-  counterValue.at(initMode) = initValue;
-
-  modeControl = new ICaptionControl(layout.modeButtonRect, getLFOParameterIndex(0, mode), IText(24.f), DEFAULT_FGCOLOR, false);
-  freqBeatsControl = new BeatsBoxControl(layout.counterRect, getLFOParameterIndex(0, freqTempo));
-  freqSecondsControl = new SecondsBoxControl(layout.counterRect, getLFOParameterIndex(0, freqSeconds));
-}
+FrequencyPanel::FrequencyPanel(IRECT rect, float GUIWidth, float GUIHeight, IPluginBase* plugin)
+  : layout(rect, GUIWidth, GUIHeight)
+  , mPlugin(plugin)
+{}
 
 double FrequencyPanel::getLFOPhase(double beatPosition, double secondsPlayed)
 {
   // Convert from beats to bars.
   beatPosition /= 4;
+
+  // Find the loop mode of the currently active LFO.
+  int activeLFOIdx = mPlugin->GetParam(EParams::activeLFOIdx)->Value();
+  LFOLoopMode currentLoopMode = static_cast<LFOLoopMode>(mPlugin->GetParam(getLFOParameterIndex(activeLFOIdx, mode))->Value());
 
   if (currentLoopMode == LFOFrequencyTempo)
   {
@@ -274,28 +272,46 @@ void FrequencyPanel::attachUI(IGraphics* pGraphics)
 {
   assert(!layout.fullRect.Empty());
 
-  pGraphics->AttachControl(modeControl, kNoTag, "LFOControls");
-  pGraphics->AttachControl(freqSecondsControl, kNoTag, "LFOControls");
-  pGraphics->AttachControl(freqBeatsControl, kNoTag, "LFOControls");
+  // Find the loop mode and beat value of the current LFO to initialize IControls with correct parameters.
+  int activeLFOIdx = mPlugin->GetParam(EParams::activeLFOIdx)->Value();
+  LFOLoopMode currentLoopMode = static_cast<LFOLoopMode>(mPlugin->GetParam(getLFOParameterIndex(activeLFOIdx, mode))->Value());
+  int beatIdx = static_cast<int>(mPlugin->GetParam(getLFOParameterIndex(activeLFOIdx, LFOParams::freqTempo))->Value());
 
-  // The controls are modified between instantiation and attaching to graphics,
-  // which aparently confuses iPlug. This call makes them render correctly.
-  setLoopMode(currentLoopMode);
+  // Several controls are attached, only two are active at the same time. The currentLoopMode defines which control is needed.
+  pGraphics->AttachControl(new ICaptionControl(layout.modeButtonRect, getLFOParameterIndex(activeLFOIdx, mode), IText(24.f), DEFAULT_FGCOLOR, false), FPModeControlTag, "LFOControls");
+  pGraphics->AttachControl(new BeatsBoxControl(layout.counterRect, getLFOParameterIndex(activeLFOIdx, freqTempo), beatIdx), FPBeatsControlTag, "LFOControls");
+  pGraphics->AttachControl(new SecondsBoxControl(layout.counterRect, getLFOParameterIndex(activeLFOIdx, freqSeconds)), FPSecondsControlTag, "LFOControls");
+
+  // Disable all controls that are not needed.
+  if (currentLoopMode != LFOFrequencySeconds)
+  {
+    pGraphics->GetControlWithTag(FPSecondsControlTag)->SetDisabled(true);
+  }
+  if (currentLoopMode != LFOFrequencyTempo)
+  {
+    pGraphics->GetControlWithTag(FPBeatsControlTag)->SetDisabled(true);
+  }
 }
 
 void FrequencyPanel::setDisabled(bool disable)
 {
-  modeControl->SetDisabled(disable);
-  freqSecondsControl->SetDisabled(disable);
-  freqBeatsControl->SetDisabled(disable);
+  if (IGraphics* ui = mPlugin->GetUI())
+  {
+    ui->GetControlWithTag(FPModeControlTag)->SetDisabled(disable);
+    ui->GetControlWithTag(FPBeatsControlTag)->SetDisabled(disable);
+    ui->GetControlWithTag(FPSecondsControlTag)->SetDisabled(disable);
+  }
 }
 
 void FrequencyPanel::setLFOIdx(int idx)
 {
   // Set parameter indices. This affects to which LFO the controls are connected.
-  modeControl->SetParamIdx(getLFOParameterIndex(idx, mode));
-  freqSecondsControl->SetParamIdx(getLFOParameterIndex(idx, freqSeconds));
-  freqBeatsControl->SetParamIdx(getLFOParameterIndex(idx, freqTempo));
+  if (IGraphics* ui = mPlugin->GetUI())
+  {
+    ui->GetControlWithTag(FPModeControlTag)->SetParamIdx(getLFOParameterIndex(idx, mode));
+    ui->GetControlWithTag(FPBeatsControlTag)->SetParamIdx(getLFOParameterIndex(idx, freqTempo));
+    ui->GetControlWithTag(FPSecondsControlTag)->SetParamIdx(getLFOParameterIndex(idx, freqSeconds));
+  }
 }
 
 void FrequencyPanel::setLoopMode(LFOLoopMode mode)
@@ -305,28 +321,25 @@ void FrequencyPanel::setLoopMode(LFOLoopMode mode)
 
   // Enable needed elements:
   // mode control and the control corresponding to the current modes frequency.
-  modeControl->SetDisabled(false);
+  if (IGraphics* ui = mPlugin->GetUI())
+  {
+    ui->GetControlWithTag(FPModeControlTag)->SetDisabled(false);
 
-  if (mode == LFOFrequencySeconds)
-  {
-    freqSecondsControl->SetDisabled(false);
-  }
-  else if (mode == LFOFrequencyTempo)
-  {
-    freqBeatsControl->SetDisabled(false);
+    if (mode == LFOFrequencySeconds)
+    {
+      ui->GetControlWithTag(FPSecondsControlTag)->SetDisabled(false);
+    }
+    else if (mode == LFOFrequencyTempo)
+    {
+      ui->GetControlWithTag(FPBeatsControlTag)->SetDisabled(false);
+    }
   }
 }
 
-void FrequencyPanel::setValue(LFOLoopMode mode, double value)
-{
-  counterValue.at(mode) = value;
-}
-
-LFOController::LFOController(IRECT rect, float GUIWidth, float GUIHeight)
+LFOController::LFOController(IRECT rect, float GUIWidth, float GUIHeight, IPluginBase* plugin)
   : layout(rect, GUIWidth, GUIHeight)
-  , frequencyPanel(layout.toolsRect, GUIWidth, GUIHeight)
-  , selectorControl(layout.selectorRect)
-  , editorControl(layout.editorRect, layout.editorInnerRect, nullptr, 256)
+  , frequencyPanel(layout.toolsRect, GUIWidth, GUIHeight, plugin)
+  , mPlugin(plugin)
 {
   // Create editors.
   editors.reserve(MAX_NUMBER_LFOS);
@@ -335,24 +348,23 @@ LFOController::LFOController(IRECT rect, float GUIWidth, float GUIHeight)
     // Assign the index -1 to ShapeEditors that act as LFO editors.
     editors.emplace_back(layout.editorFullRect, GUIWidth, GUIHeight, - 1);
   }
-
-  // Connect editorControl to active editor.
-  editorControl.setEditor(editors.data() + activeLFOIdx);
 }
 
 void LFOController::attachUI(IGraphics* pGraphics)
 {
   frequencyPanel.attachUI(pGraphics);
-  frequencyPanel.setLFOIdx(activeLFOIdx);
 
-  pGraphics->AttachControl(&selectorControl);
+  pGraphics->AttachControl(new LFOSelectorControl(layout.selectorRect), LFOSelectorControlTag);
 
   // Editor background.
   pGraphics->AttachControl(new FillRectangle(layout.editorRect, UDS_ORANGE));
   pGraphics->AttachControl(new DrawFrame(layout.editorInnerRect, UDS_WHITE, FRAME_WIDTH_EDITOR));
 
   // Do not call attachUI on the ShapeEditors, but use a single ShapeEditorControl for all editors.
-  pGraphics->AttachControl(&editorControl);
+  pGraphics->AttachControl(new ShapeEditorControl(layout.editorRect, layout.editorInnerRect, nullptr, 256), LFOEditorControlTag);
+
+  // Refresh control members to display the correct state.
+  setActiveLFO(mPlugin->GetParam(EParams::activeLFOIdx)->Value());
 }
 
 void LFOController::setLoopMode(LFOLoopMode mode)
@@ -364,8 +376,16 @@ void LFOController::setActiveLFO(int idx)
 {
   activeLFOIdx = idx;
 
-  // Connect the editorControl to the new active LFO editor.
-  editorControl.setEditor(editors.data() + idx);
+  if (IGraphics* ui = mPlugin->GetUI())
+  {
+    // Connect the editorControl to the new active LFO editor.
+    ShapeEditorControl* editorControl = static_cast<ShapeEditorControl*>(ui->GetControlWithTag(LFOEditorControlTag));
+    editorControl->setEditor(editors.data() + idx);
+
+    // Inform the selectorControl about the new index.
+    LFOSelectorControl* selectorControl = static_cast<LFOSelectorControl*>(ui->GetControlWithTag(LFOSelectorControlTag));
+    selectorControl->activeLFOIdx = idx;
+  }
 
   // Connect the frequencyPanel to the parameters of the new active LFO.
   frequencyPanel.setLFOIdx(idx);

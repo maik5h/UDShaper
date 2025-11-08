@@ -177,7 +177,7 @@ protected:
 
   std::vector<float> mPoints;
 
-  ShapeEditor* editor;
+  ShapeEditor* editor = nullptr;
   IRECT editorRect;
 
   // The popup menu used to change the interpolation mode between points.
