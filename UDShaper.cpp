@@ -65,7 +65,95 @@ UDShaper::UDShaper(const InstanceInfo& info)
 }
 
 #if IPLUG_DSP
-void UDShaper::ProcessBlock(sample** inputs, sample** outputs, int nFrames) {}
+void UDShaper::ProcessBlock(sample** inputs, sample** outputs, int nFrames)
+{
+  sample* inputL = inputs[0];
+  sample* inputR = inputs[1];
+
+  sample* outputL = outputs[0];
+  sample* outputR = outputs[1];
+
+  // For testing.
+  double beatPosition = 0.;
+  double secondsPlayed = 0.;
+
+  // beatPosition += tempo / samplerate / 60;
+  // secondsPlayed += 1. / samplerate;
+
+  switch (static_cast<distortionMode>(GetParam(EParams::distMode)->Value()))
+  {
+  // TODO Buffer is parallelized into pieces of ~200 samples. I dont know how to access all of them in
+  // one place so i can not properly decide which shape to choose.
+
+  // Distortion mode Up/Down:
+  // Use shapeEditor1 on samples that have higher or equal value than the previous sample, else use
+  // shapeEditor2.
+  case upDown: {
+    // Since data from last buffer is not available, take first samples as a reference, works most
+    // of the time but is not optimal.
+    bool processShape1L = (inputL[1] >= inputL[0]);
+    bool processShape1R = (inputR[1] >= inputR[0]);
+
+    float previousLevelL;
+    float previousLevelR;
+
+    for (uint32_t index = 0; index < nFrames; index++)
+    {
+      if (index > 0)
+      {
+        processShape1L = (inputL[index] >= previousLevelL);
+        processShape1R = (inputR[index] >= previousLevelR);
+      }
+
+      outputL[index] = processShape1L ? shapeEditor1.forward(inputL[index], beatPosition, secondsPlayed) : shapeEditor2.forward(inputL[index], beatPosition, secondsPlayed);
+      outputR[index] = processShape1R ? shapeEditor1.forward(inputR[index], beatPosition, secondsPlayed) : shapeEditor2.forward(inputR[index], beatPosition, secondsPlayed);
+
+      previousLevelL = inputL[index];
+      previousLevelR = inputR[index];
+    }
+    break;
+  }
+
+  // Distortion mode Mid/Side:
+  // Use shapeEditor1 on the mid-, shapeEditor2 on the side-channel.
+  case midSide: {
+    float mid;
+    float side;
+
+    for (uint32_t index = 0; index < nFrames; index++)
+    {
+      mid = shapeEditor1.forward((inputL[index] + inputR[index]) / 2, beatPosition);
+      side = shapeEditor2.forward((inputL[index] - inputR[index]) / 2, beatPosition);
+
+      outputL[index] = mid + side;
+      outputR[index] = mid - side;
+    }
+    break;
+  }
+
+  // Distortion mode Left/Right:
+  // Use shapeEditor1 on the left, shapeEditor2 on the right channel.
+  case leftRight: {
+    for (uint32_t index = 0; index < nFrames; index++)
+    {
+      outputL[index] = shapeEditor1.forward(inputL[index], beatPosition);
+      outputR[index] = shapeEditor2.forward(inputR[index], beatPosition);
+    }
+    break;
+  }
+
+  // Distortion mode +/-:
+  // Use shapeEditor one on positive, shapeEditor2 on negative samples.
+  case positiveNegative: {
+    for (uint32_t index = 0; index < nFrames; index++)
+    {
+      outputL[index] = (inputL[index] > 0) ? shapeEditor1.forward(inputL[index], beatPosition) : shapeEditor2.forward(inputL[index], beatPosition);
+      outputR[index] = (inputR[index] > 0) ? shapeEditor1.forward(inputR[index], beatPosition) : shapeEditor2.forward(inputR[index], beatPosition);
+    }
+    break;
+  }
+  }
+}
 #endif
 
 void UDShaper::OnParamChange(int idx)
