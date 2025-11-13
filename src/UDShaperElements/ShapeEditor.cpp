@@ -464,6 +464,9 @@ bool ShapeEditor::processRightClick(float x, float y)
   // If not rightclicked in proximity of point, add one.
   if (closestPoint == nullptr)
   {
+    // Check if point lies inside the editor.
+    if (!layout.editorRect.Contains(x, y)) return false;
+
     ShapePoint* insertBefore = shapePoints->next;
     while (insertBefore != nullptr)
     {
@@ -532,6 +535,7 @@ void ShapeEditor::processMouseDrag(float x, float y)
     if (currentlyDragging->next == nullptr)
     {
       x = layout.editorRect.R;
+      y = (y > layout.editorRect.B) ? layout.editorRect.B : (y < layout.editorRect.T) ? layout.editorRect.T : y;
       currentlyDragging->updatePositionAbsolute(x, y);
       return;
     }

@@ -2,10 +2,6 @@ The biggest and most noticeable TODOs of this project:
 
 - The way link knobs are implemented is bad, atrocious even. Is there no iPlug2 way to do popup menus properly?????
 
-- BUG: rightclick outside editor inside ShapeEditor.
-
-- BUG: Rightmost point in LFO editor has no lower y bound???
-
 - Enter text does not work properly on FrequencyPanels: Seconds: switches to wrong format if <1s, Tempo: should be disabled completely.
 
 MIGRATING TO IPLUG2:

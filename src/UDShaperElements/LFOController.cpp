@@ -451,7 +451,7 @@ LFOController::LFOController(IRECT rect, float GUIWidth, float GUIHeight, IPlugi
   for (int i = 0; i < MAX_NUMBER_LFOS; i++)
   {
     // Assign the index -1 to ShapeEditors that act as LFO editors.
-    editors.emplace_back(layout.editorFullRect, GUIWidth, GUIHeight, - 1);
+    editors.emplace_back(layout.editorFullRect, GUIWidth, GUIHeight, -1);
   }
 }
 
