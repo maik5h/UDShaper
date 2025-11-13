@@ -1,11 +1,13 @@
 #pragma once
 
-#include <map>
 #include <assert.h>
+#include <set>
 #include "IControls.h"
 #include "../GUILayout.h"
 #include "../color_palette.h"
 #include "../assets.h"
+#include "../controlTags.h"
+#include "../controlMessageTags.h"
 using namespace iplug;
 using namespace igraphics;
 
@@ -22,7 +24,7 @@ enum editMode
   none,        // ignore
   position,    // Moves position of selected point.
   curveCenter, // Adjusts curveCenter and therefore parameter of curve function of next point to the right.
-  modulate     // Selects a parameter to be modulated by the active Envelope
+  modulate     // Selects a parameter to be modulated by the active LFO.
 };
 
 // A point on a ShapeEditor that marks the transition between two curve segments.
@@ -52,7 +54,7 @@ class ShapeEditor
   ShapePoint* rightClicked = nullptr;
 
   // If a point was deleted, store a pointer to it here, so that the plugin can remove all
-  // Envelope links after the input is fully processed.
+  // LFO links after the input is fully processed.
   ShapePoint* deletedPoint = nullptr;
 
   public:
@@ -125,7 +127,11 @@ class ShapeEditor
 
   // Passes input to the function defined by the graph and returns the function value at this position.
   // Input is clamped to [0, 1].
-  const float forward(float input, double beatPosition = 0, double secondsPlayed = 0);
+  // * @param input Input value
+  // * @param modulationAmplitudes Array of the amplitudes of all LFO modulation links. Can be nullptr,
+  // in which case the unmodulated base values are used to calculate the output. If not nullptr, this must
+  // point to an array of size MAX_NUMBER_LFOS * MAX_MODULATION_LINKS.
+  const float forward(float input, double* modulationAmplitudes = nullptr);
 
   // Attach the ShapeEditor UI to the given graphics context.
   //
@@ -138,7 +144,17 @@ class ShapeEditor
   // bool loadState(const clap_istream_t *stream, int version[3]);
 };
 
-class Envelope;
+// Carries information necessary to connect an LFO to a ModulatedParameter.
+//
+// x: The x-position of the cursor from which the message was sent
+// y: The y-position of the cursor from which the message was sent
+// idx: The index of the LFO link to which the parameter should connect
+struct LFOConnectInfo
+{
+  float x;
+  float y;
+  int idx;
+};
 
 // UI representation of a ShapeEditor.
 //
@@ -165,6 +181,11 @@ public:
   void OnMouseDrag(float x, float y, float dX, float dY, const IMouseMod& mod) override;
   void OnMouseDblClick(float x, float y, const IMouseMod& mod) override;
   void OnPopupMenuSelection(IPopupMenu* pSelectedMenu, int valIdx) override;
+  void OnMsgFromDelegate(int msgTag, int dataSize, const void* pData) override;
+
+  // Array of modulationAmplitudes stored on plugin level that is updated frequently
+  // on the UI thread and represents the current modulation state.
+  double* modulationAmplitudes = nullptr;
 
 protected:
   ILayerPtr mLayer;
@@ -182,4 +203,13 @@ protected:
 
   // The popup menu used to change the interpolation mode between points.
   IPopupMenu menu = IPopupMenu();
+
+  // Popup menu used to choose between x- and y-modulation for ShapePoints.
+  IPopupMenu menuMod = IPopupMenu();
+
+  // Stores the pointer to the ShapePoint corresponding to menuMod while the menu is open.
+  ShapePoint* modPoint = nullptr;
+
+  // Stores the modulation index corresponding to menuMod while the menu is open.
+  int modIdx = -1;
 };

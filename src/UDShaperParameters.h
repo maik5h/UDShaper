@@ -23,10 +23,16 @@ enum EParams
   activeLFOIdx = 1,
 
   // LFO parameters start here.
+  // Every LFO has the parameters mode, frequency in beats and duration in seconds.
   LFOsStart = 2,
 
+  // Modulation amplitudes start here.
+  // Every LFO has a fixed number (MAX_MODULATION_LINKS) of links that can connect to a ModulatedParameter.
+  // Each link has one parameter corresponding to the amplitude.
+  modStart = LFOsStart + MAX_NUMBER_LFOS * kNumLFOParams,
+
   // Total number of parameters.
-  kNumParams = MAX_NUMBER_LFOS * kNumLFOParams + LFOsStart
+  kNumParams = modStart + MAX_NUMBER_LFOS * MAX_MODULATION_LINKS
 };
 
 // Returns the global parameter index of LFO parameters.

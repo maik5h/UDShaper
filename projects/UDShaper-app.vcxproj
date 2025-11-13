@@ -320,6 +320,7 @@
     <ClInclude Include="..\src\assets.h" />
     <ClInclude Include="..\src\color_palette.h" />
     <ClInclude Include="..\src\config.h" />
+    <ClInclude Include="..\src\controlMessageTags.h" />
     <ClInclude Include="..\src\controlTags.h" />
     <ClInclude Include="..\src\GUILayout.h" />
     <ClInclude Include="..\src\string_presets.h" />

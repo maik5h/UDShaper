@@ -3,9 +3,13 @@
 // Tags to access IControls.
 enum EControlTags
 {
-  LFOSelectorControlTag = 0,
+  ShapeEditorControl1 = 0,
+  ShapeEditorControl2,
+  LFOSelectorControlTag,
   LFOEditorControlTag,
   FPModeControlTag,
   FPBeatsControlTag,
-  FPSecondsControlTag
+  FPSecondsControlTag,
+  LFOKnobStart,
+  kNumControls = LFOKnobStart + MAX_MODULATION_LINKS
 };

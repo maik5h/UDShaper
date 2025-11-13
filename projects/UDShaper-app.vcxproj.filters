@@ -303,6 +303,9 @@
     <ClInclude Include="..\src\controlTags.h">
       <Filter>core</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\controlMessageTags.h">
+      <Filter>core</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="resources">

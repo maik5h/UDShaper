@@ -18,6 +18,13 @@ static float getPowerFromPosY(float posY)
   return (posY > 0.5) ? -power : power;
 }
 
+// A parameter that can be connected to an LFO link.
+//
+// Stores the indices of links it is connected to. To access the modulated value, an array
+// of all modulation amplitudes must be forwarded to the get method.
+//
+// Note: The name might be misleading, this is not an iPlug2 or CLAP parameter, the host
+// does not see it.
 class ModulatedParameter
 {
 private:
@@ -30,11 +37,8 @@ private:
   // Maximum value this ModulatedParameter can take.
   float maxValue;
 
-  // Pointer to the ShapePoint that this parameter is part of.
-  const ShapePoint* parent;
-
-  // The modulation amount of every Envelope associated with this ModulatedParameter.
-  std::map<Envelope*, float> modulationAmounts;
+  // Indices in the array of all modulation links that are connected to this parameter.
+  std::set<int> modIndices;
 
 public:
   // The type of parameter represented by this instance.
@@ -44,52 +48,28 @@ public:
   // 
   // ModulatedParameters are internal parameters that are not reported to the host.
   // They can only exist as members of ShapePoints.
-  // * @param parentPoint Pointer to the ShapePoint which this parameter belongs to
   // * @param inMode The type of modulation this parameter describes. Can be the x-position, y-position or curve center position of a ShapePoint
   // * @param inBase Initial base value, i.e. the value this parameter takes if no modulation is active
   // * @param inMinValue The minimum value this parameter can take
   // * @param inMaxValue The maximum value this parameter can take
-  ModulatedParameter(ShapePoint* parentPoint, modulationMode inMode, float inBase, float inMinValue = -1, float inMaxValue = 1)
-    : parent(parentPoint)
-    , mode(inMode)
+  ModulatedParameter(modulationMode inMode, float inBase, float inMinValue = -1, float inMaxValue = 1)
+    : mode(inMode)
+    , base(inBase)
+    , minValue(inMinValue)
+    , maxValue(inMaxValue)
+  {}
+
+  // Connects the LFO link at idx to this parameter.
+  // Returns true if the link could be added and false if this parameter was already connected with the link.
+  bool addModulator(int idx)
   {
-    base = inBase;
-    minValue = inMinValue;
-    maxValue = inMaxValue;
+    int previousSize = modIndices.size();
+    modIndices.insert(idx);
+
+    return previousSize != modIndices.size();
   }
 
-  // Registers the given envelope as a modulator to this parameter. This Envelope will now contribute
-  // to the modulation when calling .get() with the given amount.
-  // Returns true on success and false if the Envelope was already a Modulator of this ModulatedParameter.
-  bool addModulator(Envelope* envelope, float amount)
-  {
-    // Envelopes can only be added once.
-    for (auto a : modulationAmounts)
-    {
-      if (a.first == envelope)
-      {
-        return false;
-      }
-    }
-
-    modulationAmounts.at(envelope) = amount;
-    return true;
-  }
-
-  void removeModulator(Envelope* envelope) { modulationAmounts.erase(envelope); }
-
-  // Returns the modulation amount of the Envelope at the given pointer.
-  const float getAmount(Envelope* envelope) { return modulationAmounts.at(envelope); }
-
-  // Sets the modulation amount of the Envelope at the given pointer to the given amount.
-  void setAmount(Envelope* envelope, float amount)
-  {
-    amount = (amount < -1) ? -1 : (amount > 1) ? 1 : amount;
-    modulationAmounts.at(envelope) = amount;
-  }
-
-  // Returns a pointer to the ShapePoint that uses this ModulatedParameter instance.
-  const ShapePoint* getParentPoint() { return parent; }
+  void removeModulator(int idx) { modIndices.erase(idx); }
 
   // Returns a pointer to the base value of this ModulatedParameter.
   // This is used solely for serialization in ShapeEditor::saveState.
@@ -104,14 +84,17 @@ public:
   }
 
   // Returns the current value, i.e. the modulation offsets added to the base clamped to the min and max values.
-  const float get(double beatPosition = 0, double secondsPlayed = 0.) {
+  // * @param modulationAmplitudes The array of all modulation amplitudes as set in LFOController::getModulationAmplitudes.
+  // Can be nullptr, in which case the unmodulated base value is returned.
+  const float get(double* modulationAmplitudes) {
+    if (modulationAmplitudes == nullptr)
+   { return base; }
+
     float currentValue = base;
-    // TODO unquote once Envelopes are implemented.
-    // Iterate over modulationAmounts, first is pointer to Envelope, second is amount.
-    //for (auto a : modulationAmounts)
-    //{
-    //  currentValue += a.second * a.first->modForward(beatPosition, secondsPlayed);
-    //}
+    for (int idx : modIndices)
+    {
+      currentValue += modulationAmplitudes[idx];
+    }
 
     currentValue = (currentValue > maxValue) ? maxValue : (currentValue < minValue) ? minValue : currentValue;
     return currentValue;
@@ -172,9 +155,9 @@ public:
   // * @param initMode Initial curve segment interpolation mode
   ShapePoint(float x, float y, IRECT editorRect, const int parentIdx, float pow = 1, float omega = 0.5, Shapes initMode = shapePower)
     : shapeEditorIndex(parentIdx)
-    , posX(this, modPosX, x, 0)
-    , posY(this, modPosY, y, 0)
-    , curveCenterPosY(this, modCurveCenterY, std::pow(0.5, pow), 0)
+    , posX(modPosX, x, 0)
+    , posY(modPosY, y, 0)
+    , curveCenterPosY(modCurveCenterY, std::pow(0.5, pow), 0)
   {
     assert((0 <= x) && (x <= 1) && (0 <= y) && (y <= 1));
 
@@ -197,7 +180,7 @@ public:
   // they are used:
 
   // Returns the relative x-position of this point.
-  const float getPosX(double beatPosition = 0., double secondsPlayed = 0.)
+  const float getPosX(double* modulationAmplitudes = nullptr)
   {
     // Rightmost point must always be at x = 1;
     if (next == nullptr)
@@ -210,43 +193,45 @@ public:
     // Mod to the right will stop on the next point.
     else
     {
-      float x = posX.get(beatPosition, secondsPlayed);
-      float nextX = next->getPosX(beatPosition, secondsPlayed);
+      float x = posX.get(modulationAmplitudes);
+      // TODO this calls all getPosX until the last point is reached (might be bad).
+      // Is there an alternative with constant time complexity?
+      float nextX = next->getPosX(modulationAmplitudes);
       return (x > nextX) ? nextX : x;
     }
   }
 
   // Returns the relative y-position of the point.
-  const float getPosY(double beatPosition = 0., double secondsPlayed = 0.)
+  const float getPosY(double* modulationAmplitudes = nullptr)
   {
-    return posY.get(beatPosition, secondsPlayed);
+    return posY.get(modulationAmplitudes);
   }
 
   // Calculates the absolute x-position of the point on the GUI from the relative position posX.
-  const float getAbsPosX(double beatPosition = 0., double secondsPlayed = 0.)
+  const float getAbsPosX(double* modulationAmplitudes = nullptr)
   {
-    return rect.L + getPosX(beatPosition, secondsPlayed) * rect.W();
+    return rect.L + getPosX(modulationAmplitudes) * rect.W();
   }
 
   // Calculates the absolute y-position of the point on the GUI from the relative position posY.
-  const float getAbsPosY(double beatPosition = 0., double secondsPlayed = 0.)
+  const float getAbsPosY(double* modulationAmplitudes = nullptr)
   {
     // By convention, absolute position is inversely related to posY.
-    return rect.B - getPosY(beatPosition, secondsPlayed) * rect.H();
+    return rect.B - getPosY(modulationAmplitudes) * rect.H();
   }
 
   // Calculates the absolute x-position of the curve center associated with this point.
-  const float getCurveCenterAbsPosX(double beatPosition = 0., double secondsPlayed = 0.)
+  const float getCurveCenterAbsPosX(double* modulationAmplitudes = nullptr)
   {
-    return (getAbsPosX(beatPosition, secondsPlayed) + previous->getAbsPosX(beatPosition, secondsPlayed)) / 2;
+    return (getAbsPosX(modulationAmplitudes) + previous->getAbsPosX(modulationAmplitudes)) / 2;
   }
 
   // Calculates the absolute y-position of the curve center associated with this point.
-  const float getCurveCenterAbsPosY(double beatPosition = 0., double secondsPlayed = 0.)
+  const float getCurveCenterAbsPosY(double* modulationAmplitudes = nullptr)
   {
-    float y = getAbsPosY(beatPosition, secondsPlayed);
-    float yL = previous->getAbsPosY(beatPosition, secondsPlayed);
-    float curveCenterY = curveCenterPosY.get(beatPosition, secondsPlayed);
+    float y = getAbsPosY(modulationAmplitudes);
+    float yL = previous->getAbsPosY(modulationAmplitudes);
+    float curveCenterY = curveCenterPosY.get(modulationAmplitudes);
 
     float yExtent = y - yL;
 
@@ -566,7 +551,7 @@ void ShapeEditor::processMouseDrag(float x, float y)
   }
 }
 
-const float ShapeEditor::forward(float input, double beatPosition, double secondsPlayed)
+const float ShapeEditor::forward(float input, double* modulationAmplitudes)
 {
   // Catching this case is important because the function might return non-zero values for steep curves
   // due to quantization errors, which would result in an DC offset even when no input audio is given.
@@ -583,7 +568,7 @@ const float ShapeEditor::forward(float input, double beatPosition, double second
   ShapePoint* point = shapePoints->next;
 
   // Find the curve segment concerned by the input.
-  while (point->getPosX(beatPosition, secondsPlayed) < input)
+  while (point->getPosX(modulationAmplitudes) < input)
   {
     point = point->next;
   }
@@ -591,15 +576,15 @@ const float ShapeEditor::forward(float input, double beatPosition, double second
   switch (point->mode)
   {
   case shapePower: {
-    float xL = point->previous->getPosX(beatPosition, secondsPlayed);
-    float yL = point->previous->getPosY(beatPosition, secondsPlayed);
-    float x = point->getPosX(beatPosition, secondsPlayed);
+    float xL = point->previous->getPosX(modulationAmplitudes);
+    float yL = point->previous->getPosY(modulationAmplitudes);
+    float x = point->getPosX(modulationAmplitudes);
 
     // Compute relative x-position inside the curve segment, relative "height" of the curve segment and power
     // corresponding to the current curve cenetr position.
     float relX = (x == xL) ? xL : (input - xL) / (x - xL);
-    float segmentYExtent = (point->getPosY(beatPosition, secondsPlayed) - yL);
-    float power = getPowerFromPosY(point->curveCenterPosY.get(beatPosition, secondsPlayed));
+    float segmentYExtent = (point->getPosY(modulationAmplitudes) - yL);
+    float power = getPowerFromPosY(point->curveCenterPosY.get(modulationAmplitudes));
 
     if (power > 0)
     {
@@ -607,7 +592,7 @@ const float ShapeEditor::forward(float input, double beatPosition, double second
     }
     else
     {
-      out = point->getPosY(beatPosition, secondsPlayed) - pow(1 - relX, -power) * segmentYExtent;
+      out = point->getPosY(modulationAmplitudes) - pow(1 - relX, -power) * segmentYExtent;
     }
     break;
   }
@@ -738,7 +723,10 @@ const void ShapeEditor::attachUI(IGraphics* g) {
 
   g->AttachControl(new FillRectangle(layout.innerRect, UDS_ORANGE));
   g->AttachControl(new DrawFrame(layout.editorRect, UDS_WHITE, FRAME_WIDTH_EDITOR));
-  g->AttachControl(new ShapeEditorControl(layout.innerRect, layout.editorRect, this, 256));
+
+  // TODO maybe dont do that, this might easily break and confuse me in the future if index is not 1 or 2.
+  int tag = (index == 1) ? EControlTags::ShapeEditorControl1 : EControlTags::ShapeEditorControl2;
+  g->AttachControl(new ShapeEditorControl(layout.innerRect, layout.editorRect, this, 256), tag);
 }
 
 ShapeEditorControl::ShapeEditorControl(const IRECT& bounds, const IRECT& editorBounds, ShapeEditor* shapeEditor, int numPoints, bool useLayer)
@@ -761,6 +749,9 @@ ShapeEditorControl::ShapeEditorControl(const IRECT& bounds, const IRECT& editorB
   menu.AddItem("Power", 2);
   // TODO add this once sinusoidal interpolation is implemented.
   //menu.AddItem("Sine", 3);
+
+  menuMod.AddItem("X", 0);
+  menuMod.AddItem("Y", 1);
 }
 
 void ShapeEditorControl::setEditor(ShapeEditor* newEditor)
@@ -786,7 +777,7 @@ void ShapeEditorControl::Draw(IGraphics& g)
     // Draw the graph of the shaping function.
     for (int i = 0; i < mPoints.size(); i++)
     {
-      float v = editor->forward(static_cast<float>(i) / static_cast<float>(mPoints.size() - 1));
+      float v = editor->forward(static_cast<float>(i) / static_cast<float>(mPoints.size() - 1), modulationAmplitudes);
       v = (v - mMin) / (mMax - mMin);
       mPoints.at(i) = v;
     }
@@ -797,10 +788,10 @@ void ShapeEditorControl::Draw(IGraphics& g)
     ShapePoint* point = editor->shapePoints->next;
     while (point != nullptr)
     {
-      float posX = point->getAbsPosX();
-      float posY = point->getAbsPosY();
-      float curveCenterPosX = point->getCurveCenterAbsPosX();
-      float curveCenterPosY = point->getCurveCenterAbsPosY();
+      float posX = point->getAbsPosX(modulationAmplitudes);
+      float posY = point->getAbsPosY(modulationAmplitudes);
+      float curveCenterPosX = point->getCurveCenterAbsPosX(modulationAmplitudes);
+      float curveCenterPosY = point->getCurveCenterAbsPosY(modulationAmplitudes);
       g.FillCircle(UDS_WHITE, posX, posY, POINT_SIZE);
       g.FillCircle(UDS_WHITE, curveCenterPosX, curveCenterPosY, POINT_SIZE_SMALL);
       point = point->next;
@@ -858,7 +849,7 @@ void ShapeEditorControl::OnMouseDblClick(float x, float y, const IMouseMod& mod)
 
 void ShapeEditorControl::OnPopupMenuSelection(IPopupMenu* pSelectedMenu, int valIdx)
 {
-  if (pSelectedMenu != nullptr)
+  if (pSelectedMenu == &menu)
   {
     int item = pSelectedMenu->GetChosenItemIdx();
     if (item == 0)
@@ -872,6 +863,62 @@ void ShapeEditorControl::OnPopupMenuSelection(IPopupMenu* pSelectedMenu, int val
     else if (item == 3)
     {
       editor->setInterpolationMode(shapeSine);
+    }
+  }
+  else if (pSelectedMenu == &menuMod)
+  {
+    // modPoint and modIdx are always set before menuMod is opened, so it can be assume
+    // that they have sensible values in this scope, see ShapeEditorControl::OnMsgFromDelegate.
+
+    int item = pSelectedMenu->GetChosenItemIdx();
+    if (item == 0)
+    {
+      if (modPoint->posX.addModulator(modIdx))
+      {
+        GetUI()->GetDelegate()->SendArbitraryMsgFromUI(EControlMsg::LFOConnectSuccess, GetTag(), sizeof(modIdx), &modIdx);
+      }
+    }
+    else if (item == 1)
+    {
+      if (modPoint->posY.addModulator(modIdx))
+      {
+        GetUI()->GetDelegate()->SendArbitraryMsgFromUI(EControlMsg::LFOConnectSuccess, GetTag(), sizeof(modIdx), &modIdx);
+      }
+    }
+  }
+  else if (!pSelectedMenu)
+  {
+    // Reset temporary variables concerning menuMod.
+    modPoint = nullptr;
+    modIdx = -1;
+  }
+}
+
+void ShapeEditorControl::OnMsgFromDelegate(int msgTag, int dataSize, const void* pData)
+{
+  // An LFO tries to connect to a ModulatedParameter.
+  if (msgTag == EControlMsg::LFOAttemptConnect)
+  {
+    LFOConnectInfo info = *static_cast<const LFOConnectInfo*>(pData);
+    ShapePoint* point = editor->getClosestPoint(info.x, info.y);
+
+    if (point != nullptr)
+    {
+      if (editor->currentEditMode == curveCenter)
+      {
+        // If the connect was successfull send a response message to update the LFO UI.
+        if (point->curveCenterPosY.addModulator(info.idx))
+        {
+          GetUI()->GetDelegate()->SendArbitraryMsgFromUI(EControlMsg::LFOConnectSuccess, GetTag(), sizeof(info.idx), &info.idx);
+        }
+      }
+      else
+      {
+        // Store point and index to later access them when the menu selection is processed.
+        modPoint = point;
+        modIdx = info.idx;
+        GetUI()->CreatePopupMenu(*this, menuMod, IRECT(info.x, info.y, info.x, info.y));
+      }
     }
   }
 }

@@ -149,14 +149,18 @@ double FrequencyPanel::getLFOPhase(double beatPosition, double secondsPlayed)
 
   if (currentLoopMode == LFOFrequencyTempo)
   {
-    // TODO this needs to be checked once audio is available.
-    double speed = pow(2, counterValue.at(LFOFrequencyTempo) - 6);
+    // TODO this needs to be checked once checking host playback position is implemented.
+    double exponent = mPlugin->GetParam(getLFOParameterIndex(activeLFOIdx, LFOParams::freqTempo))->Value();
+
+    // The exponent is shifted by 6, such that exponent = 6 corresponds to 2^0 = 1.
+    double speed = pow(2, exponent - 6);
     beatPosition = fmod(beatPosition, 1. / speed);
     return beatPosition * speed;
   }
   else if (currentLoopMode == LFOFrequencySeconds)
   {
-    return fmod(secondsPlayed, counterValue.at(LFOFrequencySeconds)) / counterValue.at(LFOFrequencySeconds);
+    double loopPeriod = mPlugin->GetParam(getLFOParameterIndex(activeLFOIdx, LFOParams::freqSeconds))->Value();
+    return fmod(secondsPlayed, loopPeriod) / loopPeriod;
   }
   return 0.;
 }
@@ -209,6 +213,19 @@ LFOSelectorControl::LFOSelectorControl(IRECT rect)
   : IControl(rect, EParams::activeLFOIdx)
 {
   activeRect = rect;
+}
+
+void LFOSelectorControl::setActive(int idx, bool active)
+{
+  linkActive[idx] = true;
+}
+
+const void LFOSelectorControl::getActiveLinks(bool(&isActive)[MAX_MODULATION_LINKS])
+{
+  for (int i = 0; i < MAX_MODULATION_LINKS; i++)
+  {
+    isActive[i] = linkActive[activeLFOIdx * MAX_MODULATION_LINKS + i];
+  }
 }
 
 void LFOSelectorControl::Draw(IGraphics& g)
@@ -265,6 +282,43 @@ void LFOSelectorControl::OnMouseDown(float x, float y, const IMouseMod& mod)
     activeLFOIdx = static_cast<int>(y / (mRECT.H() / numberLFOs));
     SetValue(GetParam()->ToNormalized(activeLFOIdx));
     SetDirty(true);
+    isDragging = true;
+  }
+}
+
+void LFOSelectorControl::OnMouseUp(float x, float y, const IMouseMod& mod)
+{
+  if (isDragging)
+  {
+    isDragging = false;
+
+    // Send mouse position and target index packaged as LFOConnectInfo to delegate.
+    connectInfo.x = x;
+    connectInfo.y = y;
+
+    // Find the next unconnected link for this LFO and return if no link left.
+    int idx = -1;
+    for (int i = activeLFOIdx * MAX_MODULATION_LINKS; i < (activeLFOIdx + 1) * MAX_MODULATION_LINKS; i++)
+    {
+      if (!linkActive[i])
+      {
+        idx = i;
+        break;
+      }
+    }
+
+    if (idx == -1)
+    {
+      return;
+    }
+
+    connectInfo.idx = idx;
+
+    // Send a message to the plugin, including details about the attempted connection.
+    if (IGraphics* ui = GetUI())
+    {
+      ui->GetDelegate()->SendArbitraryMsgFromUI(EControlMsg::LFOAttemptConnect, GetTag(), sizeof(connectInfo), &connectInfo);
+    }
   }
 }
 
@@ -363,6 +417,23 @@ void LFOController::attachUI(IGraphics* pGraphics)
   // Do not call attachUI on the ShapeEditors, but use a single ShapeEditorControl for all editors.
   pGraphics->AttachControl(new ShapeEditorControl(layout.editorRect, layout.editorInnerRect, nullptr, 256), LFOEditorControlTag);
 
+  // Attach knobs that control the modulation amounts.
+  for (int i = 0; i < MAX_MODULATION_LINKS; i++)
+  {
+    // Coordinates of this knobs rect.
+    float l = layout.knobsInnerRect.L + i * layout.knobsInnerRect.W() / MAX_MODULATION_LINKS;
+    float t = layout.knobsInnerRect.T;
+    float r = layout.knobsInnerRect.L + (i + 1) * layout.knobsInnerRect.W() / MAX_MODULATION_LINKS;
+    float b = layout.knobsInnerRect.B;
+
+    // Connect the knobs to the parameters concerning the active LFO.
+    int LFOIdx = static_cast<int>(mPlugin->GetParam(EParams::activeLFOIdx)->Value());
+    int paramIdx = EParams::modStart + LFOIdx * MAX_MODULATION_LINKS + i;
+    IVKnobControl* knob = new IVKnobControl(IRECT(l, t, r, b), paramIdx);
+    pGraphics->AttachControl(knob, EControlTags::LFOKnobStart + i);
+    knob->SetDisabled(true);
+  }
+
   // Refresh control members to display the correct state.
   setActiveLFO(mPlugin->GetParam(EParams::activeLFOIdx)->Value());
 }
@@ -385,8 +456,59 @@ void LFOController::setActiveLFO(int idx)
     // Inform the selectorControl about the new index.
     LFOSelectorControl* selectorControl = static_cast<LFOSelectorControl*>(ui->GetControlWithTag(LFOSelectorControlTag));
     selectorControl->activeLFOIdx = idx;
+
+    // Connect the modulation knobs with the new LFO.
+    bool linkActive[MAX_MODULATION_LINKS];
+    selectorControl->getActiveLinks(linkActive);
+    for (int i = 0; i < MAX_MODULATION_LINKS; i++)
+    {
+      int test = EParams::modStart + idx * MAX_MODULATION_LINKS + i;
+      IControl* knob = ui->GetControlWithTag(EControlTags::LFOKnobStart + i);
+      knob->SetParamIdx(EParams::modStart + idx * MAX_MODULATION_LINKS + i);
+      knob->SetDisabled(!linkActive[i]);
+    }
   }
 
   // Connect the frequencyPanel to the parameters of the new active LFO.
   frequencyPanel.setLFOIdx(idx);
+}
+
+const void LFOController::getModulationAmplitudes(double beatPosition, double secondsPlayed, double* amplitudes)
+{
+  for (int i = 0; i < MAX_NUMBER_LFOS; i++)
+  {
+    double LFOAmplitude = 0;
+
+    for (int j = 0; j < MAX_MODULATION_LINKS; j++)
+    {
+      double modAmount = mPlugin->GetParam(EParams::modStart + i * MAX_NUMBER_LFOS + j)->Value();
+
+      // Evaluate this LFO editor only if
+      // - it is connected to at least one ModulatedParameter, i.e. any modAmount != 0
+      // - it has not been evaluated yet, i.e. LFOAmplitude = 0
+      if (modAmount && !LFOAmplitude)
+      {
+        double phase = frequencyPanel.getLFOPhase(beatPosition, secondsPlayed);
+        LFOAmplitude = editors.at(i).forward(phase);
+      }
+      amplitudes[i * MAX_MODULATION_LINKS + j] = LFOAmplitude * modAmount;
+    }
+  }
+}
+
+void LFOController::enableLink(int idx)
+{
+  if (IGraphics* ui = mPlugin->GetUI())
+  {
+    LFOSelectorControl* selector = static_cast<LFOSelectorControl*>(ui->GetControlWithTag(EControlTags::LFOSelectorControlTag));
+    selector->setActive(idx, true);
+
+    // Enable the knob corresponding to the enabled link.
+    // Knobs only control the parameters of the current LFO.
+    int shiftedIdx = idx - activeLFOIdx * MAX_MODULATION_LINKS;
+    if (0 <= idx && idx < MAX_MODULATION_LINKS)
+    {
+      ui->GetControlWithTag(EControlTags::LFOKnobStart + shiftedIdx)->SetDisabled(false);
+    }
+  }
 }

@@ -1,6 +1,6 @@
 The biggest and most noticeable TODOs of this project:
 
-- Crash on reopen UI, probably dangling pointer in DSP part?
+- Add option to disable modulation links. It would be good if all active knobs are on the left and all inactive ones on the right. On disable, modulated parameters must be connected with the link corresponding to the new knob positions.
 
 - Enter text does not work properly on FrequencyPanels: Seconds: switches to wrong format if <1s, Tempo: should be disabled completely.
 
@@ -26,6 +26,8 @@ MIGRATING TO IPLUG2:
 - Add default IText for all texts on plugin.
 
 Else:
+
+- Connecting LFOs and Moving points acts on the unmodulated base state of the curves. So do either: Disable this kind of editing while the host is playing OR (better?) make it work with the current UI modulation state.
 
 - Logging is done by printing text to file. For reasons beyond me, the host i am using (FL Studio) does not support the CLAP logging feature. Meaningfull logging using the clap feature should still be added to the plugin.
 

@@ -27,3 +27,6 @@ constexpr uint32_t GUI_REFRESH_INTERVAL = 15;
 
  // The maxmium number of LFOs.
 constexpr int MAX_NUMBER_LFOS = 10;
+
+// The maximum number of parameters an LFO can modulate.
+constexpr int MAX_MODULATION_LINKS = 10;

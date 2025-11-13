@@ -36,6 +36,14 @@ UDShaper::UDShaper(const InstanceInfo& info)
     param->InitSeconds("LFO frequency (seconds)", 1., 0.05, 60, 0.05);
   }
 
+  // Add the modulation amount parameters. Every LFO can link to MAX_MODULATION_LINKS parameters
+  // and each link has a coefficient multiplied to the LFO amplitude, which is a parameter.
+  for (int i = 0; i < MAX_NUMBER_LFOS * MAX_MODULATION_LINKS; i++)
+  {
+    param = GetParam(EParams::modStart + i);
+    param->InitDouble("", 0., -1., 1., 0.01);
+  }
+
 #if IPLUG_EDITOR // http://bit.ly/2S64BDd
   mMakeGraphicsFunc = [&]() {
     return MakeGraphics(*this, PLUG_WIDTH, PLUG_HEIGHT, PLUG_FPS, GetScaleForScreen(PLUG_WIDTH, PLUG_HEIGHT));
@@ -60,6 +68,10 @@ UDShaper::UDShaper(const InstanceInfo& info)
     shapeEditor1.attachUI(pGraphics);
     shapeEditor2.attachUI(pGraphics);
     LFOs.attachUI(pGraphics);
+
+    // Reveal the modulationAmplitudesUI array to the ShapeEditors, which will use it to render the current curve.
+    static_cast<ShapeEditorControl*>(GetUI()->GetControlWithTag(ShapeEditorControl1))->modulationAmplitudes = modulationAmplitudesUI;
+    static_cast<ShapeEditorControl*>(GetUI()->GetControlWithTag(ShapeEditorControl2))->modulationAmplitudes = modulationAmplitudesUI;
   };
 #endif
 }
@@ -79,6 +91,10 @@ void UDShaper::ProcessBlock(sample** inputs, sample** outputs, int nFrames)
 
   // beatPosition += tempo / samplerate / 60;
   // secondsPlayed += 1. / samplerate;
+
+  // Fetch the state of all modulation amplitudes at the given host beatPosition or time.
+  double modAmps[MAX_NUMBER_LFOS * MAX_MODULATION_LINKS];
+  LFOs.getModulationAmplitudes(beatPosition, secondsPlayed, modAmps);
 
   switch (static_cast<distortionMode>(GetParam(EParams::distMode)->Value()))
   {
@@ -105,8 +121,8 @@ void UDShaper::ProcessBlock(sample** inputs, sample** outputs, int nFrames)
         processShape1R = (inputR[index] >= previousLevelR);
       }
 
-      outputL[index] = processShape1L ? shapeEditor1.forward(inputL[index], beatPosition, secondsPlayed) : shapeEditor2.forward(inputL[index], beatPosition, secondsPlayed);
-      outputR[index] = processShape1R ? shapeEditor1.forward(inputR[index], beatPosition, secondsPlayed) : shapeEditor2.forward(inputR[index], beatPosition, secondsPlayed);
+      outputL[index] = processShape1L ? shapeEditor1.forward(inputL[index], modAmps) : shapeEditor2.forward(inputL[index], modAmps);
+      outputR[index] = processShape1R ? shapeEditor1.forward(inputR[index], modAmps) : shapeEditor2.forward(inputR[index], modAmps);
 
       previousLevelL = inputL[index];
       previousLevelR = inputR[index];
@@ -122,8 +138,8 @@ void UDShaper::ProcessBlock(sample** inputs, sample** outputs, int nFrames)
 
     for (uint32_t index = 0; index < nFrames; index++)
     {
-      mid = shapeEditor1.forward((inputL[index] + inputR[index]) / 2, beatPosition);
-      side = shapeEditor2.forward((inputL[index] - inputR[index]) / 2, beatPosition);
+      mid = shapeEditor1.forward((inputL[index] + inputR[index]) / 2, modAmps);
+      side = shapeEditor2.forward((inputL[index] - inputR[index]) / 2, modAmps);
 
       outputL[index] = mid + side;
       outputR[index] = mid - side;
@@ -136,8 +152,8 @@ void UDShaper::ProcessBlock(sample** inputs, sample** outputs, int nFrames)
   case leftRight: {
     for (uint32_t index = 0; index < nFrames; index++)
     {
-      outputL[index] = shapeEditor1.forward(inputL[index], beatPosition);
-      outputR[index] = shapeEditor2.forward(inputR[index], beatPosition);
+      outputL[index] = shapeEditor1.forward(inputL[index], modAmps);
+      outputR[index] = shapeEditor2.forward(inputR[index], modAmps);
     }
     break;
   }
@@ -147,8 +163,8 @@ void UDShaper::ProcessBlock(sample** inputs, sample** outputs, int nFrames)
   case positiveNegative: {
     for (uint32_t index = 0; index < nFrames; index++)
     {
-      outputL[index] = (inputL[index] > 0) ? shapeEditor1.forward(inputL[index], beatPosition) : shapeEditor2.forward(inputL[index], beatPosition);
-      outputR[index] = (inputR[index] > 0) ? shapeEditor1.forward(inputR[index], beatPosition) : shapeEditor2.forward(inputR[index], beatPosition);
+      outputL[index] = (inputL[index] > 0) ? shapeEditor1.forward(inputL[index], modAmps) : shapeEditor2.forward(inputL[index], modAmps);
+      outputR[index] = (inputR[index] > 0) ? shapeEditor1.forward(inputR[index], modAmps) : shapeEditor2.forward(inputR[index], modAmps);
     }
     break;
   }
@@ -175,14 +191,49 @@ void UDShaper::OnParamChange(int idx)
       LFOs.setLoopMode(loopMode);
     }
 
-    // The index within the set of LFO parameters.
-    int i = idx - LFOsStart;
-
-    // If an LFO loopMode has been changed, update the frequency panel.
-    if (i % kNumLFOParams == mode)
+    // Check for changes of the loop mode for any of the LFOs.
+    if (EParams::LFOsStart <= idx && idx < EParams::modStart)
     {
-      LFOLoopMode loopMode = static_cast<LFOLoopMode>(GetParam(idx)->Value());
-      LFOs.setLoopMode(loopMode);
+      // The index within the set of LFO parameters.
+      int i = idx - LFOsStart;
+
+      // If an LFO loopMode has been changed, update the frequency panel.
+      if (i % kNumLFOParams == mode)
+      {
+        LFOLoopMode loopMode = static_cast<LFOLoopMode>(GetParam(idx)->Value());
+        LFOs.setLoopMode(loopMode);
+      }
     }
   }
+}
+
+bool UDShaper::OnMessage(int msgTag, int ctrlTag, int dataSize, const void* pData)
+{
+  if (msgTag == EControlMsg::LFOAttemptConnect)
+  {
+    // Forward attempted LFO connection to the two ShapeEditors.
+    GetUI()->GetDelegate()->SendControlMsgFromDelegate(EControlTags::ShapeEditorControl1, LFOAttemptConnect, dataSize, pData);
+    GetUI()->GetDelegate()->SendControlMsgFromDelegate(EControlTags::ShapeEditorControl2, LFOAttemptConnect, dataSize, pData);
+    return true;
+  }
+
+  // Enable an LFO modulation link if connecting was successfull.
+  else if (msgTag == EControlMsg::LFOConnectSuccess)
+  {
+    int connectedIdx = *static_cast<const int*>(pData);
+    LFOs.enableLink(connectedIdx);
+  }
+  return false;
+}
+
+void UDShaper::OnIdle()
+{
+  // Refresh the UI modulation amplitudes used for rendering.
+  double beatPosition = 0.;
+  double secondsPlayed = 0.;
+  LFOs.getModulationAmplitudes(beatPosition, secondsPlayed, modulationAmplitudesUI);
+
+  // TODO for testing only
+  GetUI()->GetControlWithTag(ShapeEditorControl1)->SetDirty(false);
+  GetUI()->GetControlWithTag(ShapeEditorControl2)->SetDirty(false);
 }
