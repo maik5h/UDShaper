@@ -729,6 +729,20 @@ const void ShapeEditor::attachUI(IGraphics* g) {
   g->AttachControl(new ShapeEditorControl(layout.innerRect, layout.editorRect, this, 256), tag);
 }
 
+void ShapeEditor::disconnectLink(int linkIdx)
+{
+  // Remove the link from the connected ModulatedParameter by removing it from
+  // all ModulatedParameters. This could be improved.
+  ShapePoint* point = shapePoints->next;
+  while (point)
+  {
+    point->posX.removeModulator(linkIdx);
+    point->posY.removeModulator(linkIdx);
+    point->curveCenterPosY.removeModulator(linkIdx);
+    point = point->next;
+  }
+}
+
 ShapeEditorControl::ShapeEditorControl(const IRECT& bounds, const IRECT& editorBounds, ShapeEditor* shapeEditor, int numPoints, bool useLayer)
   : IControl(bounds)
   , IVectorBase(DEFAULT_STYLE)

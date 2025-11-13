@@ -140,6 +140,9 @@ class ShapeEditor
   // - A plot of the shaping function defined by this instance
   const void attachUI(IGraphics* g);
 
+  // Disconnect the link with idx from all modulated parameters.
+  void disconnectLink(int linkIdx);
+
   // bool saveState(const clap_ostream_t *stream);
   // bool loadState(const clap_istream_t *stream, int version[3]);
 };

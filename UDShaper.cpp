@@ -221,7 +221,20 @@ bool UDShaper::OnMessage(int msgTag, int ctrlTag, int dataSize, const void* pDat
   else if (msgTag == EControlMsg::LFOConnectSuccess)
   {
     int connectedIdx = *static_cast<const int*>(pData);
-    LFOs.enableLink(connectedIdx);
+    LFOs.setLinkActive(connectedIdx, true);
+  }
+  else if (msgTag == EControlMsg::LFODisconnect)
+  {
+    int knobIdx = *static_cast<const int*>(pData);
+    int linkIdx = static_cast<int>(GetParam(EParams::activeLFOIdx)->Value()) * MAX_MODULATION_LINKS + knobIdx;
+
+    // Disable the link on all concerned elements.
+    shapeEditor1.disconnectLink(linkIdx);
+    shapeEditor2.disconnectLink(linkIdx);
+    LFOs.setLinkActive(linkIdx, false);
+
+    // Reset the modulation amount to zero.
+    GetParam(EParams::modStart + linkIdx)->Set(0.);
   }
   return false;
 }

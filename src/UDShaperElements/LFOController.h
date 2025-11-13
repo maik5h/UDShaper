@@ -169,6 +169,49 @@ public:
   void OnMouseUp(float x, float y, const IMouseMod& mod) override;
 };
 
+// Class to draw a knob.
+//
+// Currently this is identical to IVKnobControl, it is a placeholder for later when
+// custom graphics are added.
+class LinkKnobVisualLayer : public IVKnobControl
+{
+public:
+  LinkKnobVisualLayer(IRECT rect, int paramIdx);
+
+  // TODO override Draw for custom graphics here.
+};
+
+// Class to put on top of a LinkKnobVisualLayer to manage user inputs.
+//
+// For some reason it is not clear at all how IVKnobControls handle popup menus and
+// they do also not accept right clicks. My solution is to have this class on top
+// of a knob, that eats all inputs and forwards them EXCEPT the rightclicks, on
+// which it opens the menu.
+class LinkKnobInputLayer : public IControl
+{
+public:
+  LinkKnobInputLayer(IRECT rect, int visualLayerTag, int knobIdx);
+
+  void Draw(IGraphics& g) override;
+
+  // Forward the inputs to the control at visTag.
+  void OnMouseDown(float x, float y, const IMouseMod& mod) override;
+  void OnMouseUp(float x, float y, const IMouseMod& mod) override;
+  void OnMouseDrag(float x, float y, float dX, float dY, const IMouseMod& mod) override;
+  void OnMouseWheel(float x, float y, const IMouseMod& mod, float d) override;
+  void OnPopupMenuSelection(IPopupMenu* pSelectedMenu, int valIdx) override;
+
+private:
+  // Tag of the LinkKnobVisualLayer associated with this InputLayer.
+  int visTag;
+
+  // Index of this knob.
+  int kIdx;
+
+  // Menu to display when rightclicking a link knob.
+  IPopupMenu menu = IPopupMenu();
+};
+
 // Class to access all LFO controls of the plugin.
 //
 // It holds several ShapeEditors, which are used to define a LFO curves.
@@ -223,5 +266,5 @@ public:
   const void getModulationAmplitudes(double beatPosition, double secondsPlayed, double* amplitudes);
 
   // Enable the modulation link at idx.
-  void enableLink(int idx);
+  void setLinkActive(int idx, bool active = true);
 };

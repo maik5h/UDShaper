@@ -1,6 +1,10 @@
 The biggest and most noticeable TODOs of this project:
 
-- Add option to disable modulation links. It would be good if all active knobs are on the left and all inactive ones on the right. On disable, modulated parameters must be connected with the link corresponding to the new knob positions.
+- The way link knobs are implemented is bad, atrocious even. Is there no iPlug2 way to do popup menus properly?????
+
+- BUG: rightclick outside editor inside ShapeEditor.
+
+- BUG: Rightmost point in LFO editor has no lower y bound???
 
 - Enter text does not work properly on FrequencyPanels: Seconds: switches to wrong format if <1s, Tempo: should be disabled completely.
 
@@ -49,8 +53,8 @@ Else:
 
 No functionality, only convenience:
 
+- It would be good if all active knobs are on the left and all inactive ones on the right. On disable, modulated parameters must be connected with the link corresponding to the new knob positions.
+
 - When editing curveCenter, the center should not be set to the mouse position, but rather move slower the further from the center it is, to allow for more control. Also detach the exact position on the screen from the power value to allow for finer steps in power.
 
 - Symbols in shapeEditor windows to indicate mode (arrow up/down, L/R, M/S, +/-)
-
-- Envelope and related classes should be renamed to LFO, which is a more accurate term for their purpose.

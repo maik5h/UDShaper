@@ -217,7 +217,7 @@ LFOSelectorControl::LFOSelectorControl(IRECT rect)
 
 void LFOSelectorControl::setActive(int idx, bool active)
 {
-  linkActive[idx] = true;
+  linkActive[idx] = active;
 }
 
 const void LFOSelectorControl::getActiveLinks(bool(&isActive)[MAX_MODULATION_LINKS])
@@ -319,6 +319,57 @@ void LFOSelectorControl::OnMouseUp(float x, float y, const IMouseMod& mod)
     {
       ui->GetDelegate()->SendArbitraryMsgFromUI(EControlMsg::LFOAttemptConnect, GetTag(), sizeof(connectInfo), &connectInfo);
     }
+  }
+}
+
+LinkKnobVisualLayer::LinkKnobVisualLayer(IRECT rect, int paramIdx)
+  : IVKnobControl(rect, paramIdx)
+{}
+
+LinkKnobInputLayer::LinkKnobInputLayer(IRECT rect, int visualLayerTag, int knobIdx)
+: IControl(rect, nullptr)
+, visTag(visualLayerTag)
+, kIdx(knobIdx)
+{
+  menu.AddItem("Remove", 0);
+}
+
+// Do not draw anything, the layer below does the graphics.
+void LinkKnobInputLayer::Draw(IGraphics& g)
+{}
+
+void LinkKnobInputLayer::OnMouseDown(float x, float y, const IMouseMod& mod)
+{
+  if (mod.R)
+  {
+    GetUI()->CreatePopupMenu(*this, menu, IRECT(x, y, x, y));
+  }
+  else if (mod.L)
+  {
+    GetUI()->GetControlWithTag(visTag)->OnMouseDown(x, y, mod);
+  }
+}
+
+void LinkKnobInputLayer::OnMouseUp(float x, float y, const IMouseMod& mod)
+{
+  GetUI()->GetControlWithTag(visTag)->OnMouseUp(x, y, mod);
+}
+
+void LinkKnobInputLayer::OnMouseDrag(float x, float y, float dX, float dY, const IMouseMod& mod)
+{
+  GetUI()->GetControlWithTag(visTag)->OnMouseDrag(x, y, dX, dY, mod);
+}
+
+void LinkKnobInputLayer::OnMouseWheel(float x, float y, const IMouseMod& mod, float d)
+{
+  GetUI()->GetControlWithTag(visTag)->OnMouseWheel(x, y, mod, d);
+}
+
+void LinkKnobInputLayer::OnPopupMenuSelection(IPopupMenu* pSelectedMenu, int valIdx)
+{
+  if (pSelectedMenu == &menu)
+  {
+    GetUI()->GetDelegate()->SendArbitraryMsgFromUI(EControlMsg::LFODisconnect, GetTag(), sizeof(kIdx), &kIdx);
   }
 }
 
@@ -429,9 +480,13 @@ void LFOController::attachUI(IGraphics* pGraphics)
     // Connect the knobs to the parameters concerning the active LFO.
     int LFOIdx = static_cast<int>(mPlugin->GetParam(EParams::activeLFOIdx)->Value());
     int paramIdx = EParams::modStart + LFOIdx * MAX_MODULATION_LINKS + i;
-    IVKnobControl* knob = new IVKnobControl(IRECT(l, t, r, b), paramIdx);
-    pGraphics->AttachControl(knob, EControlTags::LFOKnobStart + i);
-    knob->SetDisabled(true);
+
+    // Attach the two controls of link knob: visual layer first (does the drawing),
+    // input layer second (forwards inputs to draw layer, but handles popup menus).
+    int visTag = EControlTags::LFOKnobStart + 2 * i;
+    int inTag = visTag + 1;
+    pGraphics->AttachControl(new LinkKnobVisualLayer(IRECT(l, t, r, b), paramIdx), visTag)->SetDisabled(true);
+    pGraphics->AttachControl(new LinkKnobInputLayer(IRECT(l, t, r, b), visTag, i), inTag)->SetDisabled(true);
   }
 
   // Refresh control members to display the correct state.
@@ -463,9 +518,14 @@ void LFOController::setActiveLFO(int idx)
     for (int i = 0; i < MAX_MODULATION_LINKS; i++)
     {
       int test = EParams::modStart + idx * MAX_MODULATION_LINKS + i;
-      IControl* knob = ui->GetControlWithTag(EControlTags::LFOKnobStart + i);
+
+      // Update the visual knob layer.
+      IControl* knob = ui->GetControlWithTag(EControlTags::LFOKnobStart + 2 * i);
       knob->SetParamIdx(EParams::modStart + idx * MAX_MODULATION_LINKS + i);
       knob->SetDisabled(!linkActive[i]);
+
+      // Also enable/disable the input layer.
+      ui->GetControlWithTag(EControlTags::LFOKnobStart + 2 * i + 1)->SetDisabled(!linkActive[i]);
     }
   }
 
@@ -496,19 +556,21 @@ const void LFOController::getModulationAmplitudes(double beatPosition, double se
   }
 }
 
-void LFOController::enableLink(int idx)
+void LFOController::setLinkActive(int idx, bool active)
 {
   if (IGraphics* ui = mPlugin->GetUI())
   {
     LFOSelectorControl* selector = static_cast<LFOSelectorControl*>(ui->GetControlWithTag(EControlTags::LFOSelectorControlTag));
-    selector->setActive(idx, true);
+    selector->setActive(idx, active);
 
-    // Enable the knob corresponding to the enabled link.
+    // Enable/ Disable the knob corresponding to the given link.
     // Knobs only control the parameters of the current LFO.
     int shiftedIdx = idx - activeLFOIdx * MAX_MODULATION_LINKS;
-    if (0 <= idx && idx < MAX_MODULATION_LINKS)
+    if (0 <= shiftedIdx && shiftedIdx < MAX_MODULATION_LINKS)
     {
-      ui->GetControlWithTag(EControlTags::LFOKnobStart + shiftedIdx)->SetDisabled(false);
+      // Enable visual and input layer of this knob.
+      ui->GetControlWithTag(EControlTags::LFOKnobStart + 2 * shiftedIdx)->SetDisabled(!active);
+      ui->GetControlWithTag(EControlTags::LFOKnobStart + 2 * shiftedIdx + 1)->SetDisabled(!active);
     }
   }
 }

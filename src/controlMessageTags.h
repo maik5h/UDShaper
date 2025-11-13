@@ -7,5 +7,8 @@ enum EControlMsg
   LFOAttemptConnect = 0,
 
   // Sent by a ShapeEditorControl as response to a successfull connection with an LFO.
-  LFOConnectSuccess
+  LFOConnectSuccess,
+
+  // Sent by a LinkKnob that must be disconnected from its ModulatedParameter.
+  LFODisconnect,
 };

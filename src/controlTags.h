@@ -10,6 +10,9 @@ enum EControlTags
   FPModeControlTag,
   FPBeatsControlTag,
   FPSecondsControlTag,
+
+  // Start of controls corresponding to LFO link knobs.
+  // There are MAX_MODULATION_LINKS knobs and two controls per knob.
   LFOKnobStart,
-  kNumControls = LFOKnobStart + MAX_MODULATION_LINKS
+  kNumControls = LFOKnobStart + 2 * MAX_MODULATION_LINKS
 };
