@@ -2,26 +2,13 @@ The biggest and most noticeable TODOs of this project:
 
 - The way link knobs are implemented is bad, atrocious even. Is there no iPlug2 way to do popup menus properly?????
 
-- Enter text does not work properly on FrequencyPanels: Seconds: switches to wrong format if <1s, Tempo: should be disabled completely.
-
 MIGRATING TO IPLUG2:
-
-- Implement the UIs of the UDShaper elements. I think it makes sense to have, instead of the previous renderGUI() method, a method in each class which adds the controls to a given graphics content.
-  Classes left to rework:
-  - LFOController (TODO modulation!!!!! (how?? different than before thats for sure))
-  - FrequencyPanel (maybe rename to LFOFrequencyController)
 
 - Implement saving and loading of states (How much does iPlug2 do/ allow there? Does it only save registered parameters or also internal state?)
 
 - Can I get the exact song position for every audio buffer?? That would be important.
 
-- Make the SecondsBoxControl background opaque (how? Maybe explicitly add a drawRect to Draw or behind it)
-
 - I dont think many if statements in OnParamChange are efficient... Maybe store references to IParam in individual elements so they can access them directly and dont rely on synchronizing internal values with IParams?
-
-- I might be able to get rid of the layout attributes and only use the layout classes to compute the layouts once. They were necessary before because I did the resizing manually but that is not required anymore.
-
-- Get rid of the RELATIVE_WIDTH * GUIWidth stuff, not required, because iPlug does the resizing.
 
 - Add default IText for all texts on plugin.
 
@@ -54,3 +41,5 @@ No functionality, only convenience:
 - When editing curveCenter, the center should not be set to the mouse position, but rather move slower the further from the center it is, to allow for more control. Also detach the exact position on the screen from the power value to allow for finer steps in power.
 
 - Symbols in shapeEditor windows to indicate mode (arrow up/down, L/R, M/S, +/-)
+
+- Enter text does not work properly SecondsBoxControl, switches to wrong format if <1s. I can not override OnTextEntryCompletion. Text entry is disabled for now.

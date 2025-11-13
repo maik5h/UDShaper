@@ -49,6 +49,12 @@ public:
   // Override to redraw contents after enabling.
   void SetDisabled(bool disable) override;
 
+  // Override to add opaque background.
+  void Draw(IGraphics& g) override;
+
+  // Override to disable text entry.
+  void OnMouseDblClick(float x, float y, const IMouseMod& mod) override;
+
   // Override these so that they call the modified OnValueChanged method instead of the
   // IVNumberBoxControl one. Implementation is very similar to IVNumberBoxControl.
   void OnMouseWheel(float x, float y, const IMouseMod& mod, float d) override;
@@ -76,6 +82,12 @@ public:
 
   // Override to redraw contents after enabling.
   void SetDisabled(bool disable) override;
+
+  // Override to add opaque background.
+  void Draw(IGraphics& g) override;
+
+  // Override to disable text entry.
+  void OnMouseDblClick(float x, float y, const IMouseMod& mod) override;
 
   // Override these so that they call the modified OnValueChanged method instead of the
   // IVNumberBoxControl one. Implementation is very similar to IVNumberBoxControl.

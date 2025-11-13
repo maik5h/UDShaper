@@ -24,6 +24,17 @@ void SecondsBoxControl::SetDisabled(bool disable)
   }
 }
 
+void SecondsBoxControl::Draw(IGraphics& g)
+{
+  if (!IsDisabled())
+    g.FillRect(GetColor(kHL), mTextReadout->GetRECT());
+
+  if (mMouseIsDown)
+    g.FillRect(GetColor(kFG), mTextReadout->GetRECT());
+}
+
+void SecondsBoxControl::OnMouseDblClick(float x, float y, const IMouseMod& mod) {}
+
 void SecondsBoxControl::OnValueChanged(bool preventAction)
 {
   mRealValue = Clip(mRealValue, mMinValue, mMaxValue);
@@ -51,7 +62,7 @@ void SecondsBoxControl::OnValueChanged(bool preventAction)
     mLargeIncrement = 0.2;
   }
 
-  if (mRealValue >= 0.95)
+  if (outValue > 0.95)
   {
     mTextReadout->SetStrFmt(32, fmtSeconds.Get(), outValue);
   }
@@ -102,6 +113,18 @@ void BeatsBoxControl::SetDisabled(bool disable)
     OnValueChanged();
   }
 }
+
+void BeatsBoxControl::Draw(IGraphics& g)
+{
+  if (!IsDisabled())
+    g.FillRect(GetColor(kHL), mTextReadout->GetRECT());
+
+  if (mMouseIsDown)
+    g.FillRect(GetColor(kFG), mTextReadout->GetRECT());
+}
+
+void BeatsBoxControl::OnMouseDblClick(float x, float y, const IMouseMod& mod)
+{}
 
 void BeatsBoxControl::OnValueChanged(bool preventAction)
 {
