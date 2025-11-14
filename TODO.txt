@@ -1,10 +1,18 @@
 The biggest and most noticeable TODOs of this project:
 
+- PERFORMANCE Getting the modulation amount parameters (100 in current confiduration) each sample slows down processing MASSIVELY. Runs smooth when I quote it out. Should be called only once per buffer AT MOST.
+
+- BUG I think I forgot to let the Frequency panel calculate the correct phase, it just returns the phase corresponding to the current LFO.
+
+- BUG the last point in shapeEditors can be deleted, causing the plugin to crash.
+
+- BUG Closing and reopening the plugin window erases the modulation knobs. Active links are only saved on IControl side, which is deleted when the window closes. Save state when LFOSelectorControl is destroyed.
+
+- BUG (FL Studio) UDShaper crashes on disable when chained after certain plugins (Fruity Limiter). Why??? Does not happen with other effects and can safely be put before Fruity Limmiter.
+
 - The way link knobs are implemented is bad, atrocious even. Is there no iPlug2 way to do popup menus properly?????
 
 MIGRATING TO IPLUG2:
-
-- Implement saving and loading of states (How much does iPlug2 do/ allow there? Does it only save registered parameters or also internal state?)
 
 - I dont think many if statements in OnParamChange are efficient... Maybe store references to IParam in individual elements so they can access them directly and dont rely on synchronizing internal values with IParams?
 
@@ -31,6 +39,10 @@ Else:
 - FL Studio destroys and reinitializes plugin when loading a preset, so the current implementation works fine. If other hosts do not destroy the plugin, i.e. just load the parameters into the existing instance, some methods might cause problems (EnvelopeManager::loadState assumes that the three default Envelopes are there and not more).
 
 - Editing of curve center positions and possibly point positions should be disabled while the host is playing. Currently ShapeEditors do not have access to the playback status, so maybe it is the easiest solution to disable inside UDShaper::processMouseDrag.
+
+- For now having serialiazeState/ unserializeState methods in ShapeEditor and LFOController works, but I think when future versions are released, it is cleaner to have these methods separated and take a ShapeEditor/ LFOController object, as well as a version number as input.
+
+- curve center y position should not be handled how it is right now: ModulatedParameter controls the position, which is translated to a power. Instead, the Modulated Parameter should control the power. This would also make it easier to improve the editing of curveCenter as discussed below.
 
 No functionality, only convenience:
 

@@ -279,4 +279,7 @@ public:
 
   // Enable the modulation link at idx.
   void setLinkActive(int idx, bool active = true);
+
+  bool serializeState(IByteChunk& chunk) const;
+  int unserializeState(const IByteChunk& chunk, int startPos, int version);
 };

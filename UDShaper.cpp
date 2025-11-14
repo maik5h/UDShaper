@@ -263,3 +263,29 @@ void UDShaper::OnIdle()
   GetUI()->GetControlWithTag(ShapeEditorControl1)->SetDirty(false);
   GetUI()->GetControlWithTag(ShapeEditorControl2)->SetDirty(false);
 }
+
+bool UDShaper::SerializeState(IByteChunk& chunk) const
+{
+  int version = PLUG_VERSION_HEX;
+  chunk.Put(&version);
+
+  shapeEditor1.serializeState(chunk);
+  shapeEditor2.serializeState(chunk);
+  LFOs.serializeState(chunk);
+
+  return SerializeParams(chunk);
+}
+
+int UDShaper::UnserializeState(const IByteChunk& chunk, int startPos)
+{
+  int version = 0;
+  startPos = chunk.Get(&version, startPos);
+
+  startPos = shapeEditor1.unserializeState(chunk, startPos, version);
+  startPos = shapeEditor2.unserializeState(chunk, startPos, version);
+  startPos = LFOs.unserializeState(chunk, startPos, version);
+
+  startPos = UnserializeParams(chunk, startPos);
+
+  return startPos;
+}

@@ -71,10 +71,6 @@ public:
 
   void removeModulator(int idx) { modIndices.erase(idx); }
 
-  // Returns a pointer to the base value of this ModulatedParameter.
-  // This is used solely for serialization in ShapeEditor::saveState.
-  const float* getBaseAddress() { return &base; }
-
   // Sets the base value of this parameter to the input. Should be used when the parameter is
   // explicitly changed by the user.
   void set(float newValue)
@@ -99,6 +95,41 @@ public:
     currentValue = (currentValue > maxValue) ? maxValue : (currentValue < minValue) ? minValue : currentValue;
     return currentValue;
   }
+
+  // Serializes the ModulatedParameter state.
+  //
+  // Saves:
+  // - base value
+  // - number of LFOs linked to this point
+  // - the LFO link index of each link
+  void serializeState(IByteChunk& chunk) const
+  {
+    chunk.Put(&base);
+
+    int numLinks = modIndices.size();
+    chunk.Put(&numLinks);
+    for (int idx : modIndices)
+    {
+      chunk.Put(&idx);
+    }
+  }
+
+  // Unserializes the ModulatedParameter state from an IByteChunk object.
+  // * @return The new chunk position
+  int unserializeState(const IByteChunk& chunk, int startPos, int version)
+  {
+    startPos = chunk.Get(&base, startPos);
+    int numLinks = 0;
+    startPos = chunk.Get(&numLinks, startPos);
+
+    int linkIdx = 0;
+    for (int i = 0; i < numLinks; i++)
+    {
+      startPos = chunk.Get(&linkIdx, startPos);
+      modIndices.insert(linkIdx);
+    }
+    return startPos;
+  }
 };
 
 
@@ -109,9 +140,6 @@ public:
   
   // Position and size of parent shapeEditor. Points must stay inside these coordinates.
   IRECT rect;
-
-  // Index of the parent ShapeEditor.
-  const int shapeEditorIndex;
 
   // Parameters of the point:
   
@@ -153,9 +181,8 @@ public:
   // * @param pow Initial power value
   // * @param omega Inital omega value
   // * @param initMode Initial curve segment interpolation mode
-  ShapePoint(float x, float y, IRECT editorRect, const int parentIdx, float pow = 1, float omega = 0.5, Shapes initMode = shapePower)
-    : shapeEditorIndex(parentIdx)
-    , posX(modPosX, x, 0)
+  ShapePoint(float x, float y, IRECT editorRect, float pow = 1, float omega = 0.5, Shapes initMode = shapePower)
+    : posX(modPosX, x, 0)
     , posY(modPosY, y, 0)
     , curveCenterPosY(modCurveCenterY, std::pow(0.5, pow), 0)
   {
@@ -287,6 +314,31 @@ public:
     // Save the previous omega state.
     sineOmegaPrevious = sineOmega;
   }
+
+  // Serializes the ShapePoint state.
+  void serializeState(IByteChunk& chunk) const
+  {
+    chunk.Put(&mode);
+    posX.serializeState(chunk);
+    posY.serializeState(chunk);
+    curveCenterPosY.serializeState(chunk);
+    chunk.Put(&sineOmega);
+  }
+
+  // Unserialize the ShapePoint state.
+  // * @return The new chunk position
+  int unserializeState(const IByteChunk& chunk, int startPos, int version)
+  {
+    if (version == 0x00000000)
+    {
+      startPos = chunk.Get(&mode, startPos);
+      startPos = posX.unserializeState(chunk, startPos, version);
+      startPos = posY.unserializeState(chunk, startPos, version);
+      startPos = curveCenterPosY.unserializeState(chunk, startPos, version);
+      startPos = chunk.Get(&sineOmega, startPos);
+    }
+    return startPos;
+  }
 };
 
 // Deletes the given ShapePoint and connects this points previous and next point in the list.
@@ -336,8 +388,8 @@ ShapeEditor::ShapeEditor(IRECT rect, float GUIWidth, float GUIHeight, int shapeE
   // to assure f(0) = 0. The last ShapePoint at x=1 may be moved, but only in y-direction.
   // None of these points can be removed to assure that the function is always well defined
   // on the interval [0, 1].
-  shapePoints = new ShapePoint(0., 0., layout.editorRect, index);
-  shapePoints->next = new ShapePoint(1., 1., layout.editorRect, index);
+  shapePoints = new ShapePoint(0., 0., layout.editorRect);
+  shapePoints->next = new ShapePoint(1., 1., layout.editorRect);
 
   shapePoints->next->previous = shapePoints;
 }
@@ -480,7 +532,7 @@ bool ShapeEditor::processRightClick(float x, float y)
     float newPointX = (x - layout.editorRect.L) / layout.editorRect.W();
     float newPointY = (layout.editorRect.B - y) / layout.editorRect.H();
 
-    ShapePoint* newPoint = new ShapePoint(newPointX, newPointY, layout.editorRect, index);
+    ShapePoint* newPoint = new ShapePoint(newPointX, newPointY, layout.editorRect);
     insertPointBefore(insertBefore, newPoint);
 
     // Set the point as currently dragged point so the user can immediately adjust
@@ -607,121 +659,6 @@ const float ShapeEditor::forward(float input, double* modulationAmplitudes)
   return flipOutput ? -out : out;
 }
 
-// TODO how to do this in iPlug
-// Saves the ShapeEditor state to the clap_ostream.
-// First saves the number of ShapePoints as an int and then saves:
-//  - (float)   point x-position
-//  - (float)   point y-position
-//  - (float)   point curve center y-position
-//  - (Shapes)  point interpolation mode
-//  - (float)   point omega value
-//
-// for every ShapePoint. These values describe the ShapeEditor state entirely.
-//bool ShapeEditor::saveState(const clap_ostream_t* stream)
-//{
-//  ShapePoint* point = shapePoints->next;
-//
-//  int numberPoints = 0;
-//  while (point != nullptr)
-//  {
-//    point = point->next;
-//    numberPoints++;
-//  }
-//
-//  if (stream->write(stream, &numberPoints, sizeof(int)) != sizeof(int))
-//    return false;
-//
-//  point = shapePoints->next;
-//  while (point != nullptr)
-//  {
-//    // Save ModulatedParameter base values.
-//    if (stream->write(stream, point->posX.getBaseAddress(), sizeof(float)) != sizeof(float))
-//      return false;
-//    if (stream->write(stream, point->posY.getBaseAddress(), sizeof(float)) != sizeof(float))
-//      return false;
-//    if (stream->write(stream, point->curveCenterPosY.getBaseAddress(), sizeof(float)) != sizeof(float))
-//      return false;
-//
-//    // Save interpolation mode and interpolation parameters.
-//    if (stream->write(stream, &point->mode, sizeof(point->mode)) != sizeof(point->mode))
-//      return false;
-//    if (stream->write(stream, &point->sineOmega, sizeof(point->sineOmega)) != sizeof(point->sineOmega))
-//      return false;
-//
-//    point = point->next;
-//  }
-//
-//  return true;
-//}
-
-// Loads a ShapeEditor state from a clap_istream_t. The state is defined by the state of every
-// ShapePoint, which is given by:
-//  - (float) posX
-//  - (float) posY
-//  - (float) curceCenterY
-//  - (Shapes) mode
-//  - (float) sineOmega
-//
-// The first element in the stream must be the number of ShapePoints to be loaded. It is
-// expected to be called in UDShaper::loadState() after the version number was loaded.
-//bool ShapeEditor::loadState(const clap_istream_t* stream, int version[3])
-//{
-//  if (version[0] == 1 && version[1] == 0 && version[2] == 0)
-//  {
-//    int numberPoints;
-//    if (stream->read(stream, &numberPoints, sizeof(int)) != sizeof(int))
-//      return false;
-//
-//    ShapePoint* last = shapePoints->next;
-//
-//    for (int i = 0; i < numberPoints; i++)
-//    {
-//      float posX, posY, curveCenterY, sineOmega;
-//      Shapes mode;
-//      int numberLinks;
-//
-//      if (stream->read(stream, &posX, sizeof(posX)) != sizeof(posX))
-//        return false;
-//      if (stream->read(stream, &posY, sizeof(posY)) != sizeof(posY))
-//        return false;
-//      if (stream->read(stream, &curveCenterY, sizeof(curveCenterY)) != sizeof(curveCenterY))
-//        return false;
-//      if (stream->read(stream, &mode, sizeof(mode)) != sizeof(mode))
-//        return false;
-//      if (stream->read(stream, &sineOmega, sizeof(sineOmega)) != sizeof(sineOmega))
-//        return false;
-//
-//      float power = getPowerFromPosY(curveCenterY);
-//
-//      if (i != numberPoints - 1)
-//      {
-//        ShapePoint* newPoint = new ShapePoint(posX, posY, layout.editorXYXY, power, sineOmega, mode);
-//        insertPointBefore(last, newPoint);
-//      }
-//      else
-//      {
-//        // The last point is created when ShapeEditor is initialized, so it does not have to be added.
-//        // Only set the attribute values.
-//        last->posY.set(posY);
-//        last->curveCenterPosY.set(curveCenterY);
-//        last->mode = mode;
-//        last->sineOmega = sineOmega;
-//      }
-//    }
-//    return true;
-//  }
-//  else
-//  {
-//    // TODO if version is not known one of these things should happen:
-//    //  - If a preset was loaded, it means probably that the preset was saved from a more
-//    //    recent version of UDShaper and can therefore not be loaded correctly.
-//    //    There should be a message to warn the user.
-//    //  - If it happens from copying/ moving by the host, throw an exception probably?
-//    return false;
-//  }
-//  return true;
-//}
-
 const void ShapeEditor::attachUI(IGraphics* g) {
   assert(!layout.fullRect.Empty());
 
@@ -744,6 +681,81 @@ void ShapeEditor::disconnectLink(int linkIdx)
     point->posY.removeModulator(linkIdx);
     point->curveCenterPosY.removeModulator(linkIdx);
     point = point->next;
+  }
+}
+
+// Saves the ShapeEditor state to the IByteChunk object.
+// First saves the number of ShapePoints as an int and then saves:
+//  - (float)   point x-position
+//  - (float)   point y-position
+//  - (float)   point curve center y-position
+//  - (Shapes)  point interpolation mode
+//  - (float)   point omega value
+//
+// for every ShapePoint. These values describe the ShapeEditor state entirely.
+bool ShapeEditor::serializeState(IByteChunk& chunk) const
+{
+  ShapePoint* point = shapePoints->next;
+
+  int numberPoints = 0;
+  while (point != nullptr)
+  {
+    point = point->next;
+    numberPoints++;
+  }
+
+  chunk.Put(&numberPoints);
+
+  point = shapePoints->next;
+  while (point != nullptr)
+  {
+    point->serializeState(chunk);
+    point = point->next;
+  }
+  return true;
+}
+
+// Loads a ShapeEditor state from an IByteChunk.
+//
+// The first element in the stream must be the number of ShapePoints to be loaded.
+// Creates a new ShapePoint and calls unserializeState for every point that has to
+// be loaded.
+// * @return The new chunk position
+int ShapeEditor::unserializeState(const IByteChunk& chunk, int startPos, int version)
+{
+  if (version == 0x00000000)
+  {
+    int numberPoints;
+    startPos = chunk.Get(&numberPoints, startPos);
+
+    ShapePoint* last = shapePoints->next;
+
+    for (int i = 0; i < numberPoints; i++)
+    {
+      if (i != numberPoints - 1)
+      {
+        // Instantiate with dummy parameters, unserialize after instantiation.
+        ShapePoint* newPoint = new ShapePoint(0.f, 0.f, layout.editorRect);
+        startPos = newPoint->unserializeState(chunk, startPos, version);
+        insertPointBefore(last, newPoint);
+      }
+      else
+      {
+        // The last point is created when ShapeEditor is initialized, so it does not have to be added.
+        // Only set the attribute values.
+        startPos = last->unserializeState(chunk, startPos, version);
+      }
+    }
+    return startPos;
+  }
+  else
+  {
+    // TODO if version is not known one of these things should happen:
+    //  - If a preset was loaded, it means probably that the preset was saved from a more
+    //    recent version of UDShaper and can therefore not be loaded correctly.
+    //    There should be a message to warn the user.
+    //  - If it happens from copying/ moving by the host, throw an exception probably?
+    return startPos;
   }
 }
 

@@ -33,6 +33,8 @@ public:
   void OnParamChange(int paramIdx) override;
   bool OnMessage(int msgTag, int ctrlTag, int dataSize, const void* pData) override;
   void OnIdle() override;
+  bool SerializeState(IByteChunk& chunk) const override;
+  int UnserializeState(const IByteChunk& chunk, int startPos) override;
 
 #if IPLUG_DSP // http://bit.ly/2S64BDd
 

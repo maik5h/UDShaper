@@ -597,3 +597,48 @@ void LFOController::setLinkActive(int idx, bool active)
     }
   }
 }
+
+// Serializes the LFOController state.
+// All LFO editor states are saved (same method as for base ShapeEditor).
+// FrequencyPanels have no internal state, only parameters.
+bool LFOController::serializeState(IByteChunk& chunk) const
+{
+  int numberLFOs = editors.size();
+  chunk.Put(&numberLFOs);
+
+  for (auto& editor : editors)
+  {
+    editor.serializeState(chunk);
+  }
+  return true;
+}
+
+// Unserialize the LFOController state.
+//
+// The first value to be loaded must be the number of LFOs that have been saved.
+// Creates new LFO editors if necessary and calls unserializeState for every
+// editor that has to be loaded.
+// * @return The new chunk position
+int LFOController::unserializeState(const IByteChunk& chunk, int startPos, int version)
+{
+  if (version == 0x00000000)
+  {
+    // The number of LFOs in the loaded state.
+    int num = 0;
+    startPos = chunk.Get(&num, startPos);
+
+    // If more LFOs are loaded than available, add new editors.
+    // If less are loaded, just keep the excess editors in the default
+    // state.
+    while (editors.size() < num)
+    {
+      editors.emplace_back(layout.editorFullRect, layout.GUIWidth, layout.GUIHeight, -1);
+    }
+
+    for (int i = 0; i < num; i++)
+    {
+      startPos = editors.at(i).unserializeState(chunk, startPos, version);
+    }
+    return startPos;
+  }
+}

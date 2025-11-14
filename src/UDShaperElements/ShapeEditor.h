@@ -143,8 +143,8 @@ class ShapeEditor
   // Disconnect the link with idx from all modulated parameters.
   void disconnectLink(int linkIdx);
 
-  // bool saveState(const clap_ostream_t *stream);
-  // bool loadState(const clap_istream_t *stream, int version[3]);
+  bool serializeState(IByteChunk& chunk) const;
+  int unserializeState(const IByteChunk& chunk, int startPos, int version);
 };
 
 // Carries information necessary to connect an LFO to a ModulatedParameter.
