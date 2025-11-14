@@ -35,6 +35,10 @@ public:
   void OnIdle() override;
 
 #if IPLUG_DSP // http://bit.ly/2S64BDd
+
+  // Updates the modulation amplitudes and increases the beatPosition and seconds by one sample.
+  void modulationStep(double (&modulationAmplitudes)[MAX_NUMBER_LFOS * MAX_MODULATION_LINKS] , double& beatPosition, double& seconds);
+
   void ProcessBlock(sample** inputs, sample** outputs, int nFrames) override;
 #endif
 };

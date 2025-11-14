@@ -6,8 +6,6 @@ MIGRATING TO IPLUG2:
 
 - Implement saving and loading of states (How much does iPlug2 do/ allow there? Does it only save registered parameters or also internal state?)
 
-- Can I get the exact song position for every audio buffer?? That would be important.
-
 - I dont think many if statements in OnParamChange are efficient... Maybe store references to IParam in individual elements so they can access them directly and dont rely on synchronizing internal values with IParams?
 
 - Add default IText for all texts on plugin.

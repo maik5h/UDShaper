@@ -77,6 +77,16 @@ UDShaper::UDShaper(const InstanceInfo& info)
 }
 
 #if IPLUG_DSP
+void UDShaper::modulationStep(double (&modAmps)[MAX_NUMBER_LFOS * MAX_MODULATION_LINKS], double& beatPosition, double& seconds)
+{
+  // Calculate modulation amplitudes at current time step.
+  LFOs.getModulationAmplitudes(beatPosition, seconds, modAmps);
+
+  // Increase time by one sample.
+  beatPosition += GetTempo() / GetSampleRate() / 60;
+  seconds += 1. / GetSampleRate();
+}
+
 void UDShaper::ProcessBlock(sample** inputs, sample** outputs, int nFrames)
 {
   sample* inputL = inputs[0];
@@ -85,16 +95,11 @@ void UDShaper::ProcessBlock(sample** inputs, sample** outputs, int nFrames)
   sample* outputL = outputs[0];
   sample* outputR = outputs[1];
 
-  // For testing.
-  double beatPosition = 0.;
-  double secondsPlayed = 0.;
-
-  // beatPosition += tempo / samplerate / 60;
-  // secondsPlayed += 1. / samplerate;
+  double beatPosition = GetPPQPos();
+  double secondsPlayed = GetSamplePos() / GetSampleRate();
 
   // Fetch the state of all modulation amplitudes at the given host beatPosition or time.
-  double modAmps[MAX_NUMBER_LFOS * MAX_MODULATION_LINKS];
-  LFOs.getModulationAmplitudes(beatPosition, secondsPlayed, modAmps);
+  double modAmps[MAX_NUMBER_LFOS * MAX_MODULATION_LINKS] = {};
 
   switch (static_cast<distortionMode>(GetParam(EParams::distMode)->Value()))
   {
@@ -115,6 +120,8 @@ void UDShaper::ProcessBlock(sample** inputs, sample** outputs, int nFrames)
 
     for (uint32_t index = 0; index < nFrames; index++)
     {
+      modulationStep(modAmps, beatPosition, secondsPlayed);
+
       if (index > 0)
       {
         processShape1L = (inputL[index] >= previousLevelL);
@@ -138,6 +145,8 @@ void UDShaper::ProcessBlock(sample** inputs, sample** outputs, int nFrames)
 
     for (uint32_t index = 0; index < nFrames; index++)
     {
+      modulationStep(modAmps, beatPosition, secondsPlayed);
+
       mid = shapeEditor1.forward((inputL[index] + inputR[index]) / 2, modAmps);
       side = shapeEditor2.forward((inputL[index] - inputR[index]) / 2, modAmps);
 
@@ -152,6 +161,8 @@ void UDShaper::ProcessBlock(sample** inputs, sample** outputs, int nFrames)
   case leftRight: {
     for (uint32_t index = 0; index < nFrames; index++)
     {
+      modulationStep(modAmps, beatPosition, secondsPlayed);
+
       outputL[index] = shapeEditor1.forward(inputL[index], modAmps);
       outputR[index] = shapeEditor2.forward(inputR[index], modAmps);
     }
@@ -163,6 +174,8 @@ void UDShaper::ProcessBlock(sample** inputs, sample** outputs, int nFrames)
   case positiveNegative: {
     for (uint32_t index = 0; index < nFrames; index++)
     {
+      modulationStep(modAmps, beatPosition, secondsPlayed);
+
       outputL[index] = (inputL[index] > 0) ? shapeEditor1.forward(inputL[index], modAmps) : shapeEditor2.forward(inputL[index], modAmps);
       outputR[index] = (inputR[index] > 0) ? shapeEditor1.forward(inputR[index], modAmps) : shapeEditor2.forward(inputR[index], modAmps);
     }
@@ -242,8 +255,8 @@ bool UDShaper::OnMessage(int msgTag, int ctrlTag, int dataSize, const void* pDat
 void UDShaper::OnIdle()
 {
   // Refresh the UI modulation amplitudes used for rendering.
-  double beatPosition = 0.;
-  double secondsPlayed = 0.;
+  const double beatPosition = GetPPQPos();
+  const double secondsPlayed = GetSamplePos() / GetSampleRate();
   LFOs.getModulationAmplitudes(beatPosition, secondsPlayed, modulationAmplitudesUI);
 
   // TODO for testing only
