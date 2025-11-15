@@ -78,19 +78,19 @@
       <Filter>IGraphics\Drawing</Filter>
     </ClCompile>
     <ClCompile Include="..\src\GUILayout.cpp">
-      <Filter>core</Filter>
+      <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\src\UDShaperElements\TopMenuBar.cpp">
-      <Filter>core\UDShaper_elements</Filter>
+      <Filter>src\UDShaper_elements</Filter>
     </ClCompile>
     <ClCompile Include="..\src\UDShaperElements\ShapeEditor.cpp">
-      <Filter>core\UDShaper_elements</Filter>
+      <Filter>src\UDShaper_elements</Filter>
     </ClCompile>
     <ClCompile Include="..\src\UDShaperElements\LFOController.cpp">
-      <Filter>core\UDShaper_elements</Filter>
+      <Filter>src\UDShaper_elements</Filter>
     </ClCompile>
     <ClCompile Include="..\src\UDShaperParameters.cpp">
-      <Filter>core</Filter>
+      <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -274,40 +274,40 @@
       <Filter>IPlug</Filter>
     </ClInclude>
     <ClInclude Include="..\src\color_palette.h">
-      <Filter>core</Filter>
+      <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\GUILayout.h">
-      <Filter>core</Filter>
+      <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\assets.h">
-      <Filter>core</Filter>
+      <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\config.h">
-      <Filter>core</Filter>
+      <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\UDShaperElements\TopMenuBar.h">
-      <Filter>core\UDShaper_elements</Filter>
+      <Filter>src\UDShaper_elements</Filter>
     </ClInclude>
     <ClInclude Include="..\src\UDShaperParameters.h">
-      <Filter>core</Filter>
+      <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\UDShaperElements\ShapeEditor.h">
-      <Filter>core\UDShaper_elements</Filter>
+      <Filter>src\UDShaper_elements</Filter>
     </ClInclude>
     <ClInclude Include="..\src\UDShaperElements\LFOController.h">
-      <Filter>core\UDShaper_elements</Filter>
+      <Filter>src\UDShaper_elements</Filter>
     </ClInclude>
     <ClInclude Include="..\src\string_presets.h">
-      <Filter>core</Filter>
+      <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\controlTags.h">
-      <Filter>core</Filter>
+      <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\controlMessageTags.h">
-      <Filter>core</Filter>
+      <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\enums.h">
-      <Filter>core</Filter>
+      <Filter>src</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -341,10 +341,10 @@
     <Filter Include="IPlug\APP\RTAudioMidi\include">
       <UniqueIdentifier>{649c5de3-b4c2-4de9-8d57-3b1762646259}</UniqueIdentifier>
     </Filter>
-    <Filter Include="core">
+    <Filter Include="src">
       <UniqueIdentifier>{0fe2faca-6c06-4c1f-9394-3f5b942e4577}</UniqueIdentifier>
     </Filter>
-    <Filter Include="core\UDShaper_elements">
+    <Filter Include="src\UDShaper_elements">
       <UniqueIdentifier>{81805931-cfae-43c5-b060-ca856fc60317}</UniqueIdentifier>
     </Filter>
   </ItemGroup>

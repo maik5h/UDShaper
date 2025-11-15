@@ -171,7 +171,6 @@ void FrequencyPanelLayout::setCoordinates(IRECT rect, float inGUIWidth, float in
 
   fullRect = rect;
 
-  // TODO for now counter and button are just split in half. There is room for visual improvement
   counterRect.L = fullRect.L + FRAME_WIDTH_NARROW;
   counterRect.T = fullRect.T + FRAME_WIDTH_NARROW;
   counterRect.R = (fullRect.R + fullRect.L) / 2 - FRAME_WIDTH_NARROW;

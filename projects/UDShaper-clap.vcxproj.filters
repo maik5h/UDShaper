@@ -51,19 +51,19 @@
       <Filter>IPlug\CLAP</Filter>
     </ClCompile>
     <ClCompile Include="..\src\GUILayout.cpp">
-      <Filter>core</Filter>
+      <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\src\UDShaperElements\TopMenuBar.cpp">
-      <Filter>core\UDShaper_elements</Filter>
+      <Filter>src\UDShaper_elements</Filter>
     </ClCompile>
     <ClCompile Include="..\src\UDShaperElements\ShapeEditor.cpp">
-      <Filter>core\UDShaper_elements</Filter>
+      <Filter>src\UDShaper_elements</Filter>
     </ClCompile>
     <ClCompile Include="..\src\UDShaperElements\LFOController.cpp">
-      <Filter>core\UDShaper_elements</Filter>
+      <Filter>src\UDShaper_elements</Filter>
     </ClCompile>
     <ClCompile Include="..\src\UDShaperParameters.cpp">
-      <Filter>core</Filter>
+      <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -202,40 +202,40 @@
       <Filter>IPlug\CLAP</Filter>
     </ClInclude>
     <ClInclude Include="..\src\assets.h">
-      <Filter>core</Filter>
+      <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\color_palette.h">
-      <Filter>core</Filter>
+      <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\config.h">
-      <Filter>core</Filter>
+      <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\GUILayout.h">
-      <Filter>core</Filter>
+      <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\UDShaperParameters.h">
-      <Filter>core</Filter>
+      <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\UDShaperElements\TopMenuBar.h">
-      <Filter>core\UDShaper_elements</Filter>
+      <Filter>src\UDShaper_elements</Filter>
     </ClInclude>
     <ClInclude Include="..\src\UDShaperElements\ShapeEditor.h">
-      <Filter>core\UDShaper_elements</Filter>
+      <Filter>src\UDShaper_elements</Filter>
     </ClInclude>
     <ClInclude Include="..\src\UDShaperElements\LFOController.h">
-      <Filter>core\UDShaper_elements</Filter>
+      <Filter>src\UDShaper_elements</Filter>
     </ClInclude>
     <ClInclude Include="..\src\string_presets.h">
-      <Filter>core</Filter>
+      <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\controlMessageTags.h">
-      <Filter>core</Filter>
+      <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\controlTags.h">
-      <Filter>core</Filter>
+      <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\enums.h">
-      <Filter>core</Filter>
+      <Filter>src</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -263,10 +263,10 @@
     <Filter Include="IPlug\CLAP">
       <UniqueIdentifier>{35a9e026-dde0-499a-9432-4ee1754ffba8}</UniqueIdentifier>
     </Filter>
-    <Filter Include="core">
+    <Filter Include="src">
       <UniqueIdentifier>{84069ffc-e419-4fe0-8edd-f53c4f096b34}</UniqueIdentifier>
     </Filter>
-    <Filter Include="core\UDShaper_elements">
+    <Filter Include="src\UDShaper_elements">
       <UniqueIdentifier>{9d3688f4-6dce-4958-8d23-f05abcbd60d6}</UniqueIdentifier>
     </Filter>
   </ItemGroup>

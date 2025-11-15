@@ -4,8 +4,6 @@
 SecondsBoxControl::SecondsBoxControl(IRECT rect, int parameterIdx)
   : IVNumberBoxControl(rect, parameterIdx, nullptr, "", DEFAULT_STYLE, false, 1., 0.05, 60., "%.2f s", false)
 {
-  // TODO Why can I not change the idle background color??
-
   mSmallIncrement = 0.05;
   mLargeIncrement = 0.1;
 }
