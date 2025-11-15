@@ -20,7 +20,7 @@ shift
 shift
 set AAX_32_PATH=%3
 set AAX_64_PATH=%4
-set CLAP_PATH="C:\Users\mm\Dev\clap_custom_path"
+set CLAP_PATH=%5
 set BUILD_DIR=%6
 set VST_ICON=%7
 set AAX_ICON=%8
