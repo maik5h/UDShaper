@@ -14,6 +14,8 @@ MIGRATING TO IPLUG2:
 
 Else:
 
+- How to use iPlug2 animations? There should be an alternative to setting the controls dirty in OnIdle() that maybe gives a higher and more stable framerate.
+
 - Connecting LFOs and Moving points acts on the unmodulated base state of the curves. So do either: Disable this kind of editing while the host is playing OR (better?) make it work with the current UI modulation state.
 
 - Logging is done by printing text to file. For reasons beyond me, the host i am using (FL Studio) does not support the CLAP logging feature. Meaningfull logging using the clap feature should still be added to the plugin.

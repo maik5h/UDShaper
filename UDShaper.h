@@ -27,6 +27,11 @@ class UDShaper final : public Plugin
   // Is updated on the UI thread and provides modulation amplitudes for IControls.
   double modulationAmplitudesUI[MAX_NUMBER_LFOS * MAX_MODULATION_LINKS] = {};
 
+  // Array mirroring the state of all link knob parameters (EParams::modStart).
+  // This is updated on parameter changes and read only in ProcessBlock.
+  // Supposed to avoid frequent GetParam calls on the audio thread.
+  double modulationAmounts[MAX_NUMBER_LFOS * MAX_MODULATION_LINKS] = {};
+
 public:
   UDShaper(const InstanceInfo& info);
 

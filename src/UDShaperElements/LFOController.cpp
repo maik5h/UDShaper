@@ -166,70 +166,33 @@ double FrequencyPanel::getLFOPhase(int LFOIdx, double beatPosition, double secon
   // Convert from beats to bars.
   beatPosition /= 4;
 
-  // Find the loop mode of the currently active LFO.
-  LFOLoopMode currentLoopMode = static_cast<LFOLoopMode>(mPlugin->GetParam(getLFOParameterIndex(LFOIdx, mode))->Value());
-
-  if (currentLoopMode == LFOFrequencyTempo)
+  if (currentMode[LFOIdx] == LFOFrequencyTempo)
   {
-    // TODO this needs to be checked once checking host playback position is implemented.
-    double exponent = mPlugin->GetParam(getLFOParameterIndex(LFOIdx, LFOParams::freqTempo))->Value();
-
+    // freqTempo is given in terms of powers of two.
     // The exponent is shifted by 6, such that exponent = 6 corresponds to 2^0 = 1.
-    double speed = pow(2, exponent - 6);
+    double speed = pow(2, freqTempo[LFOIdx] - 6);
     beatPosition = fmod(beatPosition, 1. / speed);
     return beatPosition * speed;
   }
-  else if (currentLoopMode == LFOFrequencySeconds)
+  else if (currentMode[LFOIdx] == LFOFrequencySeconds)
   {
-    double loopPeriod = mPlugin->GetParam(getLFOParameterIndex(LFOIdx, LFOParams::freqSeconds))->Value();
-    return fmod(secondsPlayed, loopPeriod) / loopPeriod;
+    return fmod(secondsPlayed, freqSeconds[LFOIdx]) / freqSeconds[LFOIdx];
   }
   return 0.;
 }
 
-// Saves the FrequencyPanel state:
-//  - (LFOLoopMode) currentLoopMode
-//  counterValue state:
-//      - (LFOLoopMode) mode
-//      - (double) value
-//      for every possible mode
-//bool FrequencyPanel::saveState(const clap_ostream_t* stream)
-//{
-//  if (stream->write(stream, &currentLoopMode, sizeof(currentLoopMode)) != sizeof(currentLoopMode))
-//    return false;
-//  for (auto& value : counterValue)
-//  {
-//    if (stream->write(stream, &value.first, sizeof(LFOLoopMode)) != sizeof(LFOLoopMode))
-//      return false;
-//    if (stream->write(stream, &value.second, sizeof(double)) != sizeof(double))
-//      return false;
-//  }
-//  return true;
-//}
-//
-//// Reads the FrequencyPanel state depending on the version the state was saved in.
-//bool FrequencyPanel::loadState(const clap_istream_t* stream, int version[3])
-//{
-//  if (version[0] == 1 && version[1] == 0 && version[2] == 0)
-//  {
-//    if (stream->read(stream, &currentLoopMode, sizeof(currentLoopMode)) != sizeof(currentLoopMode))
-//      return false;
-//    // In version 1.0.0 two LFOLoopModes are availbale.
-//    for (int i = 0; i < 2; i++)
-//    {
-//      LFOLoopMode mode;
-//      double value;
-//
-//      if (stream->read(stream, &mode, sizeof(LFOLoopMode)) != sizeof(LFOLoopMode))
-//        return false;
-//      if (stream->read(stream, &value, sizeof(double)) != sizeof(double))
-//        return false;
-//
-//      counterValue[mode] = value;
-//    }
-//  }
-//  return true;
-//}
+void FrequencyPanel::refreshInternalState()
+{
+  // Copy the parameter values concerning the FrequencyPanel into the arrays.
+  for (int i = 0; i < MAX_NUMBER_LFOS; i++)
+  {
+    double mode = mPlugin->GetParam(EParams::LFOsStart + i * LFOParams::kNumLFOParams + LFOParams::mode)->Value();
+    currentMode[i] = static_cast<LFOLoopMode>(mode);
+
+    freqTempo[i] = mPlugin->GetParam(EParams::LFOsStart + i * LFOParams::kNumLFOParams + LFOParams::freqTempo)->Value();
+    freqSeconds[i] = mPlugin->GetParam(EParams::LFOsStart + i * LFOParams::kNumLFOParams + LFOParams::freqSeconds)->Value();
+  }
+}
 
 LFOSelectorControl::LFOSelectorControl(IRECT rect, bool (&linkActive)[MAX_NUMBER_LFOS * MAX_MODULATION_LINKS])
   : IControl(rect, EParams::activeLFOIdx)
@@ -402,8 +365,8 @@ void FrequencyPanel::attachUI(IGraphics* pGraphics)
 
   // Several controls are attached, only two are active at the same time. The currentLoopMode defines which control is needed.
   pGraphics->AttachControl(new ICaptionControl(layout.modeButtonRect, getLFOParameterIndex(activeLFOIdx, mode), IText(24.f), DEFAULT_FGCOLOR, false), FPModeControlTag, "LFOControls");
-  pGraphics->AttachControl(new BeatsBoxControl(layout.counterRect, getLFOParameterIndex(activeLFOIdx, freqTempo), beatIdx), FPBeatsControlTag, "LFOControls");
-  pGraphics->AttachControl(new SecondsBoxControl(layout.counterRect, getLFOParameterIndex(activeLFOIdx, freqSeconds)), FPSecondsControlTag, "LFOControls");
+  pGraphics->AttachControl(new BeatsBoxControl(layout.counterRect, getLFOParameterIndex(activeLFOIdx, LFOParams::freqTempo), beatIdx), FPBeatsControlTag, "LFOControls");
+  pGraphics->AttachControl(new SecondsBoxControl(layout.counterRect, getLFOParameterIndex(activeLFOIdx, LFOParams::freqSeconds)), FPSecondsControlTag, "LFOControls");
 
   // Disable all controls that are not needed.
   if (currentLoopMode != LFOFrequencySeconds)
@@ -431,14 +394,16 @@ void FrequencyPanel::setLFOIdx(int idx)
   // Set parameter indices. This affects to which LFO the controls are connected.
   if (IGraphics* ui = mPlugin->GetUI())
   {
-    ui->GetControlWithTag(FPModeControlTag)->SetParamIdx(getLFOParameterIndex(idx, mode));
-    ui->GetControlWithTag(FPBeatsControlTag)->SetParamIdx(getLFOParameterIndex(idx, freqTempo));
-    ui->GetControlWithTag(FPSecondsControlTag)->SetParamIdx(getLFOParameterIndex(idx, freqSeconds));
+    ui->GetControlWithTag(FPModeControlTag)->SetParamIdx(getLFOParameterIndex(idx, LFOParams::mode));
+    ui->GetControlWithTag(FPBeatsControlTag)->SetParamIdx(getLFOParameterIndex(idx, LFOParams::freqTempo));
+    ui->GetControlWithTag(FPSecondsControlTag)->SetParamIdx(getLFOParameterIndex(idx, LFOParams::freqSeconds));
   }
 }
 
 void FrequencyPanel::setLoopMode(LFOLoopMode mode)
 {
+  currentMode[activeLFOIdx] = mode;
+
   // Disable all elements.
   setDisabled(true);
 
@@ -456,6 +421,18 @@ void FrequencyPanel::setLoopMode(LFOLoopMode mode)
     {
       ui->GetControlWithTag(FPBeatsControlTag)->SetDisabled(false);
     }
+  }
+}
+
+void FrequencyPanel::setFrequencyValue(LFOLoopMode mode, double value)
+{
+  if (mode == LFOLoopMode::LFOFrequencyTempo)
+  {
+    freqTempo[activeLFOIdx] = value;
+  }
+  else if (mode == LFOLoopMode::LFOFrequencySeconds)
+  {
+    freqSeconds[activeLFOIdx] = value;
   }
 }
 
@@ -516,6 +493,11 @@ void LFOController::setLoopMode(LFOLoopMode mode)
   frequencyPanel.setLoopMode(mode);
 }
 
+void LFOController::setFrequencyValue(LFOLoopMode mode, double value)
+{
+  frequencyPanel.setFrequencyValue(mode, value);
+}
+
 void LFOController::setActiveLFO(int idx)
 {
   activeLFOIdx = idx;
@@ -551,7 +533,12 @@ void LFOController::setActiveLFO(int idx)
   frequencyPanel.setLFOIdx(idx);
 }
 
-const void LFOController::getModulationAmplitudes(double beatPosition, double secondsPlayed, double* amplitudes)
+void LFOController::refreshInternalState()
+{
+  frequencyPanel.refreshInternalState();
+}
+
+const void LFOController::getModulationAmplitudes(double beatPosition, double secondsPlayed, double* amplitudes, double* factors)
 {
   for (int i = 0; i < MAX_NUMBER_LFOS; i++)
   {
@@ -559,7 +546,7 @@ const void LFOController::getModulationAmplitudes(double beatPosition, double se
 
     for (int j = 0; j < MAX_MODULATION_LINKS; j++)
     {
-      double modAmount = mPlugin->GetParam(EParams::modStart + i * MAX_NUMBER_LFOS + j)->Value();
+      double modAmount = factors[i * MAX_NUMBER_LFOS + j];
 
       // Evaluate this LFO editor only if
       // - it is connected to at least one ModulatedParameter, i.e. any modAmount != 0

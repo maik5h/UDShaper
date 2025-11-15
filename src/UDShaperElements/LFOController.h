@@ -113,6 +113,19 @@ private:
   // Pointer to the parent plugin.
   IPluginBase* mPlugin;
 
+  // Arrays that mirror the parameter state, used to prevent frequent GetParam calls on the audio threads.
+  // These are set on parameter changes and read only while processing audio.
+
+  // The current loop mode for each LFO.
+  LFOLoopMode currentMode[MAX_NUMBER_LFOS] = {};
+
+  // The current frequency value for the loop mode LFOFrequencyTempo for each LFO.
+  double freqTempo[MAX_NUMBER_LFOS] = {};
+
+  // The current frequency value for the loop mode LFOFrequencySeconds for each LFO.
+  double freqSeconds[MAX_NUMBER_LFOS] = {};
+
+
 public:
   // Constructs a FrequencyPanel
   // * @param rect The rectangle on the UI this instance will render in
@@ -139,6 +152,9 @@ public:
   // Enables the controls needed to set the loop frequency for this mode.
   void setLoopMode(LFOLoopMode mode);
 
+  // Set the frequency value belonging to the given mode on the active LFO.
+  void setFrequencyValue(LFOLoopMode mode, double value);
+
   // Returns the phase value at beatPosition/ secondsPlayed normalized to [0, 1]
   //
   // * @param LFOIdx Index of the LFO of which the phase is requested
@@ -146,6 +162,14 @@ public:
   // * @param secondsPlayed The host playback position in seconds
   // * @returns The phase of the LFO at LFOIdx
   double getLFOPhase(int LFOIdx, double beatPosition, double secondsPlayed);
+
+  // Refresh the state of the internally stored parameters.
+  //
+  // This is meant to be called after the plugin has initialized the parameters
+  // to sync the state. Checks all LFO parameters so it should only be called
+  // if necessary. Parameter changes are directly reported to the internal arrays
+  // in UDShaper::OnParamChange.
+  void refreshInternalState();
 
   // bool saveState(const clap_ostream_t *stream);
   // bool loadState(const clap_istream_t *stream, int version[3]);
@@ -271,8 +295,19 @@ public:
   // to properly update the FrequencyPanelControl.
   void setLoopMode(LFOLoopMode mode);
 
+  // Set the frequency value belonging to the given mode on the active LFO.
+  void setFrequencyValue(LFOLoopMode mode, double value);
+
   // Sets the LFO at index as active.
   void setActiveLFO(int index);
+
+  // Synchronizes the internal FrequencyPanel parameters with the iPlug2 parameters.
+  //
+  // This is meant to be called after the plugin has initialized the parameters
+  // to sync the state. Checks all LFO parameters so it should only be called
+  // if necessary. Parameter changes are directly reported to the internal arrays
+  // in UDShaper::OnParamChange.
+  void refreshInternalState();
 
   // Get the amplitudes of all available modulation links.
   //
@@ -285,7 +320,8 @@ public:
   // * @param beatPosition The song position in beats at which the amplitudes are calculated
   // * @para, secondsPlayed The song position in seconds at which the amplitudes are calculated
   // * @param amplitudes Array in which the amplitudes will be copied. Must have size MAX_NUMBER_LFOS * MAX_MODULATION_LINKS
-  const void getModulationAmplitudes(double beatPosition, double secondsPlayed, double* amplitudes);
+  // * @param factors Array that contains the modulation amounts corresponding to each LFO link. Must have the same size as amplitudes.
+  const void getModulationAmplitudes(double beatPosition, double secondsPlayed, double* amplitudes, double* factors);
 
   // Enable the modulation link at idx.
   void setLinkActive(int idx, bool active = true);

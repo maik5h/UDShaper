@@ -44,6 +44,9 @@ UDShaper::UDShaper(const InstanceInfo& info)
     param->InitDouble("", 0., -1., 1., 0.01);
   }
 
+  // Inform the LFOController about the default parameter values.
+  LFOs.refreshInternalState();
+
 #if IPLUG_EDITOR // http://bit.ly/2S64BDd
   mMakeGraphicsFunc = [&]() {
     return MakeGraphics(*this, PLUG_WIDTH, PLUG_HEIGHT, PLUG_FPS, GetScaleForScreen(PLUG_WIDTH, PLUG_HEIGHT));
@@ -80,7 +83,7 @@ UDShaper::UDShaper(const InstanceInfo& info)
 void UDShaper::modulationStep(double (&modAmps)[MAX_NUMBER_LFOS * MAX_MODULATION_LINKS], double& beatPosition, double& seconds)
 {
   // Calculate modulation amplitudes at current time step.
-  LFOs.getModulationAmplitudes(beatPosition, seconds, modAmps);
+  LFOs.getModulationAmplitudes(beatPosition, seconds, modAmps, modulationAmounts);
 
   // Increase time by one sample.
   beatPosition += GetTempo() / GetSampleRate() / 60;
@@ -211,11 +214,25 @@ void UDShaper::OnParamChange(int idx)
       int i = idx - LFOsStart;
 
       // If an LFO loopMode has been changed, update the frequency panel.
-      if (i % kNumLFOParams == mode)
+      if (i % kNumLFOParams == LFOParams::mode)
       {
         LFOLoopMode loopMode = static_cast<LFOLoopMode>(GetParam(idx)->Value());
         LFOs.setLoopMode(loopMode);
       }
+      else if (i % kNumLFOParams == LFOParams::freqTempo)
+      {
+        LFOs.setFrequencyValue(LFOLoopMode::LFOFrequencyTempo, GetParam(idx)->Value());
+      }
+      else if (i % kNumLFOParams == LFOParams::freqSeconds)
+      {
+        LFOs.setFrequencyValue(LFOLoopMode::LFOFrequencySeconds, GetParam(idx)->Value());
+      }
+    }
+
+    // Udpade the internal modulation amount state if a link knob has been changed.
+    else if (idx >= EParams::modStart)
+    {
+      modulationAmounts[idx - EParams::modStart] = GetParam(idx)->Value();
     }
   }
 }
@@ -257,7 +274,7 @@ void UDShaper::OnIdle()
   // Refresh the UI modulation amplitudes used for rendering.
   const double beatPosition = GetPPQPos();
   const double secondsPlayed = GetSamplePos() / GetSampleRate();
-  LFOs.getModulationAmplitudes(beatPosition, secondsPlayed, modulationAmplitudesUI);
+  LFOs.getModulationAmplitudes(beatPosition, secondsPlayed, modulationAmplitudesUI, modulationAmounts);
 
   // TODO for testing only
   GetUI()->GetControlWithTag(ShapeEditorControl1)->SetDirty(false);
