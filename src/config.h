@@ -30,3 +30,6 @@ constexpr int MAX_NUMBER_LFOS = 10;
 
 // The maximum number of parameters an LFO can modulate.
 constexpr int MAX_MODULATION_LINKS = 10;
+
+// Default text size for labels, values, etc.
+constexpr float UDS_TEXT_SIZE = 22.f;

@@ -9,6 +9,6 @@ void TopMenuBar::attachUI(IGraphics* pGraphics) {
   assert(!layout.fullRect.Empty());
 
   pGraphics->AttachControl(new ITextControl(layout.logoRect, "UDShaper", IText(50)));
-  pGraphics->AttachControl(new ITextControl(layout.menuTitleRect, "Distortion mode", IText(25)));
-  pGraphics->AttachControl(new ICaptionControl(layout.modeMenuRect, distMode, IText(24.f), DEFAULT_FGCOLOR, false), kNoTag, "misccontrols");
+  pGraphics->AttachControl(new ITextControl(layout.menuTitleRect, "Distortion mode", IText(UDS_TEXT_SIZE)));
+  pGraphics->AttachControl(new ICaptionControl(layout.modeMenuRect, distMode, IText(UDS_TEXT_SIZE), DEFAULT_FGCOLOR, false), kNoTag, "misccontrols");
 }

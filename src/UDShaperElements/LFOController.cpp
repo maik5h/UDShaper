@@ -215,8 +215,7 @@ void LFOSelectorControl::Draw(IGraphics& g)
   float h = mRECT.H() / numberLFOs;
 
   // Draw a variation of the 3D frame that connects with the frame around the editor.
-  // TODO replace with actual value.
-  float fw = 10;
+  float fw = FRAME_WIDTH;
 
   // Fill the segment corresponding to the active LFO orange.
   activeRect.T = mRECT.T + activeLFOIdx * h;
@@ -246,7 +245,26 @@ void LFOSelectorControl::Draw(IGraphics& g)
   {
     rect.T = mRECT.T + i * h;
     rect.B = mRECT.T + (i + 1) * h;
-    g.DrawText(IText(14, UDS_WHITE), std::to_string(i).data(), rect);
+
+    // For the active LFO, draw the number shifted to the right to give the impression
+    // it is positioned lower then the other numbers.
+    if (i == activeLFOIdx)
+    {
+      rect.Offset(fw / 2, 0, fw / 2, 0);
+    }
+    else if (i == activeLFOIdx + 1)
+    {
+      rect.Offset(-fw / 2, 0, -fw / 2, 0);
+    }
+
+    g.DrawText(IText(UDS_TEXT_SIZE * 0.8, UDS_WHITE), std::to_string(i + 1).data(), rect);
+
+    // Draw a rectangle around the text. Make it 20% of the full rect.
+    float offsetW = rect.W() * 0.4;
+    float offsetH = rect.H() * 0.4;
+    IRECT innerRect = rect;
+    innerRect.Offset(offsetW, offsetH, -offsetW, -offsetH);
+    g.DrawRect(UDS_WHITE, innerRect, nullptr, FRAME_WIDTH_NARROW * 0.4);
   }
 }
 
@@ -364,7 +382,7 @@ void FrequencyPanel::attachUI(IGraphics* pGraphics)
   int beatIdx = static_cast<int>(mPlugin->GetParam(getLFOParameterIndex(activeLFOIdx, LFOParams::freqTempo))->Value());
 
   // Several controls are attached, only two are active at the same time. The currentLoopMode defines which control is needed.
-  pGraphics->AttachControl(new ICaptionControl(layout.modeButtonRect, getLFOParameterIndex(activeLFOIdx, mode), IText(24.f), DEFAULT_FGCOLOR, false), FPModeControlTag, "LFOControls");
+  pGraphics->AttachControl(new ICaptionControl(layout.modeButtonRect, getLFOParameterIndex(activeLFOIdx, mode), IText(UDS_TEXT_SIZE), DEFAULT_FGCOLOR, false), FPModeControlTag, "LFOControls");
   pGraphics->AttachControl(new BeatsBoxControl(layout.counterRect, getLFOParameterIndex(activeLFOIdx, LFOParams::freqTempo), beatIdx), FPBeatsControlTag, "LFOControls");
   pGraphics->AttachControl(new SecondsBoxControl(layout.counterRect, getLFOParameterIndex(activeLFOIdx, LFOParams::freqSeconds)), FPSecondsControlTag, "LFOControls");
 
