@@ -140,7 +140,12 @@ public:
   void setLoopMode(LFOLoopMode mode);
 
   // Returns the phase value at beatPosition/ secondsPlayed normalized to [0, 1]
-  double getLFOPhase(double beatPosition, double secondsPlayed);
+  //
+  // * @param LFOIdx Index of the LFO of which the phase is requested
+  // * @param beatPosition The host playback position in beats
+  // * @param secondsPlayed The host playback position in seconds
+  // * @returns The phase of the LFO at LFOIdx
+  double getLFOPhase(int LFOIdx, double beatPosition, double secondsPlayed);
 
   // bool saveState(const clap_ostream_t *stream);
   // bool loadState(const clap_istream_t *stream, int version[3]);
@@ -159,7 +164,7 @@ class LFOSelectorControl : public IControl
   LFOConnectInfo connectInfo = {};
 
   // Keeps track if the available modulation links are connected to a parameter.
-  bool linkActive[MAX_NUMBER_LFOS * MAX_MODULATION_LINKS] = {};
+  bool (&linkActive)[MAX_NUMBER_LFOS * MAX_MODULATION_LINKS];
 
 public:
   // Total number of LFOs displayed.
@@ -168,10 +173,12 @@ public:
   // Index of the active LFO.
   int activeLFOIdx = 0;
 
-  LFOSelectorControl(IRECT rect);
-
-  // Set the link at idx active or inactive. 
-  void setActive(int idx, bool active = true);
+  // Create an LFOSelectorControl
+  //
+  // * @param rect IRECT of this control
+  // * @param linkActive Reference to an array stored in LFOController.
+  // Needed to keep the state outside of IControls, in case they get deleted.
+  LFOSelectorControl(IRECT rect, bool (&linkActive)[MAX_NUMBER_LFOS * MAX_MODULATION_LINKS]);
 
   // Copies the state of the modulation links associated with the active LFO to the input array.
   const void getActiveLinks(bool (&isActive)[MAX_MODULATION_LINKS]);
@@ -250,6 +257,9 @@ class LFOController
 
   // Pointer to parent plugin.
   IPluginBase* mPlugin;
+
+  // Keeps track if the available modulation links are connected to a parameter.
+  bool linkActive[MAX_NUMBER_LFOS * MAX_MODULATION_LINKS] = {};
 
 public:
   LFOController(IRECT rect, float GUIWidth, float GUIHeight, IPluginBase* plugin);

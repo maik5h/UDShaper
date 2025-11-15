@@ -143,6 +143,10 @@ class ShapeEditor
   // Disconnect the link with idx from all modulated parameters.
   void disconnectLink(int linkIdx);
 
+  // Adds the indices of all links corresponding to parameters of
+  // this editor to the given set.
+  void getLinks(std::set<int>& links) const;
+
   bool serializeState(IByteChunk& chunk) const;
   int unserializeState(const IByteChunk& chunk, int startPos, int version);
 };

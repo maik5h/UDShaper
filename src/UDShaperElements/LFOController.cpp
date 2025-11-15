@@ -161,19 +161,18 @@ FrequencyPanel::FrequencyPanel(IRECT rect, float GUIWidth, float GUIHeight, IPlu
   , mPlugin(plugin)
 {}
 
-double FrequencyPanel::getLFOPhase(double beatPosition, double secondsPlayed)
+double FrequencyPanel::getLFOPhase(int LFOIdx, double beatPosition, double secondsPlayed)
 {
   // Convert from beats to bars.
   beatPosition /= 4;
 
   // Find the loop mode of the currently active LFO.
-  int activeLFOIdx = mPlugin->GetParam(EParams::activeLFOIdx)->Value();
-  LFOLoopMode currentLoopMode = static_cast<LFOLoopMode>(mPlugin->GetParam(getLFOParameterIndex(activeLFOIdx, mode))->Value());
+  LFOLoopMode currentLoopMode = static_cast<LFOLoopMode>(mPlugin->GetParam(getLFOParameterIndex(LFOIdx, mode))->Value());
 
   if (currentLoopMode == LFOFrequencyTempo)
   {
     // TODO this needs to be checked once checking host playback position is implemented.
-    double exponent = mPlugin->GetParam(getLFOParameterIndex(activeLFOIdx, LFOParams::freqTempo))->Value();
+    double exponent = mPlugin->GetParam(getLFOParameterIndex(LFOIdx, LFOParams::freqTempo))->Value();
 
     // The exponent is shifted by 6, such that exponent = 6 corresponds to 2^0 = 1.
     double speed = pow(2, exponent - 6);
@@ -182,7 +181,7 @@ double FrequencyPanel::getLFOPhase(double beatPosition, double secondsPlayed)
   }
   else if (currentLoopMode == LFOFrequencySeconds)
   {
-    double loopPeriod = mPlugin->GetParam(getLFOParameterIndex(activeLFOIdx, LFOParams::freqSeconds))->Value();
+    double loopPeriod = mPlugin->GetParam(getLFOParameterIndex(LFOIdx, LFOParams::freqSeconds))->Value();
     return fmod(secondsPlayed, loopPeriod) / loopPeriod;
   }
   return 0.;
@@ -232,15 +231,11 @@ double FrequencyPanel::getLFOPhase(double beatPosition, double secondsPlayed)
 //  return true;
 //}
 
-LFOSelectorControl::LFOSelectorControl(IRECT rect)
+LFOSelectorControl::LFOSelectorControl(IRECT rect, bool (&linkActive)[MAX_NUMBER_LFOS * MAX_MODULATION_LINKS])
   : IControl(rect, EParams::activeLFOIdx)
+  , linkActive(linkActive)
 {
   activeRect = rect;
-}
-
-void LFOSelectorControl::setActive(int idx, bool active)
-{
-  linkActive[idx] = active;
 }
 
 const void LFOSelectorControl::getActiveLinks(bool(&isActive)[MAX_MODULATION_LINKS])
@@ -482,7 +477,7 @@ void LFOController::attachUI(IGraphics* pGraphics)
 {
   frequencyPanel.attachUI(pGraphics);
 
-  pGraphics->AttachControl(new LFOSelectorControl(layout.selectorRect), LFOSelectorControlTag);
+  pGraphics->AttachControl(new LFOSelectorControl(layout.selectorRect, linkActive), LFOSelectorControlTag);
 
   // Editor background.
   pGraphics->AttachControl(new FillRectangle(layout.editorRect, UDS_ORANGE));
@@ -571,7 +566,7 @@ const void LFOController::getModulationAmplitudes(double beatPosition, double se
       // - it has not been evaluated yet, i.e. LFOAmplitude = 0
       if (modAmount && !LFOAmplitude)
       {
-        double phase = frequencyPanel.getLFOPhase(beatPosition, secondsPlayed);
+        double phase = frequencyPanel.getLFOPhase(i, beatPosition, secondsPlayed);
         LFOAmplitude = editors.at(i).forward(phase);
       }
       amplitudes[i * MAX_MODULATION_LINKS + j] = LFOAmplitude * modAmount;
@@ -581,11 +576,10 @@ const void LFOController::getModulationAmplitudes(double beatPosition, double se
 
 void LFOController::setLinkActive(int idx, bool active)
 {
+  linkActive[idx] = active;
+
   if (IGraphics* ui = mPlugin->GetUI())
   {
-    LFOSelectorControl* selector = static_cast<LFOSelectorControl*>(ui->GetControlWithTag(EControlTags::LFOSelectorControlTag));
-    selector->setActive(idx, active);
-
     // Enable/ Disable the knob corresponding to the given link.
     // Knobs only control the parameters of the current LFO.
     int shiftedIdx = idx - activeLFOIdx * MAX_MODULATION_LINKS;

@@ -69,6 +69,15 @@ public:
     return previousSize != modIndices.size();
   }
 
+  // Adds the indices of all LFO links connected to this parameter to the given set.
+  void getModulators(std::set<int>& mods)
+  {
+    for (int mod : modIndices)
+    {
+      mods.insert(mod);
+    }
+  }
+
   void removeModulator(int idx) { modIndices.erase(idx); }
 
   // Sets the base value of this parameter to the input. Should be used when the parameter is
@@ -456,9 +465,13 @@ ShapePoint* ShapeEditor::getClosestPoint(float x, float y, float minimumDistance
 
 void ShapeEditor::deleteSelectedPoint()
 {
-  deleteShapePoint(rightClicked);
-  deletedPoint = rightClicked;
-  rightClicked = nullptr;
+  // Do not delete point if next is nullptr, i.e. the last point.
+  if (rightClicked->next)
+  {
+    deleteShapePoint(rightClicked);
+    deletedPoint = rightClicked;
+    rightClicked = nullptr;
+  }
 }
 
 ShapePoint* ShapeEditor::getDeletedPoint()
@@ -680,6 +693,18 @@ void ShapeEditor::disconnectLink(int linkIdx)
     point->posX.removeModulator(linkIdx);
     point->posY.removeModulator(linkIdx);
     point->curveCenterPosY.removeModulator(linkIdx);
+    point = point->next;
+  }
+}
+
+void ShapeEditor::getLinks(std::set<int>& links) const
+{
+  ShapePoint* point = shapePoints->next;
+  while (point)
+  {
+    point->posX.getModulators(links);
+    point->posY.getModulators(links);
+    point->curveCenterPosY.getModulators(links);
     point = point->next;
   }
 }

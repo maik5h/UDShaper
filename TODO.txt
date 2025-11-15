@@ -1,12 +1,6 @@
 The biggest and most noticeable TODOs of this project:
 
-- PERFORMANCE Getting the modulation amount parameters (100 in current confiduration) each sample slows down processing MASSIVELY. Runs smooth when I quote it out. Should be called only once per buffer AT MOST.
-
-- BUG I think I forgot to let the Frequency panel calculate the correct phase, it just returns the phase corresponding to the current LFO.
-
-- BUG the last point in shapeEditors can be deleted, causing the plugin to crash.
-
-- BUG Closing and reopening the plugin window erases the modulation knobs. Active links are only saved on IControl side, which is deleted when the window closes. Save state when LFOSelectorControl is destroyed.
+- PERFORMANCE Getting the modulation amount parameters (100 in current confiduration) each sample slows down processing MASSIVELY. Runs smooth when I quote it out. Should be called only once per buffer AT MOST. getLFOPhase does also call GetParam. Fix.
 
 - BUG (FL Studio) UDShaper crashes on disable when chained after certain plugins (Fruity Limiter). Why??? Does not happen with other effects and can safely be put before Fruity Limmiter.
 
