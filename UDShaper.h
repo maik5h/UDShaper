@@ -8,6 +8,8 @@
 #include "src/UDShaperElements/LFOController.h"
 #include "src/UDShaperParameters.h"
 #include "src/controlMessageTags.h"
+#include "src/performance/timer.h"
+#include <filesystem>
 
 const int kNumPresets = 1;
 
@@ -31,6 +33,13 @@ class UDShaper final : public Plugin
   // This is updated on parameter changes and read only in ProcessBlock.
   // Supposed to avoid frequent GetParam calls on the audio thread.
   double modulationAmounts[MAX_NUMBER_LFOS * MAX_MODULATION_LINKS] = {};
+
+  // Path to the csv file for performance data.
+  std::string evalPath = std::filesystem::path(__FILE__).parent_path().string() + "\\src\\performance\\data\\data_light_push.csv";
+  ShapeEditorTimer editorTimer = ShapeEditorTimer(evalPath, shapeEditor1);
+
+  // Used to skip ShapeEditorTimer::measure() calls if the method is already running.
+  std::atomic_flag timerLock = ATOMIC_FLAG_INIT;
 
 public:
   UDShaper(const InstanceInfo& info);

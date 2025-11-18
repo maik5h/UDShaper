@@ -216,7 +216,11 @@ public:
   // they are used:
 
   // Returns the relative x-position of this point.
-  const float getPosX(double* modulationAmplitudes = nullptr)
+  // * @param modulationAmplitudes Pointer to an array of modulation amplitudes. Can be nullptr, in which case
+  // the unmmodulated value is returned.
+  // * @param lowerBound If the parameter is modulated, it can not move below this x-value. Effectively makes
+  // modulated points push their neighbors to the right.
+  const float getPosX(double* modulationAmplitudes = nullptr, float lowerBound = 0)
   {
     // Rightmost point must always be at x = 1;
     if (next == nullptr)
@@ -224,16 +228,10 @@ public:
       return 1;
     }
 
-    // X-position is limited by the position of the next point. Modulating
-    // a point to the left will push all other points on its way to the left.
-    // Mod to the right will stop on the next point.
     else
     {
       float x = posX.get(modulationAmplitudes);
-      // TODO this calls all getPosX until the last point is reached (might be bad).
-      // Is there an alternative with constant time complexity?
-      float nextX = next->getPosX(modulationAmplitudes);
-      return (x > nextX) ? nextX : x;
+      return (x < lowerBound) ? lowerBound : x;
     }
   }
 
@@ -244,9 +242,9 @@ public:
   }
 
   // Calculates the absolute x-position of the point on the GUI from the relative position posX.
-  const float getAbsPosX(double* modulationAmplitudes = nullptr)
+  const float getAbsPosX(double* modulationAmplitudes = nullptr, float lowerBound = 0)
   {
-    return rect.L + getPosX(modulationAmplitudes) * rect.W();
+    return rect.L + getPosX(modulationAmplitudes, lowerBound) * rect.W();
   }
 
   // Calculates the absolute y-position of the point on the GUI from the relative position posY.
@@ -257,9 +255,9 @@ public:
   }
 
   // Calculates the absolute x-position of the curve center associated with this point.
-  const float getCurveCenterAbsPosX(double* modulationAmplitudes = nullptr)
+  const float getCurveCenterAbsPosX(double* modulationAmplitudes = nullptr, float lowerBound = 0.f, float lowerBoundPrevious = 0.f)
   {
-    return (getAbsPosX(modulationAmplitudes) + previous->getAbsPosX(modulationAmplitudes)) / 2;
+    return (getAbsPosX(modulationAmplitudes, lowerBound) + previous->getAbsPosX(modulationAmplitudes, lowerBoundPrevious)) / 2;
   }
 
   // Calculates the absolute y-position of the curve center associated with this point.
@@ -637,17 +635,24 @@ const float ShapeEditor::forward(float input, double* modulationAmplitudes)
   ShapePoint* point = shapePoints->next;
 
   // Find the curve segment concerned by the input.
-  while (point->getPosX(modulationAmplitudes) < input)
+  // It is defined by two ShapePoints. To calculate their x-position,
+  // the position of the previous point must be known to provide a
+  // lower bound.
+  float lowerBoundPrevious = 0;
+  float lowerBound = 0;
+  while (point->getPosX(modulationAmplitudes, lowerBound) < input)
   {
+    lowerBoundPrevious = lowerBound;
+    lowerBound = point->getPosX(modulationAmplitudes, lowerBound);
     point = point->next;
   }
 
   switch (point->mode)
   {
   case shapePower: {
-    float xL = point->previous->getPosX(modulationAmplitudes);
+    float xL = point->previous->getPosX(modulationAmplitudes, lowerBoundPrevious);
     float yL = point->previous->getPosY(modulationAmplitudes);
-    float x = point->getPosX(modulationAmplitudes);
+    float x = point->getPosX(modulationAmplitudes, lowerBound);
 
     // Compute relative x-position inside the curve segment, relative "height" of the curve segment and power
     // corresponding to the current curve cenetr position.
@@ -707,6 +712,16 @@ void ShapeEditor::getLinks(std::set<int>& links) const
     point->curveCenterPosY.getModulators(links);
     point = point->next;
   }
+}
+
+void ShapeEditor::insertPointAt(float x, float y)
+{
+  ShapePoint* point = shapePoints;
+  while (point && point->posX.get(nullptr) < x)
+  {
+    point = point->next;
+  }
+  insertPointBefore(point, new ShapePoint(x, y, layout.editorRect));
 }
 
 // Saves the ShapeEditor state to the IByteChunk object.
@@ -840,12 +855,16 @@ void ShapeEditorControl::Draw(IGraphics& g)
     g.DrawData(UDS_WHITE, editorRect, mPoints.data(), static_cast<int>(mPoints.size()), nullptr, &mBlend, mTrackSize);
 
     // Draw the ShapePoints on top of the graph.
+    float lowerBound = 0;
+    float lowerBoundPrevious = 0;
     ShapePoint* point = editor->shapePoints->next;
     while (point != nullptr)
     {
-      float posX = point->getAbsPosX(modulationAmplitudes);
+      lowerBoundPrevious = lowerBound;
+      lowerBound = point->getPosX(modulationAmplitudes, lowerBound);
+      float posX = point->getAbsPosX(modulationAmplitudes, lowerBound);
       float posY = point->getAbsPosY(modulationAmplitudes);
-      float curveCenterPosX = point->getCurveCenterAbsPosX(modulationAmplitudes);
+      float curveCenterPosX = point->getCurveCenterAbsPosX(modulationAmplitudes, lowerBound, lowerBoundPrevious);
       float curveCenterPosY = point->getCurveCenterAbsPosY(modulationAmplitudes);
       g.FillCircle(UDS_WHITE, posX, posY, POINT_SIZE);
       g.FillCircle(UDS_WHITE, curveCenterPosX, curveCenterPosY, POINT_SIZE_SMALL);

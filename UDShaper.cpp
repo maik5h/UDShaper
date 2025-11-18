@@ -125,6 +125,16 @@ void UDShaper::ProcessBlock(sample** inputs, sample** outputs, int nFrames)
     {
       modulationStep(modAmps, beatPosition, secondsPlayed);
 
+      // For performance evaluation:
+      // I put this here so that it can run under realistic conditions inside a DAW on
+      // an audio thread. However this should be not distrbed while running, so no
+      // ShapePoints should be added to this editor by the user.
+      if (!timerLock.test_and_set())
+      {
+        editorTimer.measure();
+        timerLock.clear();
+      }
+
       if (index > 0)
       {
         processShape1L = (inputL[index] >= previousLevelL);

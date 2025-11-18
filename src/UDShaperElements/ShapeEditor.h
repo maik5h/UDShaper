@@ -147,6 +147,9 @@ class ShapeEditor
   // this editor to the given set.
   void getLinks(std::set<int>& links) const;
 
+  // Used for adding points without user input when testing performance.
+  void insertPointAt(float x, float y);
+
   bool serializeState(IByteChunk& chunk) const;
   int unserializeState(const IByteChunk& chunk, int startPos, int version);
 };

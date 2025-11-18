@@ -1,6 +1,8 @@
 The biggest and most noticeable TODOs of this project:
 
-- PERFORMANCE ShapeEditor::forward seems slow. Maybe the big modulationAmplitudes allocations inside processBlock are an isse. Find out what slow the processing down and fix!!
+- PERFORMANCE Debug mode was the issue. But performance can probably still be optimized increased. Turn shapePoints linked list into vector.
+
+- BUG modulation links are not disabled after deleting a point.
 
 - BUG (FL Studio) UDShaper crashes on disable when chained after certain plugins (Fruity Limiter). Why??? Does not happen with other effects and can safely be put before Fruity Limmiter.
 
