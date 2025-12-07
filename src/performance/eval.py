@@ -40,9 +40,13 @@ def plot_shape_editor_performance(
     
     outfile: `Path`
         File to save the figure.
-        
+
     title: `str`
         Title of the figure.
+
+    ylims: `list[float]`
+        ylims of the plot. This corresponds to the computation time in
+        microseconds.
     """
 
     # Plot the time per forward call depending on the number of points.
@@ -89,11 +93,12 @@ if __name__ == "__main__":
     fwd_release = [[], []]
     fwd_no_push = [[], []]
     fwd_light_push = [[], []]
+    fwd_vector = [[], []]
 
-    data_folder = Path(__file__).parent
+    parent_dir = Path(__file__).parent
 
     # This data was recorded using the initial plugin in debug mode.
-    with open(data_folder / 'data_debug.csv', 'r') as f:
+    with open(parent_dir / 'data/data_debug.csv', 'r') as f:
         file = csv.reader(f)
     
         for line in file:
@@ -101,7 +106,7 @@ if __name__ == "__main__":
             fwd_debug[1].append(float(line[2]))
 
     # This data was recorded using the initial plugin in release mode.
-    with open(data_folder / 'data_initial.csv', 'r') as f:
+    with open(parent_dir / 'data/data_initial.csv', 'r') as f:
         file = csv.reader(f)
     
         for line in file:
@@ -109,7 +114,7 @@ if __name__ == "__main__":
             fwd_release[1].append(float(line[2]))
 
     # This data was recorded with push code quoted out.
-    with open(data_folder / 'data_no_push.csv', 'r') as f:
+    with open(parent_dir / 'data/data_no_push.csv', 'r') as f:
         file = csv.reader(f)
 
         for line in file:
@@ -117,25 +122,41 @@ if __name__ == "__main__":
             fwd_no_push[1].append(float(line[2]))
 
     # This data was recorded with improved push implementation.
-    with open(data_folder / 'data_light_push.csv', 'r') as f:
+    with open(parent_dir / 'data/data_light_push.csv', 'r') as f:
         file = csv.reader(f)
 
         for line in file:
             fwd_light_push[0].append(int(line[0]))
             fwd_light_push[1].append(float(line[2]))
 
+    # This data was recorded with points stored in a vector instead of linked list.
+    with open(parent_dir / 'data/data_point_vector.csv', 'r') as f:
+        file = csv.reader(f)
+
+        for line in file:
+            fwd_vector[0].append(int(line[0]))
+            fwd_vector[1].append(float(line[2]))
+
     plot_shape_editor_performance(
         x_data=[fwd_debug[0], fwd_release[0]],
         y_data=[fwd_debug[1], fwd_release[1]],
         labels=['debug build', 'release build'],
-        outfile=data_folder / 'plots/performance_init.png',
+        outfile=parent_dir / 'plots/performance_init.png',
         title='ShapeEditor forward call\ninitial implementation'
     )
     plot_shape_editor_performance(
         x_data=[fwd_release[0], fwd_no_push[0], fwd_light_push[0]],
         y_data=[fwd_release[1], fwd_no_push[1], fwd_light_push[1]],
         labels=['init setup', 'no push', 'light push'],
-        outfile=data_folder / 'plots/performance_push_comparison.png',
+        outfile=parent_dir / 'plots/performance_push_comparison.png',
         title='ShapeEditor forward call\nRelease build',
         ylims = [0, 0.5]
+    )
+    plot_shape_editor_performance(
+        x_data=[fwd_light_push[0], fwd_vector[0]],
+        y_data=[fwd_light_push[1], fwd_vector[1]],
+        labels=['linked list', 'vector'],
+        outfile=parent_dir / 'plots/performance_vector_comparison.png',
+        title='ShapeEditor forward call\nRelease build, light push',
+        ylims = [0, 0.3]
     )

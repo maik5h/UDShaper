@@ -313,7 +313,7 @@ int UDShaper::UnserializeState(const IByteChunk& chunk, int startPos)
   startPos = LFOs.unserializeState(chunk, startPos, version);
 
   // LFOs must be informed which links are active.
-  std::set<int> activeLinks = {0};
+  std::set<int> activeLinks = {};
   shapeEditor1.getLinks(activeLinks);
   shapeEditor2.getLinks(activeLinks);
 

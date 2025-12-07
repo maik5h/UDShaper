@@ -18,373 +18,197 @@ static float getPowerFromPosY(float posY)
   return (posY > 0.5) ? -power : power;
 }
 
-// A parameter that can be connected to an LFO link.
-//
-// Stores the indices of links it is connected to. To access the modulated value, an array
-// of all modulation amplitudes must be forwarded to the get method.
-//
-// Note: The name might be misleading, this is not an iPlug2 or CLAP parameter, the host
-// does not see it.
-class ModulatedParameter
+ModulatedParameter::ModulatedParameter(float inBase, float inMinValue, float inMaxValue)
+  : base(inBase)
+  , minValue(inMinValue)
+  , maxValue(inMaxValue)
+{}
+
+bool ModulatedParameter::addModulator(int idx)
 {
-private:
-  // Base value of this ModulatedParameter.
-  float base;
-
-  // Minimum value this ModulatedParameter can take.
-  float minValue;
-
-  // Maximum value this ModulatedParameter can take.
-  float maxValue;
-
-  // Indices in the array of all modulation links that are connected to this parameter.
-  std::set<int> modIndices;
-
-public:
-  // The type of parameter represented by this instance.
-  const modulationMode mode;
-
-  // Create a ModulatedParameter.
-  // 
-  // ModulatedParameters are internal parameters that are not reported to the host.
-  // They can only exist as members of ShapePoints.
-  // * @param inMode The type of modulation this parameter describes. Can be the x-position, y-position or curve center position of a ShapePoint
-  // * @param inBase Initial base value, i.e. the value this parameter takes if no modulation is active
-  // * @param inMinValue The minimum value this parameter can take
-  // * @param inMaxValue The maximum value this parameter can take
-  ModulatedParameter(modulationMode inMode, float inBase, float inMinValue = -1, float inMaxValue = 1)
-    : mode(inMode)
-    , base(inBase)
-    , minValue(inMinValue)
-    , maxValue(inMaxValue)
-  {}
-
-  // Connects the LFO link at idx to this parameter.
-  // Returns true if the link could be added and false if this parameter was already connected with the link.
-  bool addModulator(int idx)
-  {
-    int previousSize = modIndices.size();
-    modIndices.insert(idx);
-
-    return previousSize != modIndices.size();
-  }
-
-  // Adds the indices of all LFO links connected to this parameter to the given set.
-  void getModulators(std::set<int>& mods)
-  {
-    for (int mod : modIndices)
-    {
-      mods.insert(mod);
-    }
-  }
-
-  void removeModulator(int idx) { modIndices.erase(idx); }
-
-  // Sets the base value of this parameter to the input. Should be used when the parameter is
-  // explicitly changed by the user.
-  void set(float newValue)
-  {
-    base = (newValue < minValue) ? minValue : newValue;
-    base = (newValue > maxValue) ? maxValue : newValue;
-  }
-
-  // Returns the current value, i.e. the modulation offsets added to the base clamped to the min and max values.
-  // * @param modulationAmplitudes The array of all modulation amplitudes as set in LFOController::getModulationAmplitudes.
-  // Can be nullptr, in which case the unmodulated base value is returned.
-  const float get(double* modulationAmplitudes) {
-    if (modulationAmplitudes == nullptr)
-   { return base; }
-
-    float currentValue = base;
-    for (int idx : modIndices)
-    {
-      currentValue += modulationAmplitudes[idx];
-    }
-
-    currentValue = (currentValue > maxValue) ? maxValue : (currentValue < minValue) ? minValue : currentValue;
-    return currentValue;
-  }
-
-  // Serializes the ModulatedParameter state.
-  //
-  // Saves:
-  // - base value
-  // - number of LFOs linked to this point
-  // - the LFO link index of each link
-  void serializeState(IByteChunk& chunk) const
-  {
-    chunk.Put(&base);
-
-    int numLinks = modIndices.size();
-    chunk.Put(&numLinks);
-    for (int idx : modIndices)
-    {
-      chunk.Put(&idx);
-    }
-  }
-
-  // Unserializes the ModulatedParameter state from an IByteChunk object.
-  // * @return The new chunk position
-  int unserializeState(const IByteChunk& chunk, int startPos, int version)
-  {
-    startPos = chunk.Get(&base, startPos);
-    int numLinks = 0;
-    startPos = chunk.Get(&numLinks, startPos);
-
-    int linkIdx = 0;
-    for (int i = 0; i < numLinks; i++)
-    {
-      startPos = chunk.Get(&linkIdx, startPos);
-      modIndices.insert(linkIdx);
-    }
-    return startPos;
-  }
-};
-
-
-class ShapePoint
-{
-public:
-  // parameters of the parent ShapeEditor:
-  
-  // Position and size of parent shapeEditor. Points must stay inside these coordinates.
-  IRECT rect;
-
-  // Parameters of the point:
-  
-  // Relative x-position on the graph, 0 <= posX <= 1.
-  ModulatedParameter posX;
-
-  // Relative y-position on the graph, 0 <= posY <= 1.
-  ModulatedParameter posY;
-
-  // Pointer to the previous ShapePont.
-  ShapePoint* previous = nullptr;
-
-  // Pointer to the next ShapePoint.
-  ShapePoint* next = nullptr;
-
-  // Parameters of the curve segment:
-  // Omega after last update.
-  float sineOmegaPrevious;
-
-  // Omega for the shapeSine interpolation mode.
-  float sineOmega;
-
-  // Interpolation mode between this and the previous point.
-  Shapes mode = shapePower;
-
-  // Relative y-value of the curve at the x-center point between this and the previous point.
-  ModulatedParameter curveCenterPosY;
-
-  // The parent ShapeEditor will highlight this point or curve center point if highlightMode is not modNone.
-  // modPosX and modPosY highlight the point itself, modCurveCenterY highlight the curve center.
-  modulationMode highlightMode = modNone;
-
-  // Construct a ShapePoint.
-  // 
-  // * @param x Normalized x-position of the point on the parent editor graph
-  // * @param y Normalized y-position of the point on the parent editor graph
-  // * @param editorRect Area of the parent editor on the UI
-  // * @param parentIdx Index of the parent editor
-  // * @param pow Initial power value
-  // * @param omega Inital omega value
-  // * @param initMode Initial curve segment interpolation mode
-  ShapePoint(float x, float y, IRECT editorRect, float pow = 1, float omega = 0.5, Shapes initMode = shapePower)
-    : posX(modPosX, x, 0)
-    , posY(modPosY, y, 0)
-    , curveCenterPosY(modCurveCenterY, std::pow(0.5, pow), 0)
-  {
-    assert((0 <= x) && (x <= 1) && (0 <= y) && (y <= 1));
-
-    rect = editorRect;
-    mode = initMode;
-    sineOmega = omega;
-    sineOmegaPrevious = omega;
-  }
-
-  // Sets relative positions posX and posY such that the absolute positions are equal to the input x and y.
-  // Updates the curve center.
-  void updatePositionAbsolute(float x, float y)
-  {
-    // Move the modulatable relative parameters to the corresponding positions.
-    posX.set((x - rect.L) / rect.W());
-    posY.set((rect.B - y) / rect.H());
-  }
-
-  // get-functions for parameters that are dependent on a ModulatedParameter and have to recalculated each time
-  // they are used:
-
-  // Returns the relative x-position of this point.
-  // * @param modulationAmplitudes Pointer to an array of modulation amplitudes. Can be nullptr, in which case
-  // the unmmodulated value is returned.
-  // * @param lowerBound If the parameter is modulated, it can not move below this x-value. Effectively makes
-  // modulated points push their neighbors to the right.
-  const float getPosX(double* modulationAmplitudes = nullptr, float lowerBound = 0)
-  {
-    // Rightmost point must always be at x = 1;
-    if (next == nullptr)
-    {
-      return 1;
-    }
-
-    else
-    {
-      float x = posX.get(modulationAmplitudes);
-      return (x < lowerBound) ? lowerBound : x;
-    }
-  }
-
-  // Returns the relative y-position of the point.
-  const float getPosY(double* modulationAmplitudes = nullptr)
-  {
-    return posY.get(modulationAmplitudes);
-  }
-
-  // Calculates the absolute x-position of the point on the GUI from the relative position posX.
-  const float getAbsPosX(double* modulationAmplitudes = nullptr, float lowerBound = 0)
-  {
-    return rect.L + getPosX(modulationAmplitudes, lowerBound) * rect.W();
-  }
-
-  // Calculates the absolute y-position of the point on the GUI from the relative position posY.
-  const float getAbsPosY(double* modulationAmplitudes = nullptr)
-  {
-    // By convention, absolute position is inversely related to posY.
-    return rect.B - getPosY(modulationAmplitudes) * rect.H();
-  }
-
-  // Calculates the absolute x-position of the curve center associated with this point.
-  const float getCurveCenterAbsPosX(double* modulationAmplitudes = nullptr, float lowerBound = 0.f, float lowerBoundPrevious = 0.f)
-  {
-    return (getAbsPosX(modulationAmplitudes, lowerBound) + previous->getAbsPosX(modulationAmplitudes, lowerBoundPrevious)) / 2;
-  }
-
-  // Calculates the absolute y-position of the curve center associated with this point.
-  const float getCurveCenterAbsPosY(double* modulationAmplitudes = nullptr)
-  {
-    float y = getAbsPosY(modulationAmplitudes);
-    float yL = previous->getAbsPosY(modulationAmplitudes);
-    float curveCenterY = curveCenterPosY.get(modulationAmplitudes);
-
-    float yExtent = y - yL;
-
-    return yL + curveCenterY * yExtent;
-  }
-
-  // Update the Curve center point when manually dragging it.
-  void updateCurveCenter(float x, float y)
-  {
-    // Nothing to update if curve segment is flat.
-    if (previous->getAbsPosY() == getAbsPosY()) return;
-
-    switch (mode)
-    {
-    case shapePower: {
-      float yL = previous->getAbsPosY();
-
-      float yMin = (yL > getAbsPosY()) ? getAbsPosY() : yL;
-      float yMax = (yL < getAbsPosY()) ? getAbsPosY() : yL;
-
-      // y must not be yMax or yMin, else there will be a log(0). set y to be at least one pixel off of
-      // these values.
-      y = (y >= yMax) ? yMax - 1 : (y <= yMin) ? yMin + 1 : y;
-
-      float test = yL - y / yL - getAbsPosY();
-      curveCenterPosY.set((yL - y) / (yL - getAbsPosY()));
-      break;
-    }
-
-    case shapeSine: {
-      // For shapeSine the center point stays at the same position, while the sineOmega value is
-      // still updated when moving the mouse in y-direction. Sine wave will always go through this
-      // point. When omega is smaller 0.5, the sine will smoothly connect the points, if larger 0.5,
-      // it will be increased in discrete steps, such that always n + 1/2 cycles lay in the interval
-      // between the points.
-
-      // TODO fix this.
-      // if (sineOmega <= 0.5){
-      //     sineOmega = sineOmegaPrevious * pow(0.5, (float)(y - getCurveCenterAbsPosY()) / 50);
-      //     sineOmega = (sineOmega < SHAPE_MIN_OMEGA) ? SHAPE_MIN_OMEGA : sineOmega;
-      // } else {
-      //     // TODO if shift or strg or smth is pressed, be continuous
-      //     sineOmega = sineOmegaPrevious + ((getCurveCenterAbsPosY() - y) / 40);
-      //     sineOmega -= (int32_t)sineOmega % 2;
-      // }
-      break;
-    }
-    }
-  }
-
-  void processLeftClick()
-  {
-    // Save the previous omega state.
-    sineOmegaPrevious = sineOmega;
-  }
-
-  // Serializes the ShapePoint state.
-  void serializeState(IByteChunk& chunk) const
-  {
-    chunk.Put(&mode);
-    posX.serializeState(chunk);
-    posY.serializeState(chunk);
-    curveCenterPosY.serializeState(chunk);
-    chunk.Put(&sineOmega);
-  }
-
-  // Unserialize the ShapePoint state.
-  // * @return The new chunk position
-  int unserializeState(const IByteChunk& chunk, int startPos, int version)
-  {
-    if (version == 0x00000000)
-    {
-      startPos = chunk.Get(&mode, startPos);
-      startPos = posX.unserializeState(chunk, startPos, version);
-      startPos = posY.unserializeState(chunk, startPos, version);
-      startPos = curveCenterPosY.unserializeState(chunk, startPos, version);
-      startPos = chunk.Get(&sineOmega, startPos);
-    }
-    return startPos;
-  }
-};
-
-// Deletes the given ShapePoint and connects this points previous and next point in the list.
-static void deleteShapePoint(ShapePoint* point)
-{
-  if (point->previous == nullptr)
-  {
-    throw std::invalid_argument("Tried to delete the first ShapePoint which can not be deleted.");
-  }
-  if (point->next == nullptr)
-  {
-    throw std::invalid_argument("Tried to delete the last ShapePoint which can not be deleted.");
-  }
-
-  // Link the new neighboring points together.
-  ShapePoint* previous = point->previous;
-  ShapePoint* next = point->next;
-
-  previous->next = next;
-  next->previous = previous;
-
-  delete point;
+  int previousSize = modIndices.size();
+  modIndices.insert(idx);
+  return previousSize != modIndices.size();
 }
 
-// Inserts the ShapePoint *point into the linked list before *next.
-static void insertPointBefore(ShapePoint* next, ShapePoint* point)
+void ModulatedParameter::getModulators(std::set<int>& mods) const
 {
-  if (next->previous == nullptr)
+  for (int mod : modIndices)
   {
-    throw std::invalid_argument("Tried to insert shapePoint before first point, which is not allowed.");
+    mods.insert(mod);
+  }
+}
+
+void ModulatedParameter::removeModulator(int idx) { modIndices.erase(idx); }
+
+void ModulatedParameter::set(float newValue)
+{
+  base = (newValue < minValue) ? minValue : newValue;
+  base = (newValue > maxValue) ? maxValue : newValue;
+}
+
+float ModulatedParameter::get(double* modulationAmplitudes) const
+{
+  if (modulationAmplitudes == nullptr)
+  { return base; }
+
+  float currentValue = base;
+  for (int idx : modIndices)
+  {
+    currentValue += modulationAmplitudes[idx];
   }
 
-  ShapePoint* previous = next->previous;
+  currentValue = (currentValue > maxValue) ? maxValue : (currentValue < minValue) ? minValue : currentValue;
+  return currentValue;
+}
 
-  previous->next = point;
-  point->previous = previous;
+void ModulatedParameter::serializeState(IByteChunk& chunk) const
+{
+  chunk.Put(&base);
 
-  point->next = next;
-  next->previous = point;
+  int numLinks = modIndices.size();
+  chunk.Put(&numLinks);
+  for (int idx : modIndices)
+  {
+    chunk.Put(&idx);
+  }
+}
+
+int ModulatedParameter::unserializeState(const IByteChunk& chunk, int startPos, int version)
+{
+  startPos = chunk.Get(&base, startPos);
+  int numLinks = 0;
+  startPos = chunk.Get(&numLinks, startPos);
+
+  int linkIdx = 0;
+  for (int i = 0; i < numLinks; i++)
+  {
+    startPos = chunk.Get(&linkIdx, startPos);
+    modIndices.insert(linkIdx);
+  }
+  return startPos;
+}
+
+ShapePoint::ShapePoint(float x, float y, IRECT editorRect, float pow, float omega, Shapes initMode)
+: posX(x)
+, posY(y)
+, curveCenterPosY(std::pow(0.5, pow))
+{
+  assert((0 <= x) && (x <= 1) && (0 <= y) && (y <= 1));
+
+  rect = editorRect;
+  mode = initMode;
+  sineOmega = omega;
+  sineOmegaPrevious = omega;
+}
+
+void ShapePoint::updatePositionAbsolute(float x, float y)
+{
+  // Move the modulatable relative parameters to the corresponding positions.
+  posX.set((x - rect.L) / rect.W());
+  posY.set((rect.B - y) / rect.H());
+}
+
+float ShapePoint::getPosX(double* modulationAmplitudes, float lowerBound) const
+{
+  float x = posX.get(modulationAmplitudes);
+  return (x < lowerBound) ? lowerBound : x;
+}
+
+float ShapePoint::getPosY(double* modulationAmplitudes) const
+{
+  return posY.get(modulationAmplitudes);
+}
+
+float ShapePoint::getAbsPosX(double* modulationAmplitudes, float lowerBound) const
+{
+  return rect.L + getPosX(modulationAmplitudes, lowerBound) * rect.W();
+}
+
+float ShapePoint::getAbsPosY(double* modulationAmplitudes) const
+{
+  // By convention, absolute position is inversely related to posY.
+  return rect.B - getPosY(modulationAmplitudes) * rect.H();
+}
+
+float ShapePoint::getCurveCenterAbsPosY(float previousY, double* modulationAmplitudes) const
+{
+  float y = getAbsPosY(modulationAmplitudes);
+  float curveCenterY = curveCenterPosY.get(modulationAmplitudes);
+  float yExtent = y - previousY;
+  return previousY + curveCenterY * yExtent;
+}
+
+void ShapePoint::updateCurveCenter(float x, float y, float previousY)
+{
+  // Nothing to update if curve segment is flat.
+  if (previousY == getAbsPosY()) return;
+
+  switch (mode)
+  {
+  case shapePower: {
+    float yMin = (previousY > getAbsPosY()) ? getAbsPosY() : previousY;
+    float yMax = (previousY < getAbsPosY()) ? getAbsPosY() : previousY;
+
+    // y must not be yMax or yMin, else there will be a log(0). set y to be at least one pixel off of
+    // these values.
+    y = (y >= yMax) ? yMax - 1 : (y <= yMin) ? yMin + 1 : y;
+
+    float test = previousY - y / previousY - getAbsPosY();
+    curveCenterPosY.set((previousY - y) / (previousY - getAbsPosY()));
+    break;
+  }
+
+  case shapeSine: {
+    // For shapeSine the center point stays at the same position, while the sineOmega value is
+    // still updated when moving the mouse in y-direction. Sine wave will always go through this
+    // point. When omega is smaller 0.5, the sine will smoothly connect the points, if larger 0.5,
+    // it will be increased in discrete steps, such that always n + 1/2 cycles lay in the interval
+    // between the points.
+
+    // TODO fix this.
+    // if (sineOmega <= 0.5){
+    //     sineOmega = sineOmegaPrevious * pow(0.5, (float)(y - getCurveCenterAbsPosY()) / 50);
+    //     sineOmega = (sineOmega < SHAPE_MIN_OMEGA) ? SHAPE_MIN_OMEGA : sineOmega;
+    // } else {
+    //     // TODO if shift or strg or smth is pressed, be continuous
+    //     sineOmega = sineOmegaPrevious + ((getCurveCenterAbsPosY() - y) / 40);
+    //     sineOmega -= (int32_t)sineOmega % 2;
+    // }
+    break;
+  }
+  }
+}
+
+void ShapePoint::processLeftClick()
+{
+  // Save the previous omega state.
+  sineOmegaPrevious = sineOmega;
+}
+
+// Serializes the ShapePoint state.
+void ShapePoint::serializeState(IByteChunk& chunk) const
+{
+  chunk.Put(&mode);
+  posX.serializeState(chunk);
+  posY.serializeState(chunk);
+  curveCenterPosY.serializeState(chunk);
+  chunk.Put(&sineOmega);
+}
+
+// Unserialize the ShapePoint state.
+// * @return The new chunk position
+int ShapePoint::unserializeState(const IByteChunk& chunk, int startPos, int version)
+{
+  if (version == 0x00000000)
+  {
+    startPos = chunk.Get(&mode, startPos);
+    startPos = posX.unserializeState(chunk, startPos, version);
+    startPos = posY.unserializeState(chunk, startPos, version);
+    startPos = curveCenterPosY.unserializeState(chunk, startPos, version);
+    startPos = chunk.Get(&sineOmega, startPos);
+  }
+  return startPos;
 }
 
 ShapeEditor::ShapeEditor(IRECT rect, float GUIWidth, float GUIHeight, int shapeEditorIndex)
@@ -395,26 +219,11 @@ ShapeEditor::ShapeEditor(IRECT rect, float GUIWidth, float GUIHeight, int shapeE
   // to assure f(0) = 0. The last ShapePoint at x=1 may be moved, but only in y-direction.
   // None of these points can be removed to assure that the function is always well defined
   // on the interval [0, 1].
-  shapePoints = new ShapePoint(0., 0., layout.editorRect);
-  shapePoints->next = new ShapePoint(1., 1., layout.editorRect);
-
-  shapePoints->next->previous = shapePoints;
+  shapePoints.emplace_back(0., 0., layout.editorRect);
+  shapePoints.emplace_back(1., 1., layout.editorRect);
 }
 
-ShapeEditor::~ShapeEditor()
-{
-  ShapePoint* current = shapePoints;
-  ShapePoint* next;
-
-  while (current != nullptr)
-  {
-    next = current->next;
-    delete current;
-    current = next;
-  }
-}
-
-ShapePoint* ShapeEditor::getClosestPoint(float x, float y, float minimumDistance)
+int ShapeEditor::getClosestPoint(float x, float y, float minimumDistance)
 {
   // TODO i think it might be a better user experience if points always give visual feedback if the mouse is hovering over them.
 
@@ -425,130 +234,112 @@ ShapePoint* ShapeEditor::getClosestPoint(float x, float y, float minimumDistance
   // The distance to the closest point, initialized as an arbitrary big number.
   float closestDistance = 10E6;
 
-  // Pointer to the closest ShapePoint.
-  ShapePoint* closestPoint;
+  // Index of the closest ShapePoint.
+  int closestPointIdx = -1;
 
   // Distance to the closest point.
   float distance;
 
-  for (ShapePoint* point = shapePoints->next; point != nullptr; point = point->next)
+  for (int i = 1; i < shapePoints.size(); i++)
   {
-    distance = (point->getAbsPosX() - x) * (point->getAbsPosX() - x) + (point->getAbsPosY() - y) * (point->getAbsPosY() - y);
+    ShapePoint point = shapePoints.at(i);
+    distance = (point.getAbsPosX() - x) * (point.getAbsPosX() - x) + (point.getAbsPosY() - y) * (point.getAbsPosY() - y);
     if (distance < closestDistance)
     {
       closestDistance = distance;
-      closestPoint = point;
+      closestPointIdx = i;
       currentEditMode = position;
     }
 
-    distance = (point->getCurveCenterAbsPosX() - x) * (point->getCurveCenterAbsPosX() - x) + (point->getCurveCenterAbsPosY() - y) * (point->getCurveCenterAbsPosY() - y);
+    float curveCenterPosX = (point.getAbsPosX() + shapePoints.at(i - 1).getAbsPosX()) / 2;
+    float previousY = shapePoints.at(i - 1).getAbsPosY();
+    distance = (curveCenterPosX - x) * (curveCenterPosX - x) + (point.getCurveCenterAbsPosY(previousY) - y) * (point.getCurveCenterAbsPosY(previousY) - y);
     if (distance < closestDistance)
     {
       closestDistance = distance;
-      closestPoint = point;
+      closestPointIdx = i;
       currentEditMode = curveCenter;
     }
   }
 
-  if (closestDistance <= minimumDistance)
-  {
-    return closestPoint;
-  }
-  else
+  if (closestDistance > minimumDistance)
   {
     currentEditMode = none;
-    return nullptr;
   }
+  return closestPointIdx;
 }
 
 void ShapeEditor::deleteSelectedPoint()
 {
-  // Do not delete point if next is nullptr, i.e. the last point.
-  if (rightClicked->next)
+  // Do not delete point if it is the last point.
+  if (rightClickedIdx < shapePoints.size() - 1)
   {
-    deleteShapePoint(rightClicked);
-    deletedPoint = rightClicked;
-    rightClicked = nullptr;
+    shapePoints.erase(shapePoints.begin() + rightClickedIdx);
+    rightClickedIdx = -1;
   }
-}
-
-ShapePoint* ShapeEditor::getDeletedPoint()
-{
-  ShapePoint* deleted = deletedPoint;
-  deletedPoint = nullptr;
-  return deleted;
 }
 
 void ShapeEditor::processLeftClick(float x, float y)
 {
-  currentlyDragging = getClosestPoint(x, y);
+  currentlyDraggingIdx = getClosestPoint(x, y);
 
-  if (currentlyDragging != nullptr)
+  if (currentlyDraggingIdx != -1)
   {
-    currentlyDragging->processLeftClick();
+    shapePoints.at(currentlyDraggingIdx).processLeftClick();
   }
 }
 
 void ShapeEditor::processDoubleClick(float x, float y)
 {
-  ShapePoint* closestPoint = getClosestPoint(x, y);
+  int closestPointIdx = getClosestPoint(x, y);
 
-  if (closestPoint == nullptr) return;
-
-  // Delete point if double click was performed close to point.
-  if (currentEditMode == position && closestPoint->next != nullptr)
-  {
-    deleteShapePoint(closestPoint);
-    deletedPoint = closestPoint;
-    return;
-  }
+  if (closestPointIdx == -1) return;
 
   // Reset interpolation shape if double click was performed close to curve center.
-  else if (currentEditMode == curveCenter)
+  if (currentEditMode == curveCenter)
   {
-    if (closestPoint->mode == shapePower)
+    if (shapePoints.at(closestPointIdx).mode == shapePower)
     {
-      closestPoint->curveCenterPosY.set(0.5);
+      shapePoints.at(closestPointIdx).curveCenterPosY.set(0.5);
     }
-    else if (closestPoint->mode == shapeSine)
+    else if (shapePoints.at(closestPointIdx).mode == shapeSine)
     {
-      closestPoint->sineOmega = 0.5;
-      closestPoint->sineOmegaPrevious = 0.5;
+      shapePoints.at(closestPointIdx).sineOmega = 0.5;
+      shapePoints.at(closestPointIdx).sineOmegaPrevious = 0.5;
     }
-    deletedPoint = nullptr;
     return;
   }
 }
 
 bool ShapeEditor::processRightClick(float x, float y)
 {
-  ShapePoint* closestPoint = getClosestPoint(x, y);
+  int closestPointIdx = getClosestPoint(x, y);
 
   // If not rightclicked in proximity of point, add one.
-  if (closestPoint == nullptr)
+  if (closestPointIdx == -1)
   {
     // Check if point lies inside the editor.
     if (!layout.editorRect.Contains(x, y)) return false;
 
-    ShapePoint* insertBefore = shapePoints->next;
-    while (insertBefore != nullptr)
+    // Find the index at which to insert the point into shapePoints.
+    int insertIdx = 1;
+    while (insertIdx < shapePoints.size())
     {
-      if (insertBefore->getAbsPosX() >= x)
+      if (shapePoints.at(insertIdx).getAbsPosX() >= x)
       {
         break;
       }
-      insertBefore = insertBefore->next;
+      insertIdx += 1;
     }
 
     float newPointX = (x - layout.editorRect.L) / layout.editorRect.W();
     float newPointY = (layout.editorRect.B - y) / layout.editorRect.H();
 
-    ShapePoint* newPoint = new ShapePoint(newPointX, newPointY, layout.editorRect);
-    insertPointBefore(insertBefore, newPoint);
+    shapePoints.emplace(shapePoints.begin() + insertIdx, newPointX, newPointY, layout.editorRect);
 
     // Set the point as currently dragged point so the user can immediately adjust
     // the position after adding the point.
-    currentlyDragging = newPoint;
+    currentlyDraggingIdx = insertIdx;
     currentEditMode = position;
   }
 
@@ -556,26 +347,26 @@ bool ShapeEditor::processRightClick(float x, float y)
   {
     // You can not drag using the right mouse button.
     // Only exception is after creating a new ShapePoint (see above).
-    currentlyDragging = nullptr;
+    currentlyDraggingIdx = -1;
 
     // If rightclicked on point, show shape menu to change function of curve segment.
     if (currentEditMode == position)
     {
-      rightClicked = closestPoint;
+      rightClickedIdx = closestPointIdx;
       return true;
     }
 
     // If rightclicked on curve center, reset interpolation shape.
     if (currentEditMode == curveCenter)
     {
-      if (closestPoint->mode == shapePower)
+      if (shapePoints.at(closestPointIdx).mode == shapePower)
       {
-        closestPoint->curveCenterPosY.set(0.5);
+        shapePoints.at(closestPointIdx).curveCenterPosY.set(0.5);
       }
-      else if (closestPoint->mode == shapeSine)
+      else if (shapePoints.at(closestPointIdx).mode == shapeSine)
       {
-        closestPoint->sineOmega = 0.5;
-        closestPoint->sineOmegaPrevious = 0.5;
+        shapePoints.at(closestPointIdx).sineOmega = 0.5;
+        shapePoints.at(closestPointIdx).sineOmegaPrevious = 0.5;
       }
     }
   }
@@ -584,37 +375,38 @@ bool ShapeEditor::processRightClick(float x, float y)
 
 void ShapeEditor::setInterpolationMode(Shapes shape)
 {
-  rightClicked->mode = shape;
-  rightClicked = nullptr;
+  shapePoints.at(rightClickedIdx).mode = shape;
+  rightClickedIdx = -1;
 }
 
 void ShapeEditor::processMouseDrag(float x, float y)
 {
-  if (!currentlyDragging) return;
+  if (currentlyDraggingIdx == -1) return;
 
   if (currentEditMode == position)
   {
     // The rightmost point must not move in x-direction.
-    if (currentlyDragging->next == nullptr)
+    if (currentlyDraggingIdx == shapePoints.size() - 1)
     {
       x = layout.editorRect.R;
       y = (y > layout.editorRect.B) ? layout.editorRect.B : (y < layout.editorRect.T) ? layout.editorRect.T : y;
-      currentlyDragging->updatePositionAbsolute(x, y);
+      shapePoints.at(currentlyDraggingIdx).updatePositionAbsolute(x, y);
       return;
     }
 
-    int32_t xLowerLim = currentlyDragging->previous->getAbsPosX();
-    int32_t xUpperLim = currentlyDragging->next->getAbsPosX();
+    int xLowerLim = shapePoints.at(currentlyDraggingIdx - 1).getAbsPosX();
+    int xUpperLim = shapePoints.at(currentlyDraggingIdx + 1).getAbsPosX();
 
     x = (x > xUpperLim) ? xUpperLim : (x < xLowerLim) ? xLowerLim : x;
     y = (y > layout.editorRect.B) ? layout.editorRect.B : (y < layout.editorRect.T) ? layout.editorRect.T : y;
 
-    currentlyDragging->updatePositionAbsolute(x, y);
+    shapePoints.at(currentlyDraggingIdx).updatePositionAbsolute(x, y);
   }
 
   else if (currentEditMode == curveCenter)
   {
-    currentlyDragging->updateCurveCenter(x, y);
+    float previousY = shapePoints.at(currentlyDraggingIdx - 1).getAbsPosY();
+    shapePoints.at(currentlyDraggingIdx).updateCurveCenter(x, y, previousY);
   }
 }
 
@@ -632,7 +424,7 @@ const float ShapeEditor::forward(float input, double* modulationAmplitudes)
 
   input = (input > 1) ? 1 : input;
 
-  ShapePoint* point = shapePoints->next;
+  int idx = 1;
 
   // Find the curve segment concerned by the input.
   // It is defined by two ShapePoints. To calculate their x-position,
@@ -640,25 +432,25 @@ const float ShapeEditor::forward(float input, double* modulationAmplitudes)
   // lower bound.
   float lowerBoundPrevious = 0;
   float lowerBound = 0;
-  while (point->getPosX(modulationAmplitudes, lowerBound) < input)
+  while (shapePoints.at(idx).getPosX(modulationAmplitudes, lowerBound) < input)
   {
     lowerBoundPrevious = lowerBound;
-    lowerBound = point->getPosX(modulationAmplitudes, lowerBound);
-    point = point->next;
+    lowerBound = shapePoints.at(idx).getPosX(modulationAmplitudes, lowerBound);
+    idx += 1;
   }
 
-  switch (point->mode)
+  switch (shapePoints.at(idx).mode)
   {
   case shapePower: {
-    float xL = point->previous->getPosX(modulationAmplitudes, lowerBoundPrevious);
-    float yL = point->previous->getPosY(modulationAmplitudes);
-    float x = point->getPosX(modulationAmplitudes, lowerBound);
+    float xL = shapePoints.at(idx - 1).getPosX(modulationAmplitudes, lowerBoundPrevious);
+    float yL = shapePoints.at(idx - 1).getPosY(modulationAmplitudes);
+    float x = shapePoints.at(idx).getPosX(modulationAmplitudes, lowerBound);
 
     // Compute relative x-position inside the curve segment, relative "height" of the curve segment and power
     // corresponding to the current curve cenetr position.
     float relX = (x == xL) ? xL : (input - xL) / (x - xL);
-    float segmentYExtent = (point->getPosY(modulationAmplitudes) - yL);
-    float power = getPowerFromPosY(point->curveCenterPosY.get(modulationAmplitudes));
+    float segmentYExtent = (shapePoints.at(idx).getPosY(modulationAmplitudes) - yL);
+    float power = getPowerFromPosY(shapePoints.at(idx).curveCenterPosY.get(modulationAmplitudes));
 
     if (power > 0)
     {
@@ -666,7 +458,7 @@ const float ShapeEditor::forward(float input, double* modulationAmplitudes)
     }
     else
     {
-      out = point->getPosY(modulationAmplitudes) - pow(1 - relX, -power) * segmentYExtent;
+      out = shapePoints.at(idx).getPosY(modulationAmplitudes) - pow(1 - relX, -power) * segmentYExtent;
     }
     break;
   }
@@ -692,65 +484,63 @@ void ShapeEditor::disconnectLink(int linkIdx)
 {
   // Remove the link from the connected ModulatedParameter by removing it from
   // all ModulatedParameters. This could be improved.
-  ShapePoint* point = shapePoints->next;
-  while (point)
+  for ( int i = 1; i < shapePoints.size(); i++)
   {
-    point->posX.removeModulator(linkIdx);
-    point->posY.removeModulator(linkIdx);
-    point->curveCenterPosY.removeModulator(linkIdx);
-    point = point->next;
+    shapePoints.at(i).posX.removeModulator(linkIdx);
+    shapePoints.at(i).posY.removeModulator(linkIdx);
+    shapePoints.at(i).curveCenterPosY.removeModulator(linkIdx);
   }
 }
 
-void ShapeEditor::getLinks(std::set<int>& links) const
+void ShapeEditor::getLinks(std::set<int>& links)
 {
-  ShapePoint* point = shapePoints->next;
-  while (point)
+  for (int i = 1; i < shapePoints.size(); i++)
   {
-    point->posX.getModulators(links);
-    point->posY.getModulators(links);
-    point->curveCenterPosY.getModulators(links);
-    point = point->next;
+    shapePoints.at(i).posX.getModulators(links);
+    shapePoints.at(i).posY.getModulators(links);
+    shapePoints.at(i).curveCenterPosY.getModulators(links);
   }
 }
 
 void ShapeEditor::insertPointAt(float x, float y)
 {
-  ShapePoint* point = shapePoints;
-  while (point && point->posX.get(nullptr) < x)
+  // If any of the following still tracks a point, the index will be invalid
+  // after adding a point.
+  assert(currentlyDraggingIdx == -1);
+  assert(rightClickedIdx == -1);
+
+  int idx = -1;
+  for (int i = 1; i < shapePoints.size(); i++)
   {
-    point = point->next;
+    if (shapePoints.at(i).posX.get(nullptr) >= x)
+    {
+      idx = i;
+      break;
+    }
   }
-  insertPointBefore(point, new ShapePoint(x, y, layout.editorRect));
+  shapePoints.emplace(shapePoints.begin() + idx, x, y, layout.editorRect);
 }
 
 // Saves the ShapeEditor state to the IByteChunk object.
 // First saves the number of ShapePoints as an int and then saves:
-//  - (float)   point x-position
-//  - (float)   point y-position
-//  - (float)   point curve center y-position
 //  - (Shapes)  point interpolation mode
+//  - (float)   point x-position and modulation links
+//  - (float)   point y-position and modulation links
+//  - (float)   point curve center y-position and modulation links
 //  - (float)   point omega value
 //
 // for every ShapePoint. These values describe the ShapeEditor state entirely.
 bool ShapeEditor::serializeState(IByteChunk& chunk) const
 {
-  ShapePoint* point = shapePoints->next;
-
-  int numberPoints = 0;
-  while (point != nullptr)
-  {
-    point = point->next;
-    numberPoints++;
-  }
+  // The number of points to save. The first point in the vector is always at (0, 0) and does not have to be saved.
+  int numberPoints = shapePoints.size() - 1;
 
   chunk.Put(&numberPoints);
 
-  point = shapePoints->next;
-  while (point != nullptr)
+  //for (ShapePoint point : shapePoints)
+  for (int i = 0; i < numberPoints; i++)
   {
-    point->serializeState(chunk);
-    point = point->next;
+    shapePoints.at(i + 1).serializeState(chunk);
   }
   return true;
 }
@@ -768,23 +558,17 @@ int ShapeEditor::unserializeState(const IByteChunk& chunk, int startPos, int ver
     int numberPoints;
     startPos = chunk.Get(&numberPoints, startPos);
 
-    ShapePoint* last = shapePoints->next;
+    shapePoints.reserve(numberPoints);
 
     for (int i = 0; i < numberPoints; i++)
     {
       if (i != numberPoints - 1)
       {
-        // Instantiate with dummy parameters, unserialize after instantiation.
-        ShapePoint* newPoint = new ShapePoint(0.f, 0.f, layout.editorRect);
-        startPos = newPoint->unserializeState(chunk, startPos, version);
-        insertPointBefore(last, newPoint);
+        // Add new points unless the last point is reached, which was already created at instantiation
+        // of this ShapeEditor.
+        shapePoints.emplace(shapePoints.end() - 1, 0.f, 0.f, layout.editorRect);
       }
-      else
-      {
-        // The last point is created when ShapeEditor is initialized, so it does not have to be added.
-        // Only set the attribute values.
-        startPos = last->unserializeState(chunk, startPos, version);
-      }
+      startPos = shapePoints.at(i + 1).unserializeState(chunk, startPos, version);
     }
     return startPos;
   }
@@ -857,18 +641,18 @@ void ShapeEditorControl::Draw(IGraphics& g)
     // Draw the ShapePoints on top of the graph.
     float lowerBound = 0;
     float lowerBoundPrevious = 0;
-    ShapePoint* point = editor->shapePoints->next;
-    while (point != nullptr)
+    for (int i = 1; i < editor->shapePoints.size(); i++)
     {
+      ShapePoint point = editor->shapePoints.at(i);
       lowerBoundPrevious = lowerBound;
-      lowerBound = point->getPosX(modulationAmplitudes, lowerBound);
-      float posX = point->getAbsPosX(modulationAmplitudes, lowerBound);
-      float posY = point->getAbsPosY(modulationAmplitudes);
-      float curveCenterPosX = point->getCurveCenterAbsPosX(modulationAmplitudes, lowerBound, lowerBoundPrevious);
-      float curveCenterPosY = point->getCurveCenterAbsPosY(modulationAmplitudes);
+      float lowerBoundNext = point.getPosX(modulationAmplitudes, lowerBound);
+      float posX = point.getAbsPosX(modulationAmplitudes, lowerBound);
+      float posY = point.getAbsPosY(modulationAmplitudes);
+      float curveCenterPosX = (point.getAbsPosX(modulationAmplitudes, lowerBound) + editor->shapePoints.at(i - 1).getAbsPosX(modulationAmplitudes, lowerBound)) / 2;
+      float curveCenterPosY = point.getCurveCenterAbsPosY(editor->shapePoints.at(i - 1).getAbsPosY(modulationAmplitudes), modulationAmplitudes);
       g.FillCircle(UDS_WHITE, posX, posY, POINT_SIZE);
       g.FillCircle(UDS_WHITE, curveCenterPosX, curveCenterPosY, POINT_SIZE_SMALL);
-      point = point->next;
+      lowerBound = lowerBoundNext;
     }
   };
 
@@ -947,14 +731,14 @@ void ShapeEditorControl::OnPopupMenuSelection(IPopupMenu* pSelectedMenu, int val
     int item = pSelectedMenu->GetChosenItemIdx();
     if (item == 0)
     {
-      if (modPoint->posX.addModulator(modIdx))
+      if (editor->shapePoints.at(modPointIdx).posX.addModulator(modIdx))
       {
         GetUI()->GetDelegate()->SendArbitraryMsgFromUI(EControlMsg::LFOConnectSuccess, GetTag(), sizeof(modIdx), &modIdx);
       }
     }
     else if (item == 1)
     {
-      if (modPoint->posY.addModulator(modIdx))
+      if (editor->shapePoints.at(modPointIdx).posY.addModulator(modIdx))
       {
         GetUI()->GetDelegate()->SendArbitraryMsgFromUI(EControlMsg::LFOConnectSuccess, GetTag(), sizeof(modIdx), &modIdx);
       }
@@ -963,7 +747,7 @@ void ShapeEditorControl::OnPopupMenuSelection(IPopupMenu* pSelectedMenu, int val
   else if (!pSelectedMenu)
   {
     // Reset temporary variables concerning menuMod.
-    modPoint = nullptr;
+    modPointIdx = -1;
     modIdx = -1;
   }
 }
@@ -974,14 +758,14 @@ void ShapeEditorControl::OnMsgFromDelegate(int msgTag, int dataSize, const void*
   if (msgTag == EControlMsg::LFOAttemptConnect)
   {
     LFOConnectInfo info = *static_cast<const LFOConnectInfo*>(pData);
-    ShapePoint* point = editor->getClosestPoint(info.x, info.y);
+    int closestPointIdx = editor->getClosestPoint(info.x, info.y);
 
-    if (point != nullptr)
+    if (closestPointIdx != -1)
     {
       if (editor->currentEditMode == curveCenter)
       {
         // If the connect was successfull send a response message to update the LFO UI.
-        if (point->curveCenterPosY.addModulator(info.idx))
+        if (editor->shapePoints.at(closestPointIdx).curveCenterPosY.addModulator(info.idx))
         {
           GetUI()->GetDelegate()->SendArbitraryMsgFromUI(EControlMsg::LFOConnectSuccess, GetTag(), sizeof(info.idx), &info.idx);
         }
@@ -989,7 +773,7 @@ void ShapeEditorControl::OnMsgFromDelegate(int msgTag, int dataSize, const void*
       else
       {
         // Store point and index to later access them when the menu selection is processed.
-        modPoint = point;
+        modPointIdx = closestPointIdx;
         modIdx = info.idx;
         GetUI()->CreatePopupMenu(*this, menuMod, IRECT(info.x, info.y, info.x, info.y));
       }

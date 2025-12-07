@@ -46,7 +46,7 @@ def print_ShapeEditor_state(data: str, version: List[int], idx: int) -> int:
             idx = print_mod_state(data, idx)
             idx = print_mv(data, f'\t\ty-position: ', '<f', idx)
             idx = print_mod_state(data, idx)
-            idx = print_mv(data, f'\t\curve center position: ', 'd', idx)
+            idx = print_mv(data, f'\t\tcurve center position: ', '<f', idx)
             idx = print_mod_state(data, idx)
             idx = print_mv(data, f'\t\tomega: ', '<f', idx)
             print()
@@ -194,4 +194,4 @@ def print_UDShaper_state(path: str):
 
 
 if __name__ =='__main__':
-    print_UDShaper_state('../test_presets/test_mods_2.fst')
+    print_UDShaper_state('../test_presets/test_vector_1.fst')
