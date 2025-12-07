@@ -262,11 +262,14 @@ int ShapeEditor::getClosestPoint(float x, float y, float minimumDistance)
     }
   }
 
-  if (closestDistance > minimumDistance)
+  if (closestDistance <= minimumDistance)
+  {
+    return closestPointIdx;
+  }
   {
     currentEditMode = none;
+    return -1;
   }
-  return closestPointIdx;
 }
 
 void ShapeEditor::deleteSelectedPoint()
