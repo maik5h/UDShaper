@@ -200,6 +200,9 @@ class ShapeEditor
   // Index of the ShapePoint that has been rightclicked by the user.
   int rightClickedIdx = -1;
 
+  // Stores the modulation link indices of the most recently deleted point.
+  std::vector<int> deletedLinks = {};
+
   public:
   // Stores the box coordinates of GUI elements of this ShapeEditor instance.
   ShapeEditorLayout layout;
@@ -237,6 +240,11 @@ class ShapeEditor
 
   // Deletes the rightClicked point.
   void deleteSelectedPoint();
+
+  // Get the number and adress of indices connected to the most recently deleted point.
+  // * @param numberLinks The number of links is put here
+  // * @param pData The pointer to the first index is put here
+  void getDeletedLinks(int& numberLinks, int*& pData);
 
   // Initializes the dragging of a point if clicked close to a ShapePoint.
   void processLeftClick(float x, float y);

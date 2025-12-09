@@ -159,7 +159,7 @@ FrequencyPanel::FrequencyPanel(IRECT rect, float GUIWidth, float GUIHeight, IPlu
   , mPlugin(plugin)
 {}
 
-double FrequencyPanel::getLFOPhase(int LFOIdx, double beatPosition, double secondsPlayed)
+double FrequencyPanel::getLFOPhase(int LFOIdx, double beatPosition, double secondsPlayed) const
 {
   // Convert from beats to bars.
   beatPosition /= 4;
@@ -527,6 +527,8 @@ void LFOController::setActiveLFO(int idx)
     // Inform the selectorControl about the new index.
     LFOSelectorControl* selectorControl = static_cast<LFOSelectorControl*>(ui->GetControlWithTag(LFOSelectorControlTag));
     selectorControl->activeLFOIdx = idx;
+
+    frequencyPanel.activeLFOIdx = idx;
 
     // Connect the modulation knobs with the new LFO.
     bool linkActive[MAX_MODULATION_LINKS];

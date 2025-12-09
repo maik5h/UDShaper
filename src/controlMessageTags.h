@@ -11,4 +11,7 @@ enum EControlMsg
 
   // Sent by a LinkKnob that must be disconnected from its ModulatedParameter.
   LFODisconnect,
+
+  // Sent by a ShapeEditor after a point has been deleted.
+  editorPointDeleted,
 };

@@ -283,9 +283,26 @@ void ShapeEditor::deleteSelectedPoint()
   // Do not delete point if it is the last point.
   if (rightClickedIdx < shapePoints.size() - 1)
   {
+    std::set<int> modIndices = {};
+    shapePoints.at(rightClickedIdx).posX.getModulators(modIndices);
+    shapePoints.at(rightClickedIdx).posY.getModulators(modIndices);
+    shapePoints.at(rightClickedIdx).curveCenterPosY.getModulators(modIndices);
+
+    deletedLinks.clear();
+    for (int idx : modIndices)
+    {
+      deletedLinks.push_back(idx);
+    }
+
     shapePoints.erase(shapePoints.begin() + rightClickedIdx);
     rightClickedIdx = -1;
   }
+}
+
+void ShapeEditor::getDeletedLinks(int& numberLinks, int *&pData)
+{
+  numberLinks = deletedLinks.size();
+  pData = deletedLinks.data();
 }
 
 void ShapeEditor::processLeftClick(float x, float y)
@@ -800,6 +817,12 @@ void ShapeEditorControl::OnPopupMenuSelection(IPopupMenu* pSelectedMenu, int val
     if (item == 0)
     {
       editor->deleteSelectedPoint();
+
+      int numberLinks;
+      int* pData;
+      editor->getDeletedLinks(numberLinks, pData);
+
+      GetUI()->GetDelegate()->SendArbitraryMsgFromUI(EControlMsg::editorPointDeleted, -1, numberLinks, pData);
     }
     else if (item == 2)
     {

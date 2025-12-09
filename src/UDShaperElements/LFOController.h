@@ -127,6 +127,9 @@ private:
 
 
 public:
+  // Index of the LFO displayed on the UI.
+  int activeLFOIdx = 0;
+
   // Constructs a FrequencyPanel
   // * @param rect The rectangle on the UI this instance will render in
   // * @param GUIWidth The width of the full UI in pixels
@@ -161,7 +164,7 @@ public:
   // * @param beatPosition The host playback position in beats
   // * @param secondsPlayed The host playback position in seconds
   // * @returns The phase of the LFO at LFOIdx
-  double getLFOPhase(int LFOIdx, double beatPosition, double secondsPlayed);
+  double getLFOPhase(int LFOIdx, double beatPosition, double secondsPlayed) const;
 
   // Refresh the state of the internally stored parameters.
   //

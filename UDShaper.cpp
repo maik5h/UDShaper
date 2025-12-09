@@ -266,6 +266,18 @@ bool UDShaper::OnMessage(int msgTag, int ctrlTag, int dataSize, const void* pDat
     // Reset the modulation amount to zero.
     GetParam(EParams::modStart + linkIdx)->Set(0.);
   }
+
+  // If a point has been deleted, set the modulation links it has been connected to inactive.
+  else if (msgTag == EControlMsg::editorPointDeleted)
+  {
+    const int* indices = static_cast<const int*>(pData);
+    int test = *(indices + 1);
+    for (int i = 0; i < dataSize; i++)
+    {
+      LFOs.setLinkActive(*(indices + i), false);
+      GetParam(EParams::modStart + *(indices + i))->Set(0.);
+    }
+  }
   return false;
 }
 
