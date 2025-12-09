@@ -3,18 +3,18 @@ When I first tested the plugin, it was performing very poorly. In the following,
 
 ### The `ShapeEditor::forward` method
 The plugin performance mainly depends on the performance of `ShapeEditor::forward`. This method evaluates a function designed by the user on a visual graph editor. It must be called at least twice per sample to evaluate the shaping functions. Each connected LFO adds one call per sample.\
-The ShapeEditor function is broken down into curve segments seperated by *points*, between which the function is interpolated. The first thing to do when evaluating this function is to find the segment that corresponds to the input. The interpolation in this segment can be evaluated afterwards. Therefore the computational cost is dependent on the number of segments in the curve. This dependency is discussed here.
+The ShapeEditor function is broken down into curve segments seperated by *points*, between which the function is interpolated. The first thing to do when evaluating this function is to find the segment that corresponds to the input. The interpolation in this segment can be evaluated afterwards. Therefore the computational cost is dependent on the number of segments in the curve. This dependency is discussed here.\
+\
+To make UDShaper stand out as a plugin, I wanted to make it possible to modulate the position of points over time. This does also involve changing their x-position over time, which makes the search for the correct curve segment more challenging.
 
 ### Performance measurements
 To measure the performance, I called the forward method with the input 1 and averaged the processing time over 10000 calls. I repeated this measurement with 1 to 100 segments in the curve.\
-The measurements were done on my personal machine with a 12th Gen Intel(R) Core(TM) i5-12500H (2.50 GHz). This processor is probably far below the standard of professional producers.
+The measurements were done on my personal machine. Aparently DAWs do not parallelize individual plugin instances, so the metrics discussed here are not effected by the number of cores, but rather the clock speed of the CPU. The clock speed used to measure the following data is 2.5 GHz.
 
 ### Performance evaluation
 To assess the performance I give two numbers:\
 Firstly the computation time in $\mu s$, which is simply the average time to process `ShapeEditor::forward(1.)`.\
-Secondly I give the 'CPU load', which is equal to the CPU load displayed in FL Studio. Audio is processed in buffers of typically a few hundred audio samples. To run in real time, each buffer has only a limited amount of time to be processed. If this time is exceeded, the host tries to play audio faster than it can be processed and audible bugs and disruptions occur. The CPU load gives the percentage of how much of the availabale time per buffer is used.\
-\
-Since DAWs do aparently not parallelize individual plugin instances, these metrics do not depend on the number of cores, but only on the clock speed.
+Secondly I give the 'CPU load', which is equal to the CPU load displayed in FL Studio. Audio is processed in buffers of typically a few hundred audio samples. To run in real time, each buffer has only a limited amount of time to be processed. If this time is exceeded, the host tries to play audio faster than it can be processed and audible bugs and disruptions occur. The CPU load gives the percentage of how much of the availabale time per buffer is used.
 
 
 ## Debug vs. release build
@@ -54,11 +54,21 @@ Consequently, at every point the whole list starting from that point is evaluate
 \
 Information about curve segments was originally stored in a linked list. I thought that a vector might be faster because the elements are stored next to each other in memory and are cached together but aparently there is no difference to a linked list. Apart from performance, using a vector is still safer and cleaner though, so I will keep the changes.
 
-## TODO Binary search
-Since the position of points depends on the position of the previous point, binary search is not possible. It would be possible to switch to binary search if no point is modulated. Maybe it would be best to not have points interact with each other, so binary search is always possible. The next step will be to find out if binary search is worth it to drop the 'push' feature.
+## Binary search & iteration hybrid
+The best compromise between speed and functionality I could find is the following:\
+Points that have constant x-position are processed using a binary search. This is very fast. For modulated points however, binary search is not possible. 'Islands' of modulated points in between fixed points are therefore processed sequentially.\
+\
+The algorithm to determine the ShapeEditor function value at a given `x` works as follows:
+1. Find the point corresponding to the input (the next point with `point.posX > x`) **assuming no point is modulated** using a binary search.
+2. Determine if the resulting point is fixed or if it is inside of an island of modulated points.
+3. If it is fixed and the neighbor to the left is also fixed, evaluate the curve segment.\
+If it is fixed and one or more points adjacent on the left are modulated **or** if it is modulated itself, settle x-position conflicts on the whole modulated island and process the curve segment afterwards.
+
+![](plots/performance_binary_search.png)
+*Average time for a single `ShapeEditor::forward` call. One implementations iterates through all points and checks if the x-position overlaps with the previous point. This is how fast modulated islands are processed. The other curve uses a binary search and does not check for x-modulation. This is how fast unmodulated points can be found.*
+
+For unmodulated points, this has O(log(n)) time complexity thanks to the binary search. If points are modulated, their exact x-position is only determined if they are of concern for the current input value. This happens in O(n), where n is the number of adjacent modulated points. Their processing time is shown as the blue curve.
 
 ## Expected performance
-The best case scenario are simple shaping functions, no modulation and reasonable audio input. (A sine wave with amplitude 1 for example has an average value of $2/\pi \approx 0.64$. Since the ShapeEditor forward does only check points until the input value is reached, inputting an average of $0.64$ can effectively reduce the computational cost.)\
-In this scenario it is realistic that the plugin processes at $0.5\%$ CPU load.\
-\
-It is unlikely anyone adds more than 30 points to a graph. For the worst case lets say there are 30 points on each shaping function and LFO curve. All LFOs are active and the input is always high, as in a square wave with amplitude 1. In this case the plugin would use around $0.5\%$ per forward call, $6\%$ in total. I would like to decrease this further but I believe it is reasonable for now.
+In the current implementation, UDShaper calls ShapeEditor::forward at least twice, with ten active LFOs up to 12 times per sample. Consequently, with all LFOs active, a CPU load of approximately $12\cdot 0.26\% = 3.12\%$ is the minimum that can be expected.\
+Only the two ShapeEditors representing the shaping function can have modulated points. It is unlikely someone adds more than 30 modulated points per graph editor, in this case there will be an additional CPU load increase of around one percent.

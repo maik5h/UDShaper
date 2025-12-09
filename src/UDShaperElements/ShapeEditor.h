@@ -75,6 +75,10 @@ public:
   // Can be nullptr, in which case the unmodulated base value is returned.
   float get(double* modulationAmplitudes) const;
 
+  // Get the modulation status of this ModulatedParameter.
+  // * @returns true if the instance is connected to at least one LFO, false else
+  bool isModulated() const;
+
   // Serializes the ModulatedParameter state.
   //
   // Saves:
@@ -145,13 +149,13 @@ public:
   // the unmmodulated value is returned.
   // * @param lowerBound If the parameter is modulated, it can not move below this x-value. Effectively makes
   // modulated points push their neighbors to the right.
-  float getPosX(double* modulationAmplitudes = nullptr, float lowerBound = 0) const;
+  float getPosX(double* modulationAmplitudes = nullptr, float lowerBound = 0.f, float upperBound = 1.f) const;
 
   // Returns the relative y-position of the point.
   float getPosY(double* modulationAmplitudes = nullptr) const;
 
   // Calculates the absolute x-position of the point on the GUI from the relative position posX.
-  float getAbsPosX(double* modulationAmplitudes = nullptr, float lowerBound = 0) const;
+  float getAbsPosX(double* modulationAmplitudes = nullptr, float lowerBound = 0.f, float upperBound = 1.f) const;
 
   // Calculates the absolute y-position of the point on the GUI from the relative position posY.
   float getAbsPosY(double* modulationAmplitudes = nullptr) const;
@@ -278,8 +282,11 @@ class ShapeEditor
   // this editor to the given set.
   void getLinks(std::set<int>& links);
 
-  // Used for adding points without user input when testing performance.
-  void insertPointAt(float x, float y);
+  // Adds a new ShapePoint at x, y to shapePoints and fixedPoints.
+  // The point is added such that shapePoints is ordered with respect to the
+  // x-position of the points.
+  // * @return The index of the new point in shapePoints.
+  int insertPointAt(float x, float y);
 
   bool serializeState(IByteChunk& chunk) const;
   int unserializeState(const IByteChunk& chunk, int startPos, int version);

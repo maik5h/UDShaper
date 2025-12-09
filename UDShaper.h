@@ -35,7 +35,7 @@ class UDShaper final : public Plugin
   double modulationAmounts[MAX_NUMBER_LFOS * MAX_MODULATION_LINKS] = {};
 
   // Path to the csv file for performance data.
-  std::string evalPath = std::filesystem::path(__FILE__).parent_path().string() + "\\src\\performance\\data\\data_point_vector.csv";
+  std::string evalPath = std::filesystem::path(__FILE__).parent_path().string() + "\\src\\performance\\data\\data_binary_search.csv";
   ShapeEditorTimer editorTimer = ShapeEditorTimer(evalPath, shapeEditor1);
 
   // Used to skip ShapeEditorTimer::measure() calls if the method is already running.

@@ -62,6 +62,11 @@ float ModulatedParameter::get(double* modulationAmplitudes) const
   return currentValue;
 }
 
+bool ModulatedParameter::isModulated() const
+{
+  return modIndices.size() > 0;
+}
+
 void ModulatedParameter::serializeState(IByteChunk& chunk) const
 {
   chunk.Put(&base);
@@ -109,10 +114,11 @@ void ShapePoint::updatePositionAbsolute(float x, float y)
   posY.set((rect.B - y) / rect.H());
 }
 
-float ShapePoint::getPosX(double* modulationAmplitudes, float lowerBound) const
+float ShapePoint::getPosX(double* modulationAmplitudes, float lowerBound, float upperBound) const
 {
   float x = posX.get(modulationAmplitudes);
-  return (x < lowerBound) ? lowerBound : x;
+  x = (x < lowerBound) ? lowerBound : x;
+  return (x > upperBound) ? upperBound : x;
 }
 
 float ShapePoint::getPosY(double* modulationAmplitudes) const
@@ -120,9 +126,9 @@ float ShapePoint::getPosY(double* modulationAmplitudes) const
   return posY.get(modulationAmplitudes);
 }
 
-float ShapePoint::getAbsPosX(double* modulationAmplitudes, float lowerBound) const
+float ShapePoint::getAbsPosX(double* modulationAmplitudes, float lowerBound, float upperBound) const
 {
-  return rect.L + getPosX(modulationAmplitudes, lowerBound) * rect.W();
+  return rect.L + getPosX(modulationAmplitudes, lowerBound, upperBound) * rect.W();
 }
 
 float ShapePoint::getAbsPosY(double* modulationAmplitudes) const
@@ -219,8 +225,8 @@ ShapeEditor::ShapeEditor(IRECT rect, float GUIWidth, float GUIHeight, int shapeE
   // to assure f(0) = 0. The last ShapePoint at x=1 may be moved, but only in y-direction.
   // None of these points can be removed to assure that the function is always well defined
   // on the interval [0, 1].
-  shapePoints.emplace_back(0., 0., layout.editorRect);
-  shapePoints.emplace_back(1., 1., layout.editorRect);
+  shapePoints.emplace_back(0.f, 0.f, layout.editorRect);
+  shapePoints.emplace_back(1.f, 1.f, layout.editorRect);
 }
 
 int ShapeEditor::getClosestPoint(float x, float y, float minimumDistance)
@@ -324,21 +330,10 @@ bool ShapeEditor::processRightClick(float x, float y)
     // Check if point lies inside the editor.
     if (!layout.editorRect.Contains(x, y)) return false;
 
-    // Find the index at which to insert the point into shapePoints.
-    int insertIdx = 1;
-    while (insertIdx < shapePoints.size())
-    {
-      if (shapePoints.at(insertIdx).getAbsPosX() >= x)
-      {
-        break;
-      }
-      insertIdx += 1;
-    }
-
     float newPointX = (x - layout.editorRect.L) / layout.editorRect.W();
     float newPointY = (layout.editorRect.B - y) / layout.editorRect.H();
 
-    shapePoints.emplace(shapePoints.begin() + insertIdx, newPointX, newPointY, layout.editorRect);
+    int insertIdx = insertPointAt(newPointX, newPointY);
 
     // Set the point as currently dragged point so the user can immediately adjust
     // the position after adding the point.
@@ -429,25 +424,96 @@ const float ShapeEditor::forward(float input, double* modulationAmplitudes)
 
   int idx = 1;
 
-  // Find the curve segment concerned by the input.
+  // Find the curve segment corresponding to the input.
+  // Points can be modulated in x-direction, so the curve segment corresponding to
+  // the input can change over time.
+  // To find the correct segment, a binary search over the unmodulated positions
+  // is performed first. This is very fast.
+  // Afterwards it is checked if the selected point and neighboring points are
+  // modulated along the x-direction. If they are, their modulated position is
+  // determined to calculate the correct shape of the graph. This is slow.
+
+  // If more than one valid point is in the editor, perform a binary search on the
+  // unmodulated x-positions.
+  if (shapePoints.size() > 2)
+  {
+    // Lower bound, upper bound and center of the search interval.
+    int lowerIdx = 1;
+    int upperIdx = shapePoints.size() - 1;
+    int center = static_cast<int>((upperIdx + lowerIdx) / 2);
+
+    // x-extent of the curve segment corresponding to the point at center.
+    float lowerX = shapePoints.at(center - 1).posX.get(nullptr);
+    float upperX = shapePoints.at(center).posX.get(nullptr);
+
+    // Search until the input lies within the curve segment.
+    while ((lowerX >= input) || (upperX < input))
+    {
+      if (lowerX >= input)
+      {
+        upperIdx = center - 1;
+      }
+      else if (upperX < input)
+      {
+        lowerIdx = center + 1;
+      }
+      center = static_cast<int>((upperIdx + lowerIdx) / 2);
+      lowerX = shapePoints.at(center - 1).posX.get(nullptr);
+      upperX = shapePoints.at(center).posX.get(nullptr);
+    }
+    idx = center;
+  }
+
+  // Check if the selected point is x-modulated and if yes, find the next point
+  // with larger x that is not.
+  int modIdx = idx;
+  while (shapePoints.at(modIdx).posX.isModulated())
+  {
+    modIdx++;
+  }
+  // Index of the next point at a higher x which position is not
+  // modulated in x-direction.
+  int upperIdx = modIdx;
+
+  modIdx = idx - 1;
+  while (shapePoints.at(modIdx).posX.isModulated())
+  {
+    modIdx--;
+  }
+  // Index of the next point at a lower x which position is not
+  // modulated in x-direction.
+  int lowerIdx = modIdx;
+
+  // Find the curve segment concerned by the input inside the interval of
+  // modulated points.
   // It is defined by two ShapePoints. To calculate their x-position,
   // the position of the previous point must be known to provide a
   // lower bound.
-  float lowerBoundPrevious = 0;
-  float lowerBound = 0;
-  while (shapePoints.at(idx).getPosX(modulationAmplitudes, lowerBound) < input)
+  float lowerBoundPrevious = shapePoints.at(lowerIdx).getPosX();
+  float lowerBound = lowerBoundPrevious;
+  float upperBound = shapePoints.at(upperIdx).getPosX();
+
+  if ((upperIdx - lowerIdx) > 1)
   {
-    lowerBoundPrevious = lowerBound;
-    lowerBound = shapePoints.at(idx).getPosX(modulationAmplitudes, lowerBound);
-    idx += 1;
+    for (int i = lowerIdx; i <= upperIdx; i++)
+    {
+      lowerBoundPrevious = lowerBound;
+      lowerBound = shapePoints.at(i).getPosX(modulationAmplitudes, lowerBound);
+
+      if (lowerBound >= input)
+      {
+        idx = i;
+        break;
+      }
+    }
   }
 
   switch (shapePoints.at(idx).mode)
   {
   case shapePower: {
-    float xL = shapePoints.at(idx - 1).getPosX(modulationAmplitudes, lowerBoundPrevious);
+    float xL = shapePoints.at(idx - 1).getPosX(modulationAmplitudes, lowerBoundPrevious, upperBound);
     float yL = shapePoints.at(idx - 1).getPosY(modulationAmplitudes);
-    float x = shapePoints.at(idx).getPosX(modulationAmplitudes, lowerBound);
+    float x = shapePoints.at(idx).getPosX(modulationAmplitudes, lowerBound, upperBound);
 
     // Compute relative x-position inside the curve segment, relative "height" of the curve segment and power
     // corresponding to the current curve cenetr position.
@@ -505,14 +571,10 @@ void ShapeEditor::getLinks(std::set<int>& links)
   }
 }
 
-void ShapeEditor::insertPointAt(float x, float y)
+int ShapeEditor::insertPointAt(float x, float y)
 {
-  // If any of the following still tracks a point, the index will be invalid
-  // after adding a point.
-  assert(currentlyDraggingIdx == -1);
-  assert(rightClickedIdx == -1);
-
   int idx = -1;
+
   for (int i = 1; i < shapePoints.size(); i++)
   {
     if (shapePoints.at(i).posX.get(nullptr) >= x)
@@ -522,6 +584,7 @@ void ShapeEditor::insertPointAt(float x, float y)
     }
   }
   shapePoints.emplace(shapePoints.begin() + idx, x, y, layout.editorRect);
+  return idx;
 }
 
 // Saves the ShapeEditor state to the IByteChunk object.
@@ -569,7 +632,7 @@ int ShapeEditor::unserializeState(const IByteChunk& chunk, int startPos, int ver
       {
         // Add new points unless the last point is reached, which was already created at instantiation
         // of this ShapeEditor.
-        shapePoints.emplace(shapePoints.end() - 1, 0.f, 0.f, layout.editorRect);
+        insertPointAt(0.f, 0.f);
       }
       startPos = shapePoints.at(i + 1).unserializeState(chunk, startPos, version);
     }
@@ -642,20 +705,46 @@ void ShapeEditorControl::Draw(IGraphics& g)
     g.DrawData(UDS_WHITE, editorRect, mPoints.data(), static_cast<int>(mPoints.size()), nullptr, &mBlend, mTrackSize);
 
     // Draw the ShapePoints on top of the graph.
+    // The rules for points with modulated x-position are:
+    // - modulated points push other modulated points to the right.
+    // - modulated points can not move past unmodulated points regardless of direction.
     float lowerBound = 0;
     float lowerBoundPrevious = 0;
+    float upperBound = 0;
     for (int i = 1; i < editor->shapePoints.size(); i++)
     {
       ShapePoint point = editor->shapePoints.at(i);
+
       lowerBoundPrevious = lowerBound;
-      float lowerBoundNext = point.getPosX(modulationAmplitudes, lowerBound);
-      float posX = point.getAbsPosX(modulationAmplitudes, lowerBound);
+
+      // To find the upper bound of this point, check for the next point not modulated in x-direction.
+      // This upper bound can be reused until the point that marks the upper bound has been drawn.
+      if (point.getPosX() > upperBound)
+      {
+        for (int j = i; j < editor->shapePoints.size(); j++)
+        {
+          if (!editor->shapePoints.at(j).posX.isModulated())
+          {
+            upperBound = editor->shapePoints.at(j).getPosX();
+            break;
+          }
+        }
+      }
+
+      // The position of this point marks the lower bound of the next.
+      float lowerBoundNext = point.getPosX(modulationAmplitudes, lowerBound, upperBound);
+      float posX = point.getAbsPosX(modulationAmplitudes, lowerBound, upperBound);
       float posY = point.getAbsPosY(modulationAmplitudes);
-      float curveCenterPosX = (point.getAbsPosX(modulationAmplitudes, lowerBound) + editor->shapePoints.at(i - 1).getAbsPosX(modulationAmplitudes, lowerBound)) / 2;
+      float curveCenterPosX = (posX + editor->shapePoints.at(i - 1).getAbsPosX(modulationAmplitudes, lowerBound, upperBound)) / 2;
       float curveCenterPosY = point.getCurveCenterAbsPosY(editor->shapePoints.at(i - 1).getAbsPosY(modulationAmplitudes), modulationAmplitudes);
       g.FillCircle(UDS_WHITE, posX, posY, POINT_SIZE);
       g.FillCircle(UDS_WHITE, curveCenterPosX, curveCenterPosY, POINT_SIZE_SMALL);
       lowerBound = lowerBoundNext;
+
+      if (editor->shapePoints.size() > 6)
+      {
+        int test = 1;
+      }
     }
   };
 
