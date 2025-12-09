@@ -27,6 +27,71 @@ enum editMode
   modulate     // Selects a parameter to be modulated by the active LFO.
 };
 
+// A parameter that can be connected to an LFO link.
+//
+// Stores the indices of links it is connected to. To access the modulated value, an array
+// of all modulation amplitudes must be forwarded to the get method.
+//
+// Note: The name might be misleading, this is not an iPlug2 or CLAP parameter, it is
+// internal and the host does not see it.
+class ModulatedParameter
+{
+private:
+  // Base value of this ModulatedParameter.
+  float base;
+
+  // Minimum value this ModulatedParameter can take.
+  float minValue;
+
+  // Maximum value this ModulatedParameter can take.
+  float maxValue;
+
+  // Indices in the array of all modulation links that are connected to this parameter.
+  std::set<int> modIndices;
+
+public:
+  // Create a ModulatedParameter.
+  //
+  // * @param base Initial base value, i.e. the value of this parameter if no modulation is active
+  // * @param minValue The minimum value this parameter can take
+  // * @param maxValue The maximum value this parameter can take
+  ModulatedParameter(float base, float minValue = 0, float maxValue = 1);
+
+  // Connects the LFO link at idx to this parameter.
+  // * @return true if the link could be added and false if this parameter was already connected with the link.
+  bool addModulator(int idx);
+
+  // Adds the indices of all LFO links connected to this parameter to the given set.
+  void getModulators(std::set<int>& mods) const;
+
+  void removeModulator(int idx);
+
+  // Sets the base value of this parameter to the input. Should be used when the parameter is
+  // explicitly changed by the user.
+  void set(float newValue);
+
+  // Returns the current value, i.e. the modulation offsets added to the base clamped to the min and max values.
+  // * @param modulationAmplitudes The array of all modulation amplitudes as set in LFOController::getModulationAmplitudes.
+  // Can be nullptr, in which case the unmodulated base value is returned.
+  float get(double* modulationAmplitudes) const;
+
+  // Get the modulation status of this ModulatedParameter.
+  // * @returns true if the instance is connected to at least one LFO, false else
+  bool isModulated() const;
+
+  // Serializes the ModulatedParameter state.
+  //
+  // Saves:
+  // - base value
+  // - number of LFOs linked to this point
+  // - the LFO link index of each link
+  void serializeState(IByteChunk& chunk) const;
+
+  // Unserializes the ModulatedParameter state from an IByteChunk object.
+  // * @return The new chunk position
+  int unserializeState(const IByteChunk& chunk, int startPos, int version);
+};
+
 // A point on a ShapeEditor that marks the transition between two curve segments.
 // 
 // Every ShapePoint lives on the area 0 <= x,y <= 1 and stores information about
@@ -35,7 +100,89 @@ enum editMode
 //  1. one at (0, 0) which can not be moved or edited
 //  2. one at (1, y) which can only be moved along the y-axis.
 // An arbitrary amount of points may be added in between.
-class ShapePoint;
+class ShapePoint
+{
+public:
+  // Position and size of parent shapeEditor. Points must stay inside these coordinates.
+  IRECT rect;
+
+  // Relative x-position on the graph, 0 <= posX <= 1.
+  ModulatedParameter posX;
+
+  // Relative y-position on the graph, 0 <= posY <= 1.
+  ModulatedParameter posY;
+
+  // Omega after last update.
+  float sineOmegaPrevious;
+
+  // Omega for the shapeSine interpolation mode.
+  float sineOmega;
+
+  // Interpolation mode between this and the previous point.
+  Shapes mode = shapePower;
+
+  // Relative y-value of the curve at the x-center point between this and the previous point.
+  ModulatedParameter curveCenterPosY;
+
+  // The parent ShapeEditor will highlight this point or curve center point if highlightMode is not modNone.
+  // modPosX and modPosY highlight the point itself, modCurveCenterY highlight the curve center.
+  modulationMode highlightMode = modNone;
+
+  // Construct a ShapePoint.
+  //
+  // * @param x Normalized x-position of the point on the parent editor graph
+  // * @param y Normalized y-position of the point on the parent editor graph
+  // * @param editorRect Area of the parent editor on the UI
+  // * @param pow Initial power value
+  // * @param omega Inital omega value
+  // * @param initMode Initial curve segment interpolation mode
+  ShapePoint(float x, float y, IRECT editorRect, float pow = 1, float omega = 0.5, Shapes initMode = shapePower);
+
+  // Sets relative positions posX and posY such that the absolute positions are equal to the input x and y.
+  void updatePositionAbsolute(float x, float y);
+
+  // get-functions for parameters that are dependent on a ModulatedParameter and have to recalculated each time
+  // they are used:
+
+  // Returns the relative x-position of this point.
+  // * @param modulationAmplitudes Pointer to an array of modulation amplitudes. Can be nullptr, in which case
+  // the unmmodulated value is returned.
+  // * @param lowerBound If the parameter is modulated, it can not move below this x-value. Effectively makes
+  // modulated points push their neighbors to the right.
+  float getPosX(double* modulationAmplitudes = nullptr, float lowerBound = 0.f, float upperBound = 1.f) const;
+
+  // Returns the relative y-position of the point.
+  float getPosY(double* modulationAmplitudes = nullptr) const;
+
+  // Calculates the absolute x-position of the point on the GUI from the relative position posX.
+  float getAbsPosX(double* modulationAmplitudes = nullptr, float lowerBound = 0.f, float upperBound = 1.f) const;
+
+  // Calculates the absolute y-position of the point on the GUI from the relative position posY.
+  float getAbsPosY(double* modulationAmplitudes = nullptr) const;
+
+  // Calculates the absolute y-position of the curve center associated with this point.
+  //
+  // * @param previousY The absolute y-position of the previous point
+  // * @param modulationAmplitudes Pointer to an array of modulation amplitudes. Can be nullptr, in which case
+  // the unmmodulated value is returned.
+  float getCurveCenterAbsPosY(float previousY, double* modulationAmplitudes = nullptr) const;
+
+  // Update the Curve center point when manually dragging it.
+  //
+  // * @param x Target x-position
+  // * @param y Target y-position
+  // * @param previousY The absolute y-position of the previous point
+  void updateCurveCenter(float x, float y, float previousY);
+
+  void processLeftClick();
+
+  // Serializes the ShapePoint state.
+  void serializeState(IByteChunk& chunk) const;
+
+  // Unserialize the ShapePoint state.
+  // * @return The new chunk position
+  int unserializeState(const IByteChunk& chunk, int startPos, int version);
+};
 
 // A graph editor that can be used to design functions on the user interface.
 // The function defined is a mapping from [0, 1] to [0, 1] which is accessible through
@@ -47,15 +194,11 @@ class ShapePoint;
 class ShapeEditor
 {
   protected:
-  // Pointer to the ShapePoint that is currently being edited by the user.
-  ShapePoint* currentlyDragging = nullptr;
+  // Index of the ShapePoint that is currently being edited by the user.
+  int currentlyDraggingIdx = -1;
 
-  // Pointer to the ShapePoint that has been rightclicked by the user.
-  ShapePoint* rightClicked = nullptr;
-
-  // If a point was deleted, store a pointer to it here, so that the plugin can remove all
-  // LFO links after the input is fully processed.
-  ShapePoint* deletedPoint = nullptr;
+  // Index of the ShapePoint that has been rightclicked by the user.
+  int rightClickedIdx = -1;
 
   public:
   // Stores the box coordinates of GUI elements of this ShapeEditor instance.
@@ -71,11 +214,11 @@ class ShapeEditor
   // Set to true to draw circles around ShapePoints and curve center points.
   bool highlightModulatedParameters = false;
 
-  // Pointer to the first ShapePoint in this ShapeEditor. ShapePoints are stored in a doubly linked list.
+  // Vector of the ShapePoints defining the shaping function.
   //
   // The first point must be excluded from all methods since it can not be edited and displayed.
-  // All loops over the ShapePoints must therefore start at shapePoints->next.
-  ShapePoint* shapePoints = nullptr;
+  // All loops over the ShapePoints must therefore start at shapePoints[1].
+  std::vector<ShapePoint> shapePoints = {};
 
   // Create a ShapeEditor instance.
   // Each ShapeEditor carries a unique index, which identifies it from other instances.
@@ -85,23 +228,15 @@ class ShapeEditor
   // * @param shapeEditorIndex Index of this instance. Must be unique between all ShapeEditor instances.
   ShapeEditor(IRECT rect, float GUIWidth, float GUIHeight, int shapeEditorIndex);
 
-  // Deletes all ShapePoints and frees the allocated memory.
-  // TODO use vector instead of linked list and this is not necessary.
-  ~ShapeEditor();
-
   // Finds the closest ShapePoint or curve center point to the coordinates (x, y).
-  // Returns pointer to the corresponding point if it is closer than the squareroot
-  // of minimumDistance, else nullptr. The field currentDraggingMode of this
+  // Returns the index of the corresponding point if it is closer than the squareroot
+  // of minimumDistance, else -1. The field currentEditMode of this
   // ShapeEditor is set to either position or curveCenter, based on whether the point
   // or the curve center are closer.
-  ShapePoint* getClosestPoint(float x, float y, float minimumDistance = REQUIRED_SQUARED_DISTANCE);
+  int getClosestPoint(float x, float y, float minimumDistance = REQUIRED_SQUARED_DISTANCE);
 
   // Deletes the rightClicked point.
   void deleteSelectedPoint();
-
-  // Returns the pointer to the ShapePoint that was most recently deleted.
-  // Returns the given pointer once and nullptr afterwards.
-  ShapePoint* getDeletedPoint();
 
   // Initializes the dragging of a point if clicked close to a ShapePoint.
   void processLeftClick(float x, float y);
@@ -145,7 +280,13 @@ class ShapeEditor
 
   // Adds the indices of all links corresponding to parameters of
   // this editor to the given set.
-  void getLinks(std::set<int>& links) const;
+  void getLinks(std::set<int>& links);
+
+  // Adds a new ShapePoint at x, y to shapePoints and fixedPoints.
+  // The point is added such that shapePoints is ordered with respect to the
+  // x-position of the points.
+  // * @return The index of the new point in shapePoints.
+  int insertPointAt(float x, float y);
 
   bool serializeState(IByteChunk& chunk) const;
   int unserializeState(const IByteChunk& chunk, int startPos, int version);
@@ -214,8 +355,8 @@ protected:
   // Popup menu used to choose between x- and y-modulation for ShapePoints.
   IPopupMenu menuMod = IPopupMenu();
 
-  // Stores the pointer to the ShapePoint corresponding to menuMod while the menu is open.
-  ShapePoint* modPoint = nullptr;
+  // Stores the index of the ShapePoint corresponding to menuMod while the menu is open.
+  int modPointIdx = -1;
 
   // Stores the modulation index corresponding to menuMod while the menu is open.
   int modIdx = -1;
