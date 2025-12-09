@@ -324,7 +324,6 @@
     <ClInclude Include="..\src\controlTags.h" />
     <ClInclude Include="..\src\enums.h" />
     <ClInclude Include="..\src\GUILayout.h" />
-    <ClInclude Include="..\src\performance\timer.h" />
     <ClInclude Include="..\src\string_presets.h" />
     <ClInclude Include="..\src\UDShaperElements\LFOController.h" />
     <ClInclude Include="..\src\UDShaperElements\ShapeEditor.h" />

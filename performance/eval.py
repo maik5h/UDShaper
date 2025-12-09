@@ -30,14 +30,14 @@ def plot_shape_editor_performance(
     ----------
     x_data: `list[list[int]]`
         List of point numbers at which measurements were performed.
-    
+
     y_data: `list[list[float]]`
         List of time intervals measured with the number of points
         corresponding to x_data.
-    
+
     labels: `list[str]`
         Labels to distinguish the given datasets.
-    
+
     outfile: `Path`
         File to save the figure.
 
@@ -86,77 +86,38 @@ def plot_shape_editor_performance(
     plt.show()
 
 
-if __name__ == "__main__":
-    # Store measurements of how much time a ShapeEditor::forward call
-    # with input 1. takes.
-    fwd_debug = [[], []]
-    fwd_release = [[], []]
-    fwd_no_push = [[], []]
-    fwd_light_push = [[], []]
-    fwd_vector = [[], []]
+def load_dataset(path: Path) -> tuple[list, list]:
+    """
+    Load a ShapeEditor::forward performance dataset.
 
+    Returns a list containing the number of points and the
+    measurements corresponding to these points.
+    """
+    out = ([], [])
+    with open(path, 'r') as f:
+        file = csv.reader(f)
+
+        for line in file:
+            out[0].append(int(line[0]))
+            out[1].append(float(line[2]))
+
+    return out
+
+if __name__ == "__main__":
     parent_dir = Path(__file__).parent
 
-    # This data was recorded using the initial plugin in debug mode.
-    with open(parent_dir / 'data/data_debug.csv', 'r') as f:
-        file = csv.reader(f)
-    
-        for line in file:
-            fwd_debug[0].append(int(line[0]))
-            fwd_debug[1].append(float(line[2]))
+    # Performance data recorded by iterating through all points and
+    # comparing their x-position.
+    fwd_iter = load_dataset(parent_dir / 'data/data_point_vector.csv')
 
-    # This data was recorded using the initial plugin in release mode.
-    with open(parent_dir / 'data/data_initial.csv', 'r') as f:
-        file = csv.reader(f)
-    
-        for line in file:
-            fwd_release[0].append(int(line[0]))
-            fwd_release[1].append(float(line[2]))
-
-    # This data was recorded with push code quoted out.
-    with open(parent_dir / 'data/data_no_push.csv', 'r') as f:
-        file = csv.reader(f)
-
-        for line in file:
-            fwd_no_push[0].append(int(line[0]))
-            fwd_no_push[1].append(float(line[2]))
-
-    # This data was recorded with improved push implementation.
-    with open(parent_dir / 'data/data_light_push.csv', 'r') as f:
-        file = csv.reader(f)
-
-        for line in file:
-            fwd_light_push[0].append(int(line[0]))
-            fwd_light_push[1].append(float(line[2]))
-
-    # This data was recorded with points stored in a vector instead of linked list.
-    with open(parent_dir / 'data/data_point_vector.csv', 'r') as f:
-        file = csv.reader(f)
-
-        for line in file:
-            fwd_vector[0].append(int(line[0]))
-            fwd_vector[1].append(float(line[2]))
+    # Performance recorded by using a binary search.
+    fwd_binary_search = load_dataset(parent_dir / 'data/data_binary_search.csv')
 
     plot_shape_editor_performance(
-        x_data=[fwd_debug[0], fwd_release[0]],
-        y_data=[fwd_debug[1], fwd_release[1]],
-        labels=['debug build', 'release build'],
-        outfile=parent_dir / 'plots/performance_init.png',
-        title='ShapeEditor forward call\ninitial implementation'
-    )
-    plot_shape_editor_performance(
-        x_data=[fwd_release[0], fwd_no_push[0], fwd_light_push[0]],
-        y_data=[fwd_release[1], fwd_no_push[1], fwd_light_push[1]],
-        labels=['init setup', 'no push', 'light push'],
-        outfile=parent_dir / 'plots/performance_push_comparison.png',
-        title='ShapeEditor forward call\nRelease build',
-        ylims = [0, 0.5]
-    )
-    plot_shape_editor_performance(
-        x_data=[fwd_light_push[0], fwd_vector[0]],
-        y_data=[fwd_light_push[1], fwd_vector[1]],
-        labels=['linked list', 'vector'],
-        outfile=parent_dir / 'plots/performance_vector_comparison.png',
-        title='ShapeEditor forward call\nRelease build, light push',
+        x_data=[fwd_iter[0], fwd_binary_search[0]],
+        y_data=[fwd_iter[1], fwd_binary_search[1]],
+        labels=['iterative', 'binary search'],
+        outfile=parent_dir / 'plots/performance_binary_search.png',
+        title='ShapeEditor forward call\nBinary search vs iterating',
         ylims = [0, 0.3]
     )

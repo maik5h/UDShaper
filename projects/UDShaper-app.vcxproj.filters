@@ -309,9 +309,6 @@
     <ClInclude Include="..\src\enums.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\performance\timer.h">
-      <Filter>src\performance</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="resources">
@@ -349,9 +346,6 @@
     </Filter>
     <Filter Include="src\UDShaper_elements">
       <UniqueIdentifier>{81805931-cfae-43c5-b060-ca856fc60317}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="src\performance">
-      <UniqueIdentifier>{2b9bcf5c-2a44-4e33-87a7-c326ed21e050}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

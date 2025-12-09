@@ -719,7 +719,7 @@ void ShapeEditorControl::Draw(IGraphics& g)
 
       // To find the upper bound of this point, check for the next point not modulated in x-direction.
       // This upper bound can be reused until the point that marks the upper bound has been drawn.
-      if (point.getPosX() > upperBound)
+      if (point.getPosX() >= upperBound)
       {
         for (int j = i; j < editor->shapePoints.size(); j++)
         {
@@ -740,11 +740,6 @@ void ShapeEditorControl::Draw(IGraphics& g)
       g.FillCircle(UDS_WHITE, posX, posY, POINT_SIZE);
       g.FillCircle(UDS_WHITE, curveCenterPosX, curveCenterPosY, POINT_SIZE_SMALL);
       lowerBound = lowerBoundNext;
-
-      if (editor->shapePoints.size() > 6)
-      {
-        int test = 1;
-      }
     }
   };
 
