@@ -224,7 +224,7 @@ class LinkKnobVisualLayer : public IVKnobControl
 public:
   LinkKnobVisualLayer(IRECT rect, int paramIdx);
 
-  // TODO override Draw for custom graphics here.
+  void Draw(IGraphics& g) override;
 };
 
 // Class to put on top of a LinkKnobVisualLayer to manage user inputs.

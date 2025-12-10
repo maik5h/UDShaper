@@ -1,8 +1,10 @@
 The biggest and most noticeable TODOs of this project:
 
-- PERFORMANCE Debug mode was the issue. But performance can probably still be optimized increased. Turn shapePoints linked list into vector.
+- BUG LFOs can be added to the same parameter multiple times
 
-- BUG modulation links are not disabled after deleting a point.
+- BUG direction of curve center modulation is not flipped when curve segment is flipped. Movement of curve segment hs to be removed anyways.
+
+- BUG serialiaze skipps points in ShapeEditor::shapePoints.
 
 - BUG (FL Studio) UDShaper crashes on disable when chained after certain plugins (Fruity Limiter). Why??? Does not happen with other effects and can safely be put before Fruity Limmiter.
 

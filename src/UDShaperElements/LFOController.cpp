@@ -321,7 +321,20 @@ void LFOSelectorControl::OnMouseUp(float x, float y, const IMouseMod& mod)
 
 LinkKnobVisualLayer::LinkKnobVisualLayer(IRECT rect, int paramIdx)
   : IVKnobControl(rect, paramIdx)
-{}
+{
+  // I do not want to display the label. By default, IVKnobControl
+  // reserves space for the label and scales down the widget.
+  // Setting mLabelInWidget true preserves the full widget size.
+  mLabelInWidget = true;
+}
+
+void LinkKnobVisualLayer::Draw(IGraphics& g)
+{
+  // Same as in IVKnobControl, except DrawLabel(g) has been removed.
+  DrawBackground(g, mRECT);
+  DrawWidget(g);
+  DrawValue(g, mValueMouseOver);
+}
 
 LinkKnobInputLayer::LinkKnobInputLayer(IRECT rect, int visualLayerTag, int knobIdx)
 : IControl(rect, nullptr)

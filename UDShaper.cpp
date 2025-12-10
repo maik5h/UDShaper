@@ -23,31 +23,40 @@ UDShaper::UDShaper(const InstanceInfo& info)
   // Add parameters for the LFOs.
   for (int i = 0; i < MAX_NUMBER_LFOS; i++)
   {
-    int test = getLFOParameterIndex(i, mode);
+    std::string parameterName = "LFO " + std::to_string(i + 1) + " loop mode";
     param = GetParam(getLFOParameterIndex(i, mode));
-    param->InitEnum("LFO loop mode", 0, 2);
+    param->InitEnum(parameterName.c_str(), 0, 2);
     param->SetDisplayText(0, "Tempo");
     param->SetDisplayText(1, "Seconds");
 
+    parameterName = "LFO " + std::to_string(i + 1) + " frequency (beats)";
     param = GetParam(getLFOParameterIndex(i, freqTempo));
-    param->InitInt("LFOrfequency (beats)", 6, 0, 12);
+    param->InitInt(parameterName.c_str(), 6, 0, 12);
+    for (int j = 0; j <= 12; j++)
+    {
+      param->SetDisplayText(j, FREQUENCY_COUNTER_STRINGS[j].c_str());
+    }
 
+    parameterName = "LFO " + std::to_string(i + 1) + " frequency (Seconds)";
     param = GetParam(getLFOParameterIndex(i, freqSeconds));
-    param->InitSeconds("LFO frequency (seconds)", 1., 0.05, 60, 0.05);
+    param->InitSeconds(parameterName.c_str(), 1., 0.05, 60, 0.05);
   }
 
   // Add the modulation amount parameters. Every LFO can link to MAX_MODULATION_LINKS parameters
   // and each link has a coefficient multiplied to the LFO amplitude, which is a parameter.
   for (int i = 0; i < MAX_NUMBER_LFOS * MAX_MODULATION_LINKS; i++)
   {
+    int modIdx = i % MAX_MODULATION_LINKS;
+    int LFOIdx = (i - modIdx) / MAX_MODULATION_LINKS;
+    std::string name = "LFO " + std::to_string(LFOIdx + 1) +" mod " + std::to_string(modIdx + 1) + " amount";
     param = GetParam(EParams::modStart + i);
-    param->InitDouble("", 0., -1., 1., 0.01);
+    param->InitDouble(name.c_str(), 0., -1., 1., 0.01);
   }
 
   // Inform the LFOController about the default parameter values.
   LFOs.refreshInternalState();
 
-#if IPLUG_EDITOR // http://bit.ly/2S64BDd
+#if IPLUG_EDITOR
   mMakeGraphicsFunc = [&]() {
     return MakeGraphics(*this, PLUG_WIDTH, PLUG_HEIGHT, PLUG_FPS, GetScaleForScreen(PLUG_WIDTH, PLUG_HEIGHT));
   };
