@@ -26,9 +26,22 @@ ModulatedParameter::ModulatedParameter(float inBase, float inMinValue, float inM
 
 bool ModulatedParameter::addModulator(int idx)
 {
-  int previousSize = modIndices.size();
+  // Check if any of the connected indices is in the range of indices that
+  // belong to the same LFO.
+  int lowerIdx = (idx - idx % MAX_MODULATION_LINKS);
+  int upperIdx = lowerIdx + MAX_MODULATION_LINKS;
+
+  // Check for any links in that range and return if found.
+  for (int connectedIdx : modIndices)
+  {
+    if ((lowerIdx <= connectedIdx) && (connectedIdx < upperIdx))
+    {
+      return false;
+    }
+  }
+
   modIndices.insert(idx);
-  return previousSize != modIndices.size();
+  return true;
 }
 
 void ModulatedParameter::getModulators(std::set<int>& mods) const
@@ -649,7 +662,7 @@ int ShapeEditor::unserializeState(const IByteChunk& chunk, int startPos, int ver
       {
         // Add new points unless the last point is reached, which was already created at instantiation
         // of this ShapeEditor.
-        insertPointAt(0.f, 0.f);
+        shapePoints.emplace(shapePoints.begin() + i + 1, 0.f, 0.f, layout.editorRect);
       }
       startPos = shapePoints.at(i + 1).unserializeState(chunk, startPos, version);
     }
