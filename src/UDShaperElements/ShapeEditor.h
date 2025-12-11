@@ -2,6 +2,7 @@
 
 #include <assert.h>
 #include <set>
+#include <math.h>
 #include "IControls.h"
 #include "../GUILayout.h"
 #include "../color_palette.h"
@@ -124,6 +125,9 @@ public:
   // Relative y-value of the curve at the x-center point between this and the previous point.
   ModulatedParameter curveCenterPosY;
 
+  // The curve center y-position at the last left click.
+  float centerYClicked = 0;
+
   // The parent ShapeEditor will highlight this point or curve center point if highlightMode is not modNone.
   // modPosX and modPosY highlight the point itself, modCurveCenterY highlight the curve center.
   modulationMode highlightMode = modNone;
@@ -169,10 +173,9 @@ public:
 
   // Update the Curve center point when manually dragging it.
   //
-  // * @param x Target x-position
-  // * @param y Target y-position
+  // * @param y Absolute y-position of the mouse cursor
   // * @param previousY The absolute y-position of the previous point
-  void updateCurveCenter(float x, float y, float previousY);
+  void updateCurveCenter(float y, float previousY);
 
   void processLeftClick();
 
@@ -251,6 +254,17 @@ class ShapeEditor
 
   // Can either move a ShapePoint or change the interpolation shape between two points.
   void processMouseDrag(float x, float y);
+
+  // * @return true if the user is currently dragging a parameter that has reached its
+  // maximum or minimum value.
+  bool isDraggingBeyondBounds() const;
+
+  // Get information if the mouse cursor is hidden must be revealed and a position to set it.
+  // The ShapeEditorControl needs to know this on mouse button up.
+  // * @param revealMouse Set to true if an action is required
+  // * @param x Set to the x-position the cursor must be moved to
+  // * @param y Set to the y-position the cursor must be moved to
+  void getMouseReveal(bool& revealCursor, float& x, float& y) const;
 
   // Can either:
   //  - Delete a ShapePoint if (x, y) is close to point.
@@ -335,6 +349,7 @@ public:
   void OnResize() override;
   void OnMouseDown(float x, float y, const IMouseMod& mod) override;
   void OnMouseDrag(float x, float y, float dX, float dY, const IMouseMod& mod) override;
+  void OnMouseUp(float x, float y, const IMouseMod& mod) override;
   void OnMouseDblClick(float x, float y, const IMouseMod& mod) override;
   void OnPopupMenuSelection(IPopupMenu* pSelectedMenu, int valIdx) override;
   void OnMsgFromDelegate(int msgTag, int dataSize, const void* pData) override;
@@ -368,4 +383,8 @@ protected:
 
   // Stores the modulation index corresponding to menuMod while the menu is open.
   int modIdx = -1;
+
+  // Sometimes dragging needs more space than available, in which case the cursor can be set
+  // back and this counter increases to keep track of the actual dragged distance.
+  float cumulativeDragOffset = 0.f;
 };

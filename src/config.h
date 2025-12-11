@@ -11,8 +11,8 @@ constexpr float FRAME_WIDTH_EDITOR = 2.f;     // Width of the frames around Shap
 constexpr float POINT_SIZE = 4.f;             // Radius of the curve center points relative to the GUI width.
 constexpr float POINT_SIZE_SMALL = 3.f;       // Radius of ShapePoints relative to the GUI width.
 
-constexpr float SHAPE_MAX_POWER = 30;         // Maximum of the power parameter of ShapePoints.
-constexpr float SHAPE_MIN_OMEGA = 10E-3;      // Minimum omega of SHapePoints.
+constexpr float MIN_CURVE_CENTER = 1E-5;      // Minimum curve center x-position for power shapes.
+constexpr float SHAPE_MIN_OMEGA = 0.01;       // Minimum omega of SHapePoints.
 
 constexpr uint32_t MAX_NUMBER_LINKS = 12;     // Maximum number of links to a ModulatedParameter for a single Envelope.
 constexpr float LINK_KNOB_SIZE = 25.f;        // Diameter of the link knobs below the active Envelope of the EnvelopeManager relative to the GUI width.

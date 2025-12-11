@@ -8,12 +8,11 @@
 //
 // In the second case, -power is returned instead of power. It does NOT mean the curve
 // is actually f(x) = 1 / (x^|power|) and only indicates the input was > 0.5.
+//
+// Input must be > 0 and < 1 or else the power will be inf.
 static float getPowerFromPosY(float posY)
 {
   float power = (posY < 0.5) ? log(posY) / log(0.5) : log(1 - posY) / log(0.5);
-
-  // Clamp to allowed maximum power.
-  power = (power > SHAPE_MAX_POWER) ? SHAPE_MAX_POWER : power;
 
   return (posY > 0.5) ? -power : power;
 }
@@ -62,13 +61,13 @@ void ModulatedParameter::set(float newValue)
 
 float ModulatedParameter::get(double* modulationAmplitudes) const
 {
-  if (modulationAmplitudes == nullptr)
-  { return base; }
-
   float currentValue = base;
-  for (int idx : modIndices)
+  if (modulationAmplitudes)
   {
-    currentValue += modulationAmplitudes[idx];
+    for (int idx : modIndices)
+    {
+      currentValue += modulationAmplitudes[idx];
+    }
   }
 
   currentValue = (currentValue > maxValue) ? maxValue : (currentValue < minValue) ? minValue : currentValue;
@@ -110,7 +109,7 @@ int ModulatedParameter::unserializeState(const IByteChunk& chunk, int startPos, 
 ShapePoint::ShapePoint(float x, float y, IRECT editorRect, float pow, float omega, Shapes initMode)
 : posX(x)
 , posY(y)
-, curveCenterPosY(std::pow(0.5, pow))
+, curveCenterPosY(std::pow(0.5, pow), MIN_CURVE_CENTER, 1 - MIN_CURVE_CENTER)
 {
   assert((0 <= x) && (x <= 1) && (0 <= y) && (y <= 1));
 
@@ -158,7 +157,7 @@ float ShapePoint::getCurveCenterAbsPosY(float previousY, double* modulationAmpli
   return previousY + curveCenterY * yExtent;
 }
 
-void ShapePoint::updateCurveCenter(float x, float y, float previousY)
+void ShapePoint::updateCurveCenter(float y, float previousY)
 {
   // Nothing to update if curve segment is flat.
   if (previousY == getAbsPosY()) return;
@@ -166,15 +165,21 @@ void ShapePoint::updateCurveCenter(float x, float y, float previousY)
   switch (mode)
   {
   case shapePower: {
-    float yMin = (previousY > getAbsPosY()) ? getAbsPosY() : previousY;
-    float yMax = (previousY < getAbsPosY()) ? getAbsPosY() : previousY;
+    // Find the offset from the last clicked position normalized to the y-range of this segment.
+    y = (y - previousY) / (getAbsPosY() - previousY) - centerYClicked;
 
-    // y must not be yMax or yMin, else there will be a log(0). set y to be at least one pixel off of
-    // these values.
-    y = (y >= yMax) ? yMax - 1 : (y <= yMin) ? yMin + 1 : y;
+    // To smooth the transition between 0 and 1, a sigmoid function is applied to the offset.
+    // First, reverse transform the current position to provide a starting point for the offset.
+    float yCenterTransformed = 2 * std::atanh(2 * centerYClicked - 1);
 
-    float test = previousY - y / previousY - getAbsPosY();
-    curveCenterPosY.set((previousY - y) / (previousY - getAbsPosY()));
+    // Combine the starting point with the offset.
+    // The factor of six amplifies the sensitivity to user inputs. With this value, the curve
+    // center is moved slightly faster than the cursor if close to y=0.5.
+    float combinedOffset = yCenterTransformed + 6 * y;
+
+    // Apply sigmoid.
+    float yCenterNew = 0.5f * (1 + std::tanh(combinedOffset / 2));
+    curveCenterPosY.set(yCenterNew);
     break;
   }
 
@@ -201,6 +206,8 @@ void ShapePoint::updateCurveCenter(float x, float y, float previousY)
 
 void ShapePoint::processLeftClick()
 {
+  centerYClicked = curveCenterPosY.get(nullptr);
+
   // Save the previous omega state.
   sineOmegaPrevious = sineOmega;
 }
@@ -434,7 +441,39 @@ void ShapeEditor::processMouseDrag(float x, float y)
   else if (currentEditMode == curveCenter)
   {
     float previousY = shapePoints.at(currentlyDraggingIdx - 1).getAbsPosY();
-    shapePoints.at(currentlyDraggingIdx).updateCurveCenter(x, y, previousY);
+    shapePoints.at(currentlyDraggingIdx).updateCurveCenter(y, previousY);
+  }
+}
+
+bool ShapeEditor::isDraggingBeyondBounds() const
+{
+  if (currentEditMode == editMode::curveCenter)
+  {
+    ShapePoint point = shapePoints.at(currentlyDraggingIdx);
+    bool isMin = (point.curveCenterPosY.get(nullptr) == MIN_CURVE_CENTER);
+    bool isMax = (point.curveCenterPosY.get(nullptr) == 1 - MIN_CURVE_CENTER);
+    return isMin || isMax;
+  }
+  return false;
+}
+
+void ShapeEditor::getMouseReveal(bool& revealCursor, float& x, float& y) const
+{
+  if ((currentlyDraggingIdx != -1) && (currentEditMode == editMode::curveCenter))
+  {
+    revealCursor = true;
+
+    // Find curve center x- and y-position.
+    float lX = shapePoints.at(currentlyDraggingIdx - 1).getAbsPosX();
+    float uX = shapePoints.at(currentlyDraggingIdx).getAbsPosX();
+    x = (lX + uX) / 2;
+
+    float lY = shapePoints.at(currentlyDraggingIdx - 1).getAbsPosY();
+    y = shapePoints.at(currentlyDraggingIdx).getCurveCenterAbsPosY(lY);
+  }
+  else
+  {
+    revealCursor = false;
   }
 }
 
@@ -449,9 +488,9 @@ const float ShapeEditor::forward(float input, double* modulationAmplitudes)
   // Absolute value of input is processed, information about sign is saved to flip output after computing.
   bool flipOutput = input < 0;
   input = (input < 0) ? -input : input;
-
   input = (input > 1) ? 1 : input;
 
+  // Index of the ShapePoint that corresponds to the input.
   int idx = 1;
 
   // Find the curve segment corresponding to the input.
@@ -538,6 +577,7 @@ const float ShapeEditor::forward(float input, double* modulationAmplitudes)
     }
   }
 
+  // Evaluate the curve segment at the input.
   switch (shapePoints.at(idx).mode)
   {
   case shapePower: {
@@ -796,7 +836,16 @@ void ShapeEditorControl::OnResize()
 
 void ShapeEditorControl::OnMouseDown(float x, float y, const IMouseMod& mod)
 {
-  if (mod.L) editor->processLeftClick(x, y);
+  if (mod.L)
+  {
+    editor->processLeftClick(x, y);
+
+    // Hide the mouse cursor if the user starts dragging the curve center.
+    if (editor->currentEditMode == editMode::curveCenter)
+    {
+      GetUI()->HideMouseCursor(true, false);
+    }
+  }
   if (mod.R)
   {
     if (editor->processRightClick(x, y))
@@ -809,8 +858,45 @@ void ShapeEditorControl::OnMouseDown(float x, float y, const IMouseMod& mod)
 
 void ShapeEditorControl::OnMouseDrag(float x, float y, float dX, float dY, const IMouseMod& mod)
 {
-  editor->processMouseDrag(x, y);
+  // If the curve center is edited, the user might drag further than the edge of the screen,
+  // which stops the dragging. Since the cursor is hidden, this feels unresponsive.
+  // If the cursor moves past the plugin window, just set it back and take the additional
+  // distance into accout. The user can drag infinitely as long as the plugin window is
+  // fully visible.
+  if (editor->currentEditMode == editMode::curveCenter)
+  {
+    if ((y < 0) || (y > GetUI()->Height()))
+    {
+      GetUI()->MoveMouseCursor(x, y - dY);
+
+      // Do not cumulate the dragging offset if the dragged value has reached its bounds.
+      // Else the user will have to drag all the way back without effect.
+      if (!editor->isDraggingBeyondBounds())
+      {
+        cumulativeDragOffset += dY;
+      }
+    }
+  }
+  editor->processMouseDrag(x, y + cumulativeDragOffset);
   SetDirty(true);
+}
+
+void ShapeEditorControl::OnMouseUp(float x, float y, const IMouseMod& mod)
+{
+  bool revealCursor = false;
+  float targetX = x;
+  float targetY = y;
+
+  // Check if the editor has hidden the cursor and must show it again.
+  editor->getMouseReveal(revealCursor, targetX, targetY);
+
+  if (revealCursor)
+  {
+    GetUI()->HideMouseCursor(false, false);
+    GetUI()->MoveMouseCursor(targetX, targetY);
+  }
+
+  cumulativeDragOffset = 0.f;
 }
 
 void ShapeEditorControl::OnMouseDblClick(float x, float y, const IMouseMod& mod)

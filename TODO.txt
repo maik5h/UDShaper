@@ -1,7 +1,5 @@
 The biggest and most noticeable TODOs of this project:
 
-- BUG direction of curve center modulation is not flipped when curve segment is flipped. Movement of curve segment hs to be removed anyways.
-
 - (BUG (FL Studio) UDShaper crashes on disable when chained after certain plugins (Fruity Limiter). Why??? Does not happen with other effects and can safely be put before Fruity Limmiter.)
 I could not reproduce this and will assume it has fixed itself, keeping this note so I can watch out for similar bugs in the future.
 
@@ -21,13 +19,9 @@ I could not reproduce this and will assume it has fixed itself, keeping this not
 
 - For now having serialiazeState/ unserializeState methods in ShapeEditor and LFOController works, but I think when future versions are released, it is cleaner to have these methods separated and take a ShapeEditor/ LFOController object, as well as a version number as input.
 
-- curve center y position should not be handled how it is right now: ModulatedParameter controls the position, which is translated to a power. Instead, the Modulated Parameter should control the power. This would also make it easier to improve the editing of curveCenter as discussed below.
-
 No functionality, only convenience:
 
 - It would be good if all active knobs are on the left and all inactive ones on the right. On disable, modulated parameters must be connected with the link corresponding to the new knob positions.
-
-- When editing curveCenter, the center should not be set to the mouse position, but rather move slower the further from the center it is, to allow for more control. Also detach the exact position on the screen from the power value to allow for finer steps in power.
 
 - Symbols in shapeEditor windows to indicate mode (arrow up/down, L/R, M/S, +/-)
 
