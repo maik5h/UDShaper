@@ -887,7 +887,7 @@ void ShapeEditorControl::OnMouseDown(float x, float y, const IMouseMod& mod)
     // Hide the mouse cursor if the user starts dragging the curve center.
     if (editor->currentEditMode == editMode::curveCenter)
     {
-      GetUI()->HideMouseCursor(true, false);
+      GetUI()->HideMouseCursor(true, true);
     }
   }
   if (mod.R)
@@ -902,25 +902,17 @@ void ShapeEditorControl::OnMouseDown(float x, float y, const IMouseMod& mod)
 
 void ShapeEditorControl::OnMouseDrag(float x, float y, float dX, float dY, const IMouseMod& mod)
 {
-  // If the curve center is edited, the user might drag further than the edge of the screen,
-  // which stops the dragging. Since the cursor is hidden, this feels unresponsive.
-  // If the cursor moves past the plugin window, just set it back and take the additional
-  // distance into accout. The user can drag infinitely as long as the plugin window is
-  // fully visible.
-  if (editor->currentEditMode == editMode::curveCenter)
+  // If the curve center is edited, the mouse is locked in place by HideMouseCursor.
+  // Collect the dragging offset to forward to the ShapeEditor.
+  // Do not do that if the maximum curve center position has been reached, else
+  // the user will have to drag all the way back without effect.
+  bool editingCurveCenter = (editor->currentEditMode == editMode::curveCenter);
+  bool maxReached = editor->isDraggingBeyondBounds();
+  if (editingCurveCenter && !maxReached)
   {
-    if ((y < 0) || (y > GetUI()->Height()))
-    {
-      GetUI()->MoveMouseCursor(x, y - dY);
-
-      // Do not cumulate the dragging offset if the dragged value has reached its bounds.
-      // Else the user will have to drag all the way back without effect.
-      if (!editor->isDraggingBeyondBounds())
-      {
-        cumulativeDragOffset += dY;
-      }
-    }
+    cumulativeDragOffset += dY;
   }
+
   editor->processMouseDrag(x, y + cumulativeDragOffset);
   SetDirty(true);
 }
