@@ -193,6 +193,9 @@ class LFOSelectorControl : public IControl
   // Keeps track if the available modulation links are connected to a parameter.
   bool (&linkActive)[MAX_NUMBER_LFOS * MAX_MODULATION_LINKS];
 
+  // Keep track if the mouse is over the rect of this control while dragging.
+  bool mouseOver = false;
+
 public:
   // Total number of LFOs displayed.
   int numberLFOs = 3;
@@ -212,6 +215,7 @@ public:
 
   void Draw(IGraphics& g) override;
   void OnMouseDown(float x, float y, const IMouseMod& mod) override;
+  void OnMouseDrag(float x, float y, float dX, float dY, const IMouseMod& mod) override;
   void OnMouseUp(float x, float y, const IMouseMod& mod) override;
 };
 
@@ -246,6 +250,12 @@ public:
   void OnMouseDrag(float x, float y, float dX, float dY, const IMouseMod& mod) override;
   void OnMouseWheel(float x, float y, const IMouseMod& mod, float d) override;
   void OnPopupMenuSelection(IPopupMenu* pSelectedMenu, int valIdx) override;
+
+  // Send a message to ShapeEditors to highlight the point connected to this knob.
+  void OnMouseOver(float x, float y, const IMouseMod& mod) override;
+
+  // Send a message to ShapeEditors to stop highlighting.
+  void OnMouseOut() override;
 
 private:
   // Tag of the LinkKnobVisualLayer associated with this InputLayer.

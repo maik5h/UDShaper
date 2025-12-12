@@ -280,6 +280,18 @@ void LFOSelectorControl::OnMouseDown(float x, float y, const IMouseMod& mod)
     SetValue(GetParam()->ToNormalized(activeLFOIdx));
     SetDirty(true);
     isDragging = true;
+    mouseOver = true;
+  }
+}
+
+void LFOSelectorControl::OnMouseDrag(float x, float y, float dX, float dY, const IMouseMod& mod)
+{
+  // If the mouse exits the control area while dragging, send a message to ShapeEditors to highlight
+  // possible modulation targets.
+  if (mouseOver && !mRECT.Contains(x, y))
+  {
+    GetUI()->GetDelegate()->SendArbitraryMsgFromUI(EControlMsg::LFOConnectInit, GetTag(), sizeof(activeLFOIdx), &activeLFOIdx);
+    mouseOver = false;
   }
 }
 
@@ -314,7 +326,7 @@ void LFOSelectorControl::OnMouseUp(float x, float y, const IMouseMod& mod)
     // Send a message to the plugin, including details about the attempted connection.
     if (IGraphics* ui = GetUI())
     {
-      ui->GetDelegate()->SendArbitraryMsgFromUI(EControlMsg::LFOAttemptConnect, GetTag(), sizeof(connectInfo), &connectInfo);
+      ui->GetDelegate()->SendArbitraryMsgFromUI(EControlMsg::LFOConnectAttempt, GetTag(), sizeof(connectInfo), &connectInfo);
     }
   }
 }
@@ -381,6 +393,16 @@ void LinkKnobInputLayer::OnPopupMenuSelection(IPopupMenu* pSelectedMenu, int val
   {
     GetUI()->GetDelegate()->SendArbitraryMsgFromUI(EControlMsg::LFODisconnect, GetTag(), sizeof(kIdx), &kIdx);
   }
+}
+
+void LinkKnobInputLayer::OnMouseOver(float x, float y, const IMouseMod& mod)
+{
+  GetUI()->GetDelegate()->SendArbitraryMsgFromUI(EControlMsg::linkKnobMouseOver, GetTag(), sizeof(kIdx), &kIdx);
+}
+
+void LinkKnobInputLayer::OnMouseOut()
+{
+    GetUI()->GetDelegate()->SendArbitraryMsgFromUI(EControlMsg::linkKnobMouseOut, GetTag(), sizeof(kIdx), &kIdx);
 }
 
 void FrequencyPanel::attachUI(IGraphics* pGraphics)

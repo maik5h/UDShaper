@@ -50,6 +50,11 @@ private:
   // Indices in the array of all modulation links that are connected to this parameter.
   std::set<int> modIndices;
 
+  // Keeps track if any of the available LFOs is connected to this parameter.
+  // In principle this is also evident from modIndices, but requires more computational
+  // effort to determine. Use this array to access the connection state fast.
+  bool LFOIsConnected[MAX_NUMBER_LFOS] = {};
+
 public:
   // Create a ModulatedParameter.
   //
@@ -64,6 +69,12 @@ public:
 
   // Adds the indices of all LFO links connected to this parameter to the given set.
   void getModulators(std::set<int>& mods) const;
+
+  // * @return true if this parameter is already connected to the LFO with given index.
+  bool isConnectedToLFO(int LFOIdx) const;
+
+  // * @return true if this parameter is connected to the modulation link at modIdx.
+  bool isConnectedToMod(int modIdx) const;
 
   void removeModulator(int idx);
 
@@ -387,4 +398,13 @@ protected:
   // Sometimes dragging needs more space than available, in which case the cursor can be set
   // back and this counter increases to keep track of the actual dragged distance.
   float cumulativeDragOffset = 0.f;
+
+  // The index of the LFO that attempts to connect a link to a ShapeEditor parameter.
+  // Is -1 if not LFO is attempting to connect a link.
+  // This parameter is changed on the LFOConnectInit and LFOConnectAttempt message.
+  int LFOConnectIdx = -1;
+
+  // The index of a LinkKnob that the cursor is over. -1 if the cursor is not over a LinkKnob.
+  // This parameter is changed on the linkKnobMouseOver and linkKnobMouseOut message.
+  int highlightKnobIdx = -1;
 };

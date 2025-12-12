@@ -1,5 +1,7 @@
 The biggest and most noticeable TODOs of this project:
 
+- BUG crashes if last point is modulated in x-direction.
+
 - (BUG (FL Studio) UDShaper crashes on disable when chained after certain plugins (Fruity Limiter). Why??? Does not happen with other effects and can safely be put before Fruity Limmiter.)
 I could not reproduce this and will assume it has fixed itself, keeping this note so I can watch out for similar bugs in the future.
 

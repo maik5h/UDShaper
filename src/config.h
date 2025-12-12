@@ -10,6 +10,10 @@ constexpr float FRAME_WIDTH_NARROW = 3.f;     // Width of narrow frames relative
 constexpr float FRAME_WIDTH_EDITOR = 2.f;     // Width of the frames around ShapeEditor interfaces relative to the GUI width.
 constexpr float POINT_SIZE = 4.f;             // Radius of the curve center points relative to the GUI width.
 constexpr float POINT_SIZE_SMALL = 3.f;       // Radius of ShapePoints relative to the GUI width.
+constexpr float CIRCLE_SIZE = 6.5f;           // Radius of circles around points on ShapeEditors.
+constexpr float CIRCLE_SIZE_SMALL = 5.5f;     // Radius of circles around curve center points on ShapeEditors.
+constexpr float CIRCLE_THICKNESS = 1.5f;      // Thickness of circles around points on ShapeEditors.
+constexpr float CIRCLE_THICKNESS_SMALL = 1.5f;// Thickness of circles around curve center points on ShapeEditors.
 
 constexpr float MIN_CURVE_CENTER = 1E-5;      // Minimum curve center x-position for power shapes.
 constexpr float SHAPE_MIN_OMEGA = 0.01;       // Minimum omega of SHapePoints.

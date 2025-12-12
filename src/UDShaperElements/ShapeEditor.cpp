@@ -25,22 +25,17 @@ ModulatedParameter::ModulatedParameter(float inBase, float inMinValue, float inM
 
 bool ModulatedParameter::addModulator(int idx)
 {
-  // Check if any of the connected indices is in the range of indices that
-  // belong to the same LFO.
-  int lowerIdx = (idx - idx % MAX_MODULATION_LINKS);
-  int upperIdx = lowerIdx + MAX_MODULATION_LINKS;
-
-  // Check for any links in that range and return if found.
-  for (int connectedIdx : modIndices)
+  int LFOIdx = (idx - idx % MAX_MODULATION_LINKS) / MAX_MODULATION_LINKS;
+  if (!LFOIsConnected[LFOIdx])
   {
-    if ((lowerIdx <= connectedIdx) && (connectedIdx < upperIdx))
-    {
-      return false;
-    }
+    LFOIsConnected[LFOIdx] = true;
+    modIndices.insert(idx);
+    return true;
   }
-
-  modIndices.insert(idx);
-  return true;
+  else
+  {
+    return false;
+  }
 }
 
 void ModulatedParameter::getModulators(std::set<int>& mods) const
@@ -51,7 +46,22 @@ void ModulatedParameter::getModulators(std::set<int>& mods) const
   }
 }
 
-void ModulatedParameter::removeModulator(int idx) { modIndices.erase(idx); }
+bool ModulatedParameter::isConnectedToLFO(int LFOIdx) const
+{
+  return LFOIsConnected[LFOIdx];
+}
+
+bool ModulatedParameter::isConnectedToMod(int modIdx) const
+{
+  return (modIndices.find(modIdx) != modIndices.end());
+}
+
+void ModulatedParameter::removeModulator(int idx)
+{
+  int LFOIdx = (idx - idx % MAX_MODULATION_LINKS) / MAX_MODULATION_LINKS;
+  LFOIsConnected[LFOIdx] = false;
+  modIndices.erase(idx);
+}
 
 void ModulatedParameter::set(float newValue)
 {
@@ -809,6 +819,40 @@ void ShapeEditorControl::Draw(IGraphics& g)
       float curveCenterPosY = point.getCurveCenterAbsPosY(editor->shapePoints.at(i - 1).getAbsPosY(modulationAmplitudes), modulationAmplitudes);
       g.FillCircle(UDS_WHITE, posX, posY, POINT_SIZE);
       g.FillCircle(UDS_WHITE, curveCenterPosX, curveCenterPosY, POINT_SIZE_SMALL);
+
+      // Add a ring around points if the user tries to connect a modulation link.
+      if (LFOConnectIdx != -1)
+      {
+        // Check if this LFO has been connected to both the x- and y-position of this point.
+        // If yes, dont highlight it.
+        bool connectedX = point.posX.isConnectedToLFO(LFOConnectIdx);
+        bool connectedY = point.posY.isConnectedToLFO(LFOConnectIdx);
+        if (!(connectedX && connectedY))
+        {
+          g.DrawCircle(UDS_WHITE, posX, posY, CIRCLE_SIZE, nullptr, CIRCLE_THICKNESS);
+        }
+
+        if (!point.curveCenterPosY.isConnectedToLFO(LFOConnectIdx))
+        {
+          g.DrawCircle(UDS_WHITE, curveCenterPosX, curveCenterPosY, CIRCLE_SIZE_SMALL, nullptr, CIRCLE_THICKNESS_SMALL);
+        }
+      }
+
+      // If the user hovers over a LinkKnob, highlight the corresponding parameter.
+      else if (highlightKnobIdx != -1)
+      {
+        bool connectedX = point.posX.isConnectedToMod(highlightKnobIdx);
+        bool connectedY = point.posY.isConnectedToMod(highlightKnobIdx);
+        if (connectedX || connectedY)
+        {
+          g.DrawCircle(UDS_WHITE, posX, posY, CIRCLE_SIZE, nullptr, CIRCLE_THICKNESS);
+        }
+        else if (point.curveCenterPosY.isConnectedToMod(highlightKnobIdx))
+        {
+          g.DrawCircle(UDS_WHITE, curveCenterPosX, curveCenterPosY, CIRCLE_SIZE_SMALL, nullptr, CIRCLE_THICKNESS_SMALL);
+        }
+      }
+
       lowerBound = lowerBoundNext;
     }
   };
@@ -963,8 +1007,14 @@ void ShapeEditorControl::OnPopupMenuSelection(IPopupMenu* pSelectedMenu, int val
 
 void ShapeEditorControl::OnMsgFromDelegate(int msgTag, int dataSize, const void* pData)
 {
+  if (msgTag == EControlMsg::LFOConnectInit)
+  {
+    LFOConnectIdx = *static_cast<const int*>(pData);
+    SetDirty(false);
+  }
+
   // An LFO tries to connect to a ModulatedParameter.
-  if (msgTag == EControlMsg::LFOAttemptConnect)
+  else if (msgTag == EControlMsg::LFOConnectAttempt)
   {
     LFOConnectInfo info = *static_cast<const LFOConnectInfo*>(pData);
     int closestPointIdx = editor->getClosestPoint(info.x, info.y);
@@ -981,11 +1031,27 @@ void ShapeEditorControl::OnMsgFromDelegate(int msgTag, int dataSize, const void*
       }
       else
       {
-        // Store point and index to later access them when the menu selection is processed.
+        // Store point index to later access it when the menu selection is processed.
         modPointIdx = closestPointIdx;
         modIdx = info.idx;
         GetUI()->CreatePopupMenu(*this, menuMod, IRECT(info.x, info.y, info.x, info.y));
       }
     }
+
+    LFOConnectIdx = -1;
+    SetDirty(false);
+  }
+
+  // If the cursor entered a LinkKnob, highlight the point corresponding to it.
+  else if (msgTag == EControlMsg::linkKnobMouseOver)
+  {
+    highlightKnobIdx = *static_cast<const int*>(pData);
+    SetDirty(false);
+  }
+
+  else if (msgTag == EControlMsg::linkKnobMouseOut)
+  {
+    highlightKnobIdx = -1;
+    SetDirty(false);
   }
 }

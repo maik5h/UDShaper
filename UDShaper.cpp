@@ -84,6 +84,8 @@ UDShaper::UDShaper(const InstanceInfo& info)
     // Reveal the modulationAmplitudesUI array to the ShapeEditors, which will use it to render the current curve.
     static_cast<ShapeEditorControl*>(GetUI()->GetControlWithTag(ShapeEditorControl1))->modulationAmplitudes = modulationAmplitudesUI;
     static_cast<ShapeEditorControl*>(GetUI()->GetControlWithTag(ShapeEditorControl2))->modulationAmplitudes = modulationAmplitudesUI;
+
+    pGraphics->EnableMouseOver(true);
   };
 #endif
 }
@@ -248,11 +250,16 @@ void UDShaper::OnParamChange(int idx)
 
 bool UDShaper::OnMessage(int msgTag, int ctrlTag, int dataSize, const void* pData)
 {
-  if (msgTag == EControlMsg::LFOAttemptConnect)
+  // Some messages can be forwarded directly to the ShapeEditorControls.
+  if (
+    (msgTag == EControlMsg::LFOConnectInit)
+    || (msgTag == EControlMsg::LFOConnectAttempt)
+    || (msgTag == EControlMsg::linkKnobMouseOver)
+    || (msgTag == EControlMsg::linkKnobMouseOut)
+    )
   {
-    // Forward attempted LFO connection to the two ShapeEditors.
-    GetUI()->GetDelegate()->SendControlMsgFromDelegate(EControlTags::ShapeEditorControl1, LFOAttemptConnect, dataSize, pData);
-    GetUI()->GetDelegate()->SendControlMsgFromDelegate(EControlTags::ShapeEditorControl2, LFOAttemptConnect, dataSize, pData);
+    SendControlMsgFromDelegate(EControlTags::ShapeEditorControl1, msgTag, dataSize, pData);
+    SendControlMsgFromDelegate(EControlTags::ShapeEditorControl2, msgTag, dataSize, pData);
     return true;
   }
 
