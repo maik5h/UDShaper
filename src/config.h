@@ -29,6 +29,9 @@ constexpr float REQUIRED_SQUARED_DISTANCE = 200;
 // Time in ms until GUI is rerendered.
 constexpr uint32_t GUI_REFRESH_INTERVAL = 15;
 
+// The minimum number of LFOs.
+constexpr int MIN_NUMBER_LFOS = 3;
+
  // The maxmium number of LFOs.
 constexpr int MAX_NUMBER_LFOS = 10;
 

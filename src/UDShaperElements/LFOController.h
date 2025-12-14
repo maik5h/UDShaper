@@ -279,9 +279,6 @@ class LFOController
   // Stores the box coordinates of elements belonging to this LFOController instance.
   LFOControlLayout layout;
 
-  // How many of the MAX_NUMBER_LFOS LFOs are active.
-  int numberLFOs = 3;
-
   // Index of the currently displayed LFO.
   int activeLFOIdx = 0;
 
@@ -296,6 +293,8 @@ class LFOController
   IPluginBase* mPlugin;
 
   // Keeps track if the available modulation links are connected to a parameter.
+  // There are MAX_NUMBER_LFOS different LFOs and MAX_MODULATION_LINKS links per
+  // LFO. All these parameters are appended in this array.
   bool linkActive[MAX_NUMBER_LFOS * MAX_MODULATION_LINKS] = {};
 
 public:

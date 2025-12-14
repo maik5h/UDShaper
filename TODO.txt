@@ -2,6 +2,10 @@ The biggest and most noticeable TODOs of this project:
 
 - BUG crashes if last point is modulated in x-direction.
 
+- BUG point without modulation can not be deleted, check for nullptr in UDShaper::OnMessage (editorPointDeleted).
+
+- BUG highlighting of points does always show the parameters connected to the first LFO, not the active one.
+
 - (BUG (FL Studio) UDShaper crashes on disable when chained after certain plugins (Fruity Limiter). Why??? Does not happen with other effects and can safely be put before Fruity Limmiter.)
 I could not reproduce this and will assume it has fixed itself, keeping this note so I can watch out for similar bugs in the future.
 
@@ -23,7 +27,9 @@ I could not reproduce this and will assume it has fixed itself, keeping this not
 
 No functionality, only convenience:
 
-- It would be good if all active knobs are on the left and all inactive ones on the right. On disable, modulated parameters must be connected with the link corresponding to the new knob positions.
+- The overall look of the plugin has to be improved, but this can wait until all functionality is implemented. Especially the 3D frame around the LFO selector panel must be removed and the label must be made much smaller. Currently there is not enough space for all these elements if a large number of LFOs is displayed.
+
+- It would be good if all active knobs are on the left and all inactive ones on the right. An easy solution would be to add an array that maps every mod parameter to the corresponding point. Rearranging the knobs will only affect this intermediate layer. But I am hesitant to implement it, as it adds addtional calls to performance critical code. Solving this without such array would give better performance, but it turned out to be more challenging than expected and quite error prone.
 
 - Symbols in shapeEditor windows to indicate mode (arrow up/down, L/R, M/S, +/-)
 

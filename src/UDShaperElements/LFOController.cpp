@@ -537,6 +537,22 @@ void LFOController::attachUI(IGraphics* pGraphics)
 
   // Refresh control members to display the correct state.
   setActiveLFO(mPlugin->GetParam(EParams::activeLFOIdx)->Value());
+
+  // Find the last LFO that modulates a parameter and display one more.
+  for (int i = MAX_NUMBER_LFOS * MAX_MODULATION_LINKS - 1; i >= 0; i--)
+  {
+    if (linkActive[i])
+    {
+      // The index of the last connected LFO plus two, i.e. the number of
+      // displayed LFOs.
+      int LFOIdx = (i - i % MAX_MODULATION_LINKS) / MAX_MODULATION_LINKS + 2;
+      LFOIdx = (LFOIdx > MAX_NUMBER_LFOS) ? MAX_NUMBER_LFOS : LFOIdx;
+      LFOIdx = (LFOIdx < MIN_NUMBER_LFOS) ? MIN_NUMBER_LFOS : LFOIdx;
+      auto selectorControl = static_cast<LFOSelectorControl*>(pGraphics->GetControlWithTag(EControlTags::LFOSelectorControlTag));
+      selectorControl->numberLFOs = LFOIdx;
+      break;
+    }
+  }
 }
 
 void LFOController::setLoopMode(LFOLoopMode mode)
@@ -628,6 +644,37 @@ void LFOController::setLinkActive(int idx, bool active)
       // Enable visual and input layer of this knob.
       ui->GetControlWithTag(EControlTags::LFOKnobStart + 2 * shiftedIdx)->SetDisabled(!active);
       ui->GetControlWithTag(EControlTags::LFOKnobStart + 2 * shiftedIdx + 1)->SetDisabled(!active);
+    }
+
+    // Update the number of displayed LFOs, such that there is always one
+    // unconnected LFO at the end.
+    IControl* control = mPlugin->GetUI()->GetControlWithTag(EControlTags::LFOSelectorControlTag);
+    LFOSelectorControl* selectorControl = static_cast<LFOSelectorControl*>(control);
+    // If the last LFO has been connected, display a new one.
+    if (active)
+    {
+      if ((activeLFOIdx == selectorControl->numberLFOs - 1) && (selectorControl->numberLFOs < MAX_NUMBER_LFOS))
+      {
+        selectorControl->numberLFOs++;
+      }
+    }
+    // If the two last LFOs are not connected to any parameter, one of them can be hidden.
+    else if (selectorControl->numberLFOs > MIN_NUMBER_LFOS)
+    {
+      bool connected = false;
+      for (int i = 0; i < 2 * MAX_MODULATION_LINKS; i++)
+      {
+        int linkIdx = (selectorControl->numberLFOs - 2) * MAX_MODULATION_LINKS + i;
+        if (linkActive[linkIdx])
+        {
+          connected = true;
+          break;
+        }
+      }
+      if (!connected)
+      {
+        selectorControl->numberLFOs--;
+      }
     }
   }
 }

@@ -111,7 +111,7 @@ int ModulatedParameter::unserializeState(const IByteChunk& chunk, int startPos, 
   for (int i = 0; i < numLinks; i++)
   {
     startPos = chunk.Get(&linkIdx, startPos);
-    modIndices.insert(linkIdx);
+    addModulator(linkIdx);
   }
   return startPos;
 }
@@ -704,7 +704,7 @@ int ShapeEditor::unserializeState(const IByteChunk& chunk, int startPos, int ver
     int numberPoints;
     startPos = chunk.Get(&numberPoints, startPos);
 
-    shapePoints.reserve(numberPoints);
+    shapePoints.reserve(numberPoints + 1);
 
     for (int i = 0; i < numberPoints; i++)
     {
