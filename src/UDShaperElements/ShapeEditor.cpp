@@ -59,8 +59,10 @@ bool ModulatedParameter::isConnectedToMod(int modIdx) const
 void ModulatedParameter::removeModulator(int idx)
 {
   int LFOIdx = (idx - idx % MAX_MODULATION_LINKS) / MAX_MODULATION_LINKS;
-  LFOIsConnected[LFOIdx] = false;
-  modIndices.erase(idx);
+  if (modIndices.erase(idx))
+  {
+    LFOIsConnected[LFOIdx] = false;
+  }
 }
 
 void ModulatedParameter::set(float newValue)
@@ -749,9 +751,6 @@ ShapeEditorControl::ShapeEditorControl(const IRECT& bounds, const IRECT& editorB
   menu.AddItem("Power", 2);
   // TODO add this once sinusoidal interpolation is implemented.
   //menu.AddItem("Sine", 3);
-
-  menuMod.AddItem("X", 0);
-  menuMod.AddItem("Y", 1);
 }
 
 void ShapeEditorControl::setEditor(ShapeEditor* newEditor)
@@ -827,6 +826,10 @@ void ShapeEditorControl::Draw(IGraphics& g)
         // If yes, dont highlight it.
         bool connectedX = point.posX.isConnectedToLFO(LFOConnectIdx);
         bool connectedY = point.posY.isConnectedToLFO(LFOConnectIdx);
+
+        // The last point can never be modulated in x-direction. Always treat it as connected.
+        connectedX = connectedX || (i == editor->shapePoints.size() - 1);
+
         if (!(connectedX && connectedY))
         {
           g.DrawCircle(UDS_WHITE, posX, posY, CIRCLE_SIZE, nullptr, CIRCLE_THICKNESS);
@@ -1023,9 +1026,37 @@ void ShapeEditorControl::OnMsgFromDelegate(int msgTag, int dataSize, const void*
       }
       else
       {
-        // Store point index to later access it when the menu selection is processed.
+        // Store point and mod index to later access it when the menu selection is
+        // processed.
         modPointIdx = closestPointIdx;
         modIdx = info.idx;
+
+        // Clear the menu and add only the entries that are allowed in the current state.
+        menuMod.Clear(false);
+
+        // Check if x- and y-position are already connected to the LFO. Disable menu
+        // option if they are.
+        int xFlags = IPopupMenu::Item::Flags::kNoFlags;
+        int yFlags = IPopupMenu::Item::Flags::kNoFlags;
+
+        int LFOIdx = (info.idx - info.idx % MAX_MODULATION_LINKS) / MAX_MODULATION_LINKS;
+        bool xConnected = editor->shapePoints.at(closestPointIdx).posX.isConnectedToLFO(LFOIdx);
+        bool yConnected = editor->shapePoints.at(closestPointIdx).posY.isConnectedToLFO(LFOIdx);
+
+        // For x-position additionally check if the corresponding point is the last one,
+        // which can not be modulated in x-direction.
+        if (xConnected || (closestPointIdx == editor->shapePoints.size() - 1))
+        {
+          xFlags = IPopupMenu::Item::Flags::kDisabled;
+        }
+        if (yConnected)
+        {
+          yFlags = IPopupMenu::Item::Flags::kDisabled;
+        }
+
+        menuMod.AddItem("X", -1, xFlags);
+        menuMod.AddItem("Y", -1, yFlags);
+
         GetUI()->CreatePopupMenu(*this, menuMod, IRECT(info.x, info.y, info.x, info.y));
       }
     }

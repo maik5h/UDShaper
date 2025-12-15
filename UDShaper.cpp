@@ -271,8 +271,7 @@ bool UDShaper::OnMessage(int msgTag, int ctrlTag, int dataSize, const void* pDat
   }
   else if (msgTag == EControlMsg::LFODisconnect)
   {
-    int knobIdx = *static_cast<const int*>(pData);
-    int linkIdx = static_cast<int>(GetParam(EParams::activeLFOIdx)->Value()) * MAX_MODULATION_LINKS + knobIdx;
+    int linkIdx = *static_cast<const int*>(pData);
 
     // Disable the link on all concerned elements.
     shapeEditor1.disconnectLink(linkIdx);
@@ -281,17 +280,23 @@ bool UDShaper::OnMessage(int msgTag, int ctrlTag, int dataSize, const void* pDat
 
     // Reset the modulation amount to zero.
     GetParam(EParams::modStart + linkIdx)->Set(0.);
+    modulationAmounts[linkIdx] = 0.;
   }
 
   // If a point has been deleted, set the modulation links it has been connected to inactive.
   else if (msgTag == EControlMsg::editorPointDeleted)
   {
-    const int* indices = static_cast<const int*>(pData);
-    int test = *(indices + 1);
-    for (int i = 0; i < dataSize; i++)
+    // If pData is nullptr, no LFO was connected to this point and no action is
+    // required.
+    if (pData)
     {
-      LFOs.setLinkActive(*(indices + i), false);
-      GetParam(EParams::modStart + *(indices + i))->Set(0.);
+      const int* indices = static_cast<const int*>(pData);
+      for (int i = 0; i < dataSize; i++)
+      {
+        LFOs.setLinkActive(*(indices + i), false);
+        GetParam(EParams::modStart + *(indices + i))->Set(0.);
+        modulationAmounts[*(indices + i)] = 0.;
+      }
     }
   }
   return false;

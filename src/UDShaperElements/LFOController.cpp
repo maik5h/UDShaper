@@ -348,10 +348,10 @@ void LinkKnobVisualLayer::Draw(IGraphics& g)
   DrawValue(g, mValueMouseOver);
 }
 
-LinkKnobInputLayer::LinkKnobInputLayer(IRECT rect, int visualLayerTag, int knobIdx)
+LinkKnobInputLayer::LinkKnobInputLayer(IRECT rect, int visualLayerTag)
 : IControl(rect, nullptr)
 , visTag(visualLayerTag)
-, kIdx(knobIdx)
+, modIdx(-1)
 {
   menu.AddItem("Remove", 0);
 }
@@ -391,18 +391,26 @@ void LinkKnobInputLayer::OnPopupMenuSelection(IPopupMenu* pSelectedMenu, int val
 {
   if (pSelectedMenu == &menu)
   {
-    GetUI()->GetDelegate()->SendArbitraryMsgFromUI(EControlMsg::LFODisconnect, GetTag(), sizeof(kIdx), &kIdx);
+    // Find the index of the modulation link currently associated with this knob.
+    // The input layer is not actually connected to this parameter, the index has
+    // to be obtained from the visual layer.
+    modIdx = GetUI()->GetControlWithTag(visTag)->GetParamIdx() - EParams::modStart;
+    GetUI()->GetDelegate()->SendArbitraryMsgFromUI(EControlMsg::LFODisconnect, GetTag(), sizeof(modIdx), &modIdx);
   }
 }
 
 void LinkKnobInputLayer::OnMouseOver(float x, float y, const IMouseMod& mod)
 {
-  GetUI()->GetDelegate()->SendArbitraryMsgFromUI(EControlMsg::linkKnobMouseOver, GetTag(), sizeof(kIdx), &kIdx);
+  // Find the index of the modulation link currently associated with this knob.
+  // The input layer is not actually connected to this parameter, the index has
+  // to be obtained from the visual layer.
+  modIdx = GetUI()->GetControlWithTag(visTag)->GetParamIdx() - EParams::modStart;
+  GetUI()->GetDelegate()->SendArbitraryMsgFromUI(EControlMsg::linkKnobMouseOver, GetTag(), sizeof(modIdx), &modIdx);
 }
 
 void LinkKnobInputLayer::OnMouseOut()
 {
-    GetUI()->GetDelegate()->SendArbitraryMsgFromUI(EControlMsg::linkKnobMouseOut, GetTag(), sizeof(kIdx), &kIdx);
+    GetUI()->GetDelegate()->SendArbitraryMsgFromUI(EControlMsg::linkKnobMouseOut, GetTag());
 }
 
 void FrequencyPanel::attachUI(IGraphics* pGraphics)
@@ -532,7 +540,7 @@ void LFOController::attachUI(IGraphics* pGraphics)
     int visTag = EControlTags::LFOKnobStart + 2 * i;
     int inTag = visTag + 1;
     pGraphics->AttachControl(new LinkKnobVisualLayer(IRECT(l, t, r, b), paramIdx), visTag)->SetDisabled(true);
-    pGraphics->AttachControl(new LinkKnobInputLayer(IRECT(l, t, r, b), visTag, i), inTag)->SetDisabled(true);
+    pGraphics->AttachControl(new LinkKnobInputLayer(IRECT(l, t, r, b), visTag), inTag)->SetDisabled(true);
   }
 
   // Refresh control members to display the correct state.

@@ -240,7 +240,7 @@ public:
 class LinkKnobInputLayer : public IControl
 {
 public:
-  LinkKnobInputLayer(IRECT rect, int visualLayerTag, int knobIdx);
+  LinkKnobInputLayer(IRECT rect, int visualLayerTag);
 
   void Draw(IGraphics& g) override;
 
@@ -261,8 +261,9 @@ private:
   // Tag of the LinkKnobVisualLayer associated with this InputLayer.
   int visTag;
 
-  // Index of this knob.
-  int kIdx;
+  // Index of the modulation link currently associated with this knob.
+  // Send this value onMouseOver and LFODisconnect
+  int modIdx;
 
   // Menu to display when rightclicking a link knob.
   IPopupMenu menu = IPopupMenu();
