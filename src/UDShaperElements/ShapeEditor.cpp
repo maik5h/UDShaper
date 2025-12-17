@@ -489,7 +489,7 @@ void ShapeEditor::getMouseReveal(bool& revealCursor, float& x, float& y) const
   }
 }
 
-const float ShapeEditor::forward(float input, double* modulationAmplitudes)
+float ShapeEditor::forward(float input, double* modulationAmplitudes) const
 {
   // Catching this case is important because the function might return non-zero values for steep curves
   // due to quantization errors, which would result in an DC offset even when no input audio is given.
@@ -620,7 +620,8 @@ const float ShapeEditor::forward(float input, double* modulationAmplitudes)
   return flipOutput ? -out : out;
 }
 
-const void ShapeEditor::attachUI(IGraphics* g) {
+void ShapeEditor::attachUI(IGraphics* g)
+{
   assert(!layout.fullRect.Empty());
 
   g->AttachControl(new FillRectangle(layout.innerRect, UDS_ORANGE));

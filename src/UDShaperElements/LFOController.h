@@ -173,9 +173,6 @@ public:
   // if necessary. Parameter changes are directly reported to the internal arrays
   // in UDShaper::OnParamChange.
   void refreshInternalState();
-
-  // bool saveState(const clap_ostream_t *stream);
-  // bool loadState(const clap_istream_t *stream, int version[3]);
 };
 
 // A panel on the UI from which the current LFO can be selected.
@@ -191,7 +188,7 @@ class LFOSelectorControl : public IControl
   LFOConnectInfo connectInfo = {};
 
   // Keeps track if the available modulation links are connected to a parameter.
-  bool (&linkActive)[MAX_NUMBER_LFOS * MAX_MODULATION_LINKS];
+  bool (&linkActive)[MAX_NUMBER_LFOS][MAX_MODULATION_LINKS];
 
   // Keep track if the mouse is over the rect of this control while dragging.
   bool mouseOver = false;
@@ -208,10 +205,7 @@ public:
   // * @param rect IRECT of this control
   // * @param linkActive Reference to an array stored in LFOController.
   // Needed to keep the state outside of IControls, in case they get deleted.
-  LFOSelectorControl(IRECT rect, bool (&linkActive)[MAX_NUMBER_LFOS * MAX_MODULATION_LINKS]);
-
-  // Copies the state of the modulation links associated with the active LFO to the input array.
-  const void getActiveLinks(bool (&isActive)[MAX_MODULATION_LINKS]);
+  LFOSelectorControl(IRECT rect, bool (&linkActive)[MAX_NUMBER_LFOS][MAX_MODULATION_LINKS]);
 
   void Draw(IGraphics& g) override;
   void OnMouseDown(float x, float y, const IMouseMod& mod) override;
@@ -294,9 +288,9 @@ class LFOController
   IPluginBase* mPlugin;
 
   // Keeps track if the available modulation links are connected to a parameter.
-  // There are MAX_NUMBER_LFOS different LFOs and MAX_MODULATION_LINKS links per
-  // LFO. All these parameters are appended in this array.
-  bool linkActive[MAX_NUMBER_LFOS * MAX_MODULATION_LINKS] = {};
+  // First dimension is the LFO a link belongs to. Second dimension is the index
+  // within this LFO. It corresponds to the link knobs on the UI.
+  bool linkActive[MAX_NUMBER_LFOS][MAX_MODULATION_LINKS] = {};
 
 public:
   LFOController(IRECT rect, float GUIWidth, float GUIHeight, IPluginBase* plugin);
@@ -334,7 +328,7 @@ public:
   // * @para, secondsPlayed The song position in seconds at which the amplitudes are calculated
   // * @param amplitudes Array in which the amplitudes will be copied. Must have size MAX_NUMBER_LFOS * MAX_MODULATION_LINKS
   // * @param factors Array that contains the modulation amounts corresponding to each LFO link. Must have the same size as amplitudes.
-  const void getModulationAmplitudes(double beatPosition, double secondsPlayed, double* amplitudes, double* factors);
+  void getModulationAmplitudes(double beatPosition, double secondsPlayed, double* amplitudes, double* factors) const;
 
   // Enable the modulation link at idx.
   void setLinkActive(int idx, bool active = true);

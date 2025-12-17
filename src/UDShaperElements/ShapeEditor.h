@@ -299,14 +299,14 @@ class ShapeEditor
   // * @param modulationAmplitudes Array of the amplitudes of all LFO modulation links. Can be nullptr,
   // in which case the unmodulated base values are used to calculate the output. If not nullptr, this must
   // point to an array of size MAX_NUMBER_LFOS * MAX_MODULATION_LINKS.
-  const float forward(float input, double* modulationAmplitudes = nullptr);
+  float forward(float input, double* modulationAmplitudes = nullptr) const;
 
   // Attach the ShapeEditor UI to the given graphics context.
   //
   // This will create
   // - An orange background, white frame and grid
   // - A plot of the shaping function defined by this instance
-  const void attachUI(IGraphics* g);
+  void attachUI(IGraphics* g);
 
   // Disconnect the link with idx from all modulated parameters.
   void disconnectLink(int linkIdx);
