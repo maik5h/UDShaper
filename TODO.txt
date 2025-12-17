@@ -1,7 +1,5 @@
 The biggest and most noticeable TODOs of this project:
 
-- BUG: GetControlWithTag is not available when attachUI is called, therefore checking for active links in LFOController::attachUI crashes the plugin.
-
 - (BUG (FL Studio) UDShaper crashes on disable when chained after certain plugins (Fruity Limiter). Why??? Does not happen with other effects and can safely be put before Fruity Limmiter.)
 I could not reproduce this and will assume it has fixed itself, keeping this note so I can watch out for similar bugs in the future.
 
@@ -15,7 +13,7 @@ I could not reproduce this and will assume it has fixed itself, keeping this not
 
 - shapeSine is very buggy. Also add shapeArcsine.
 
-- Audio processing is automatically parallelized by CLAP, which makes some of the planned functionality impossible. 1. deciding whether the current sample is higher of lower than the previous one is not possible for the first sample in every batch. I "solved" that by comparing the first sample with the second one, which is a very good approximation but not perfectly accurate. 2. I want to normalize the distortion segment wise to each local maximum of the wave but again, the nearest local maximum might be outside of the current batch. Is there a way to get the whole buffer as list while still having the parallelization working?
+- Add piecewise normalization.
 
 - FL Studio destroys and reinitializes plugin when loading a preset, so the current implementation works fine. If other hosts do not destroy the plugin, i.e. just load the parameters into the existing instance, some methods might cause problems (EnvelopeManager::loadState assumes that the three default Envelopes are there and not more).
 

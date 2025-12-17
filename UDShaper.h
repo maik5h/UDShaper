@@ -23,6 +23,15 @@ class UDShaper final : public Plugin
   ShapeEditor shapeEditor2 = ShapeEditor(layout.editor2Rect, PLUG_WIDTH, PLUG_HEIGHT, 1);
   LFOController LFOs = LFOController(layout.LFORect, PLUG_WIDTH, PLUG_HEIGHT, this);
 
+  // The distortion mode of the plugin.
+  distortionMode mMode = distortionMode::upDown;
+
+  // The amplitude of the last sample in the previous block (left channel).
+  float mPreviousBlockLevelL = 0.f;
+
+  // The amplitude of the last sample in the previous block (right channel).
+  float mPreviousBlockLevelR = 0.f;
+
   // Array holding the amplitudes of all LFO modulation links. See src/LFOController.h.
   // Is updated on the UI thread and provides modulation amplitudes for IControls.
   double modulationAmplitudesUI[MAX_NUMBER_LFOS * MAX_MODULATION_LINKS] = {};

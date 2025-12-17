@@ -15,9 +15,6 @@ class TopMenuBar
   TopMenuBarLayout layout;
 
   public:
-  // UDShaper distortion mode.
-  distortionMode mode = upDown;
-
   // Create a TopMenuBar instance.
   // * @param rect The rectangle on the UI this instance will render in
   // * @param GUIWidth The width of the full UI in pixels

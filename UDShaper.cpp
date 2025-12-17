@@ -115,39 +115,47 @@ void UDShaper::ProcessBlock(sample** inputs, sample** outputs, int nFrames)
   // Fetch the state of all modulation amplitudes at the given host beatPosition or time.
   double modAmps[MAX_NUMBER_LFOS * MAX_MODULATION_LINKS] = {};
 
-  switch (static_cast<distortionMode>(GetParam(EParams::distMode)->Value()))
+  switch (mMode)
   {
-  // TODO Buffer is parallelized into pieces of ~200 samples. I dont know how to access all of them in
-  // one place so i can not properly decide which shape to choose.
-
   // Distortion mode Up/Down:
   // Use shapeEditor1 on samples that have higher or equal value than the previous sample, else use
   // shapeEditor2.
   case upDown: {
-    // Since data from last buffer is not available, take first samples as a reference, works most
-    // of the time but is not optimal.
-    bool processShape1L = (inputL[1] >= inputL[0]);
-    bool processShape1R = (inputR[1] >= inputR[0]);
+    // The amplitude of the previous sample (left channel).
+    float previousLevelL = mPreviousBlockLevelL;
 
-    float previousLevelL;
-    float previousLevelR;
+    // The amplitude of the previous sample (right channel).
+    float previousLevelR = mPreviousBlockLevelR;
 
-    for (uint32_t index = 0; index < nFrames; index++)
+    for (int i = 0; i < nFrames; i++)
     {
       modulationStep(modAmps, beatPosition, secondsPlayed);
 
-      if (index > 0)
+      if (inputL[i] >= previousLevelL)
       {
-        processShape1L = (inputL[index] >= previousLevelL);
-        processShape1R = (inputR[index] >= previousLevelR);
+        outputL[i] = shapeEditor1.forward(inputL[i], modAmps);
+      }
+      else
+      {
+        outputL[i] = shapeEditor2.forward(inputL[i], modAmps);
       }
 
-      outputL[index] = processShape1L ? shapeEditor1.forward(inputL[index], modAmps) : shapeEditor2.forward(inputL[index], modAmps);
-      outputR[index] = processShape1R ? shapeEditor1.forward(inputR[index], modAmps) : shapeEditor2.forward(inputR[index], modAmps);
+      if (inputR[i] >= previousLevelR)
+      {
+        outputR[i] = shapeEditor1.forward(inputR[i], modAmps);
+      }
+      else
+      {
+        outputR[i] = shapeEditor2.forward(inputR[i], modAmps);
+      }
 
-      previousLevelL = inputL[index];
-      previousLevelR = inputR[index];
+      previousLevelL = inputL[i];
+      previousLevelR = inputR[i];
     }
+
+    // Save the last amplitudes for the next block.
+    mPreviousBlockLevelL = previousLevelL;
+    mPreviousBlockLevelR = previousLevelR;
     break;
   }
 
@@ -157,7 +165,7 @@ void UDShaper::ProcessBlock(sample** inputs, sample** outputs, int nFrames)
     float mid;
     float side;
 
-    for (uint32_t index = 0; index < nFrames; index++)
+    for (int index = 0; index < nFrames; index++)
     {
       modulationStep(modAmps, beatPosition, secondsPlayed);
 
@@ -173,7 +181,7 @@ void UDShaper::ProcessBlock(sample** inputs, sample** outputs, int nFrames)
   // Distortion mode Left/Right:
   // Use shapeEditor1 on the left, shapeEditor2 on the right channel.
   case leftRight: {
-    for (uint32_t index = 0; index < nFrames; index++)
+    for (int index = 0; index < nFrames; index++)
     {
       modulationStep(modAmps, beatPosition, secondsPlayed);
 
@@ -186,7 +194,7 @@ void UDShaper::ProcessBlock(sample** inputs, sample** outputs, int nFrames)
   // Distortion mode +/-:
   // Use shapeEditor one on positive, shapeEditor2 on negative samples.
   case positiveNegative: {
-    for (uint32_t index = 0; index < nFrames; index++)
+    for (int index = 0; index < nFrames; index++)
     {
       modulationStep(modAmps, beatPosition, secondsPlayed);
 
@@ -203,6 +211,10 @@ void UDShaper::OnParamChange(int idx)
 {
   if (idx < EParams::kNumParams)
   {
+    if (idx == EParams::distMode)
+    {
+      mMode = static_cast<distortionMode>(GetParam(idx)->Value());
+    }
     if (idx == activeLFOIdx)
     {
       int newLFOIdx = GetParam(idx)->Value();
