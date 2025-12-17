@@ -192,11 +192,57 @@ void FrequencyPanel::refreshInternalState()
   }
 }
 
+void LFOSelectorControl::refreshNumberLFOs()
+{
+  // Find the last LFO that modulates a parameter.
+  bool idxFound = false;
+  for (int LFOIdx = MAX_NUMBER_LFOS - 1; LFOIdx >= MIN_NUMBER_LFOS - 1; LFOIdx--)
+  {
+    for (int linkIdx = 0; linkIdx < MAX_MODULATION_LINKS; linkIdx++)
+    {
+      if (linkActive[LFOIdx][linkIdx])
+      {
+        // Add two, one for the additional LFO, one to go from index
+        // to total number.
+        LFOIdx += 2;
+        LFOIdx = (LFOIdx > MAX_NUMBER_LFOS) ? MAX_NUMBER_LFOS : LFOIdx;
+        LFOIdx = (LFOIdx < MIN_NUMBER_LFOS) ? MIN_NUMBER_LFOS : LFOIdx;
+        numberLFOs = LFOIdx;
+        idxFound = true;
+        break;
+      }
+    }
+    if (idxFound)
+    {
+      break;
+    }
+  }
+
+  if (!idxFound)
+  {
+    numberLFOs = MIN_NUMBER_LFOS;
+  }
+}
+
 LFOSelectorControl::LFOSelectorControl(IRECT rect, bool (&linkActive)[MAX_NUMBER_LFOS][MAX_MODULATION_LINKS])
   : IControl(rect, EParams::activeLFOIdx)
   , linkActive(linkActive)
 {
   activeRect = rect;
+
+  // If LFOs are already connected, e.g. after loading a preset
+  // or closing the plugin window, the number of LFOs must be
+  // refreshed.
+  refreshNumberLFOs();
+}
+
+int LFOSelectorControl::getNumberLFOs(bool refresh)
+{
+  if (refresh)
+  {
+    refreshNumberLFOs();
+  }
+  return numberLFOs;
 }
 
 void LFOSelectorControl::Draw(IGraphics& g)
@@ -537,24 +583,6 @@ void LFOController::attachUI(IGraphics* pGraphics)
 
   // Refresh control members to display the correct state.
   setActiveLFO(mPlugin->GetParam(EParams::activeLFOIdx)->Value());
-
-  // Find the last LFO that modulates a parameter and display one more.
-  for (int LFOIdx = MAX_NUMBER_LFOS - 1; LFOIdx >= 0; LFOIdx--)
-  {
-    for (int linkIdx = 0; linkIdx < MAX_MODULATION_LINKS; linkIdx++)
-    {
-      if (linkActive[LFOIdx][linkIdx])
-      {
-        // The index of the last connected LFO plus two, i.e. the number of
-        // displayed LFOs.
-        LFOIdx = (LFOIdx > MAX_NUMBER_LFOS) ? MAX_NUMBER_LFOS : LFOIdx;
-        LFOIdx = (LFOIdx < MIN_NUMBER_LFOS) ? MIN_NUMBER_LFOS : LFOIdx;
-        auto selectorControl = static_cast<LFOSelectorControl*>(pGraphics->GetControlWithTag(EControlTags::LFOSelectorControlTag));
-        selectorControl->numberLFOs = LFOIdx;
-        break;
-      }
-    }
-  }
 }
 
 void LFOController::setLoopMode(LFOLoopMode mode)
@@ -645,42 +673,14 @@ void LFOController::setLinkActive(int idx, bool active)
       ui->GetControlWithTag(EControlTags::LFOKnobStart + 2 * linkIdx + 1)->SetDisabled(!active);
     }
 
-    // Update the number of displayed LFOs, such that there is always one
-    // unconnected LFO at the end.
+    // Refresh the number of displayed LFOs and make sure that the active LFO
+    // is one of the displayed LFOs.
     IControl* control = mPlugin->GetUI()->GetControlWithTag(EControlTags::LFOSelectorControlTag);
     LFOSelectorControl* selectorControl = static_cast<LFOSelectorControl*>(control);
-    // If the last LFO has been connected, display a new one.
-    if (active)
+    int maxLFOIdx = selectorControl->getNumberLFOs(true) - 1;
+    if (activeLFOIdx > maxLFOIdx)
     {
-      if ((LFOIdx == selectorControl->numberLFOs - 1) && (selectorControl->numberLFOs < MAX_NUMBER_LFOS))
-      {
-        selectorControl->numberLFOs++;
-      }
-    }
-    // If the last LFOs are not connected to any parameter, all but one can be hidden.
-    else if (selectorControl->numberLFOs > MIN_NUMBER_LFOS)
-    {
-      int lastConnected = -1;
-      for (int i = MAX_NUMBER_LFOS - 1; i >= 0; i--)
-      {
-        for (int j = 0; j < MAX_MODULATION_LINKS; j++)
-        {
-          if (linkActive[i][j])
-          {
-            lastConnected = i;
-            break;
-          }
-        }
-        if (lastConnected != -1)
-        {
-          break;
-        }
-      }
-      // The last displayed LFO indedx is lastConnected + 1, the total number
-      // of displayed LFOs is lastConnected + 2.
-      int numLFOs = lastConnected + 2;
-      numLFOs = (numLFOs <= MIN_NUMBER_LFOS) ? MIN_NUMBER_LFOS : numLFOs;
-      selectorControl->numberLFOs = numLFOs;
+      setActiveLFO(maxLFOIdx);
     }
   }
 }

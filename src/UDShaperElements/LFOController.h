@@ -187,16 +187,22 @@ class LFOSelectorControl : public IControl
   // Send this struct when attempting to connect an LFO link.
   LFOConnectInfo connectInfo = {};
 
+  // Total number of LFOs displayed.
+  int numberLFOs = MIN_NUMBER_LFOS;
+
   // Keeps track if the available modulation links are connected to a parameter.
   bool (&linkActive)[MAX_NUMBER_LFOS][MAX_MODULATION_LINKS];
 
   // Keep track if the mouse is over the rect of this control while dragging.
   bool mouseOver = false;
 
-public:
-  // Total number of LFOs displayed.
-  int numberLFOs = 3;
+  // Update the number of LFOs.
+  // This will set the number of LFOs such that all connected LFOs are
+  // included, plus one additional LFO. Always respects the bounds
+  // [MIN_NUMBER_LFOS, MAX_NUMBER_LFOS].
+  void refreshNumberLFOs();
 
+public:
   // Index of the active LFO.
   int activeLFOIdx = 0;
 
@@ -206,6 +212,10 @@ public:
   // * @param linkActive Reference to an array stored in LFOController.
   // Needed to keep the state outside of IControls, in case they get deleted.
   LFOSelectorControl(IRECT rect, bool (&linkActive)[MAX_NUMBER_LFOS][MAX_MODULATION_LINKS]);
+
+  // * @param refresh Refresh the number of LFOs before returning the value.
+  // * @return Number of displayed LFOs.
+  int getNumberLFOs(bool refresh = false);
 
   void Draw(IGraphics& g) override;
   void OnMouseDown(float x, float y, const IMouseMod& mod) override;
