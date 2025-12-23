@@ -25,7 +25,6 @@ enum editMode
   none,        // ignore
   position,    // Moves position of selected point.
   curveCenter, // Adjusts curveCenter and therefore parameter of curve function of next point to the right.
-  modulate     // Selects a parameter to be modulated by the active LFO.
 };
 
 // A parameter that can be connected to an LFO link.
@@ -246,11 +245,20 @@ class ShapeEditor
   ShapeEditor(IRECT rect, float GUIWidth, float GUIHeight, int shapeEditorIndex);
 
   // Finds the closest ShapePoint or curve center point to the coordinates (x, y).
-  // Returns the index of the corresponding point if it is closer than the squareroot
-  // of minimumDistance, else -1. The field currentEditMode of this
-  // ShapeEditor is set to either position or curveCenter, based on whether the point
-  // or the curve center are closer.
-  int getClosestPoint(float x, float y, float minimumDistance = REQUIRED_SQUARED_DISTANCE);
+  //
+  // Position of the point and the curve center point are both stored in one
+  // ShapePoint and do therefore correspond to the same index. The argument
+  // closeToCenter is used to tell if the coordinates are closer to the curve
+  // center or the point itself.
+  // * @param x x-position
+  // * @param y y-position
+  // * @param closeToCenter Is set to true if the given position is closer to the curve
+  // center corresponding to a point, false if it is closer to the point itself
+  // * @param minimumDistance The square of the minimum distance between the given
+  // position and the point.
+  // * @return The index of the corresponding point if it is closer than the squareroot
+  // of minimumDistance, else -1.
+  int getClosestPoint(float x, float y, bool& closeToCenter, float minimumDistance = REQUIRED_SQUARED_DISTANCE);
 
   // Deletes the rightClicked point.
   void deleteSelectedPoint();
@@ -272,7 +280,7 @@ class ShapeEditor
 
   // Get information if the mouse cursor is hidden must be revealed and a position to set it.
   // The ShapeEditorControl needs to know this on mouse button up.
-  // * @param revealMouse Set to true if an action is required
+  // * @param revealCursor Set to true if an action is required
   // * @param x Set to the x-position the cursor must be moved to
   // * @param y Set to the y-position the cursor must be moved to
   void getMouseReveal(bool& revealCursor, float& x, float& y) const;

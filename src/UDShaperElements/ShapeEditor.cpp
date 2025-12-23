@@ -261,13 +261,9 @@ ShapeEditor::ShapeEditor(IRECT rect, float GUIWidth, float GUIHeight, int shapeE
   shapePoints.emplace_back(1.f, 1.f, layout.editorRect);
 }
 
-int ShapeEditor::getClosestPoint(float x, float y, float minimumDistance)
+int ShapeEditor::getClosestPoint(float x, float y, bool& curveCenter, float minimumDistance)
 {
   // TODO i think it might be a better user experience if points always give visual feedback if the mouse is hovering over them.
-
-  // TODO i do not like the implementation using the internal currentEditMode to communicate if point
-  // or curve center was closer at all. Maybe this can be replaced by an optional argument of a pointer to a
-  // editMode object.
 
   // The distance to the closest point, initialized as an arbitrary big number.
   float closestDistance = 10E6;
@@ -286,7 +282,7 @@ int ShapeEditor::getClosestPoint(float x, float y, float minimumDistance)
     {
       closestDistance = distance;
       closestPointIdx = i;
-      currentEditMode = position;
+      curveCenter = false;
     }
 
     float curveCenterPosX = (point.getAbsPosX() + shapePoints.at(i - 1).getAbsPosX()) / 2;
@@ -296,7 +292,7 @@ int ShapeEditor::getClosestPoint(float x, float y, float minimumDistance)
     {
       closestDistance = distance;
       closestPointIdx = i;
-      currentEditMode = curveCenter;
+      curveCenter = true;
     }
   }
 
@@ -305,7 +301,6 @@ int ShapeEditor::getClosestPoint(float x, float y, float minimumDistance)
     return closestPointIdx;
   }
   {
-    currentEditMode = none;
     return -1;
   }
 }
@@ -339,22 +334,25 @@ void ShapeEditor::getDeletedLinks(int& numberLinks, int *&pData)
 
 void ShapeEditor::processLeftClick(float x, float y)
 {
-  currentlyDraggingIdx = getClosestPoint(x, y);
+  bool closeToCenter = false;
+  currentlyDraggingIdx = getClosestPoint(x, y, closeToCenter);
 
   if (currentlyDraggingIdx != -1)
   {
+    currentEditMode = closeToCenter ? editMode::curveCenter : editMode::position;
     shapePoints.at(currentlyDraggingIdx).processLeftClick();
   }
 }
 
 void ShapeEditor::processDoubleClick(float x, float y)
 {
-  int closestPointIdx = getClosestPoint(x, y);
+  bool closeToCenter = false;
+  int closestPointIdx = getClosestPoint(x, y, closeToCenter);
 
   if (closestPointIdx == -1) return;
 
   // Reset interpolation shape if double click was performed close to curve center.
-  if (currentEditMode == curveCenter)
+  if (closeToCenter)
   {
     if (shapePoints.at(closestPointIdx).mode == shapePower)
     {
@@ -371,7 +369,8 @@ void ShapeEditor::processDoubleClick(float x, float y)
 
 bool ShapeEditor::processRightClick(float x, float y)
 {
-  int closestPointIdx = getClosestPoint(x, y);
+  bool closeToCenter = false;
+  int closestPointIdx = getClosestPoint(x, y, closeToCenter);
 
   // If not rightclicked in proximity of point, add one.
   if (closestPointIdx == -1)
@@ -387,7 +386,7 @@ bool ShapeEditor::processRightClick(float x, float y)
     // Set the point as currently dragged point so the user can immediately adjust
     // the position after adding the point.
     currentlyDraggingIdx = insertIdx;
-    currentEditMode = position;
+    currentEditMode = editMode::position;
   }
 
   else
@@ -397,14 +396,14 @@ bool ShapeEditor::processRightClick(float x, float y)
     currentlyDraggingIdx = -1;
 
     // If rightclicked on point, show shape menu to change function of curve segment.
-    if (currentEditMode == position)
+    if (!closeToCenter)
     {
       rightClickedIdx = closestPointIdx;
       return true;
     }
 
     // If rightclicked on curve center, reset interpolation shape.
-    if (currentEditMode == curveCenter)
+    else
     {
       if (shapePoints.at(closestPointIdx).mode == shapePower)
       {
@@ -430,7 +429,7 @@ void ShapeEditor::processMouseDrag(float x, float y)
 {
   if (currentlyDraggingIdx == -1) return;
 
-  if (currentEditMode == position)
+  if (currentEditMode == editMode::position)
   {
     // The rightmost point must not move in x-direction.
     if (currentlyDraggingIdx == shapePoints.size() - 1)
@@ -450,7 +449,7 @@ void ShapeEditor::processMouseDrag(float x, float y)
     shapePoints.at(currentlyDraggingIdx).updatePositionAbsolute(x, y);
   }
 
-  else if (currentEditMode == curveCenter)
+  else if (currentEditMode == editMode::curveCenter)
   {
     float previousY = shapePoints.at(currentlyDraggingIdx - 1).getAbsPosY();
     shapePoints.at(currentlyDraggingIdx).updateCurveCenter(y, previousY);
@@ -884,6 +883,10 @@ void ShapeEditorControl::OnResize()
 
 void ShapeEditorControl::OnMouseDown(float x, float y, const IMouseMod& mod)
 {
+  // Do not accept mouse down inputs if the editor is processing a
+  // dragging event.
+  if (editor->currentEditMode != editMode::none) return;
+
   if (mod.L)
   {
     editor->processLeftClick(x, y);
@@ -936,6 +939,7 @@ void ShapeEditorControl::OnMouseUp(float x, float y, const IMouseMod& mod)
     GetUI()->MoveMouseCursor(targetX, targetY);
   }
 
+  editor->currentEditMode = editMode::none;
   cumulativeDragOffset = 0.f;
 }
 
@@ -1013,11 +1017,13 @@ void ShapeEditorControl::OnMsgFromDelegate(int msgTag, int dataSize, const void*
   else if (msgTag == EControlMsg::LFOConnectAttempt)
   {
     LFOConnectInfo info = *static_cast<const LFOConnectInfo*>(pData);
-    int closestPointIdx = editor->getClosestPoint(info.x, info.y);
+
+    bool closeToCenter = false;
+    int closestPointIdx = editor->getClosestPoint(info.x, info.y, closeToCenter);
 
     if (closestPointIdx != -1)
     {
-      if (editor->currentEditMode == curveCenter)
+      if (closeToCenter)
       {
         // If the connect was successfull send a response message to update the LFO UI.
         if (editor->shapePoints.at(closestPointIdx).curveCenterPosY.addModulator(info.idx))
