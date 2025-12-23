@@ -10,5 +10,6 @@ void TopMenuBar::attachUI(IGraphics* pGraphics) {
 
   pGraphics->AttachControl(new ITextControl(layout.logoRect, "UDShaper", IText(50)));
   pGraphics->AttachControl(new ITextControl(layout.menuTitleRect, "Distortion mode", IText(UDS_TEXT_SIZE)));
-  pGraphics->AttachControl(new ICaptionControl(layout.modeMenuRect, distMode, IText(UDS_TEXT_SIZE), DEFAULT_FGCOLOR, false), kNoTag, "misccontrols");
+  pGraphics->AttachControl(new ICaptionControl(layout.modeMenuRect, distMode, IText(UDS_TEXT_SIZE), DEFAULT_FGCOLOR, false), EControlTags::modeMenu);
+  pGraphics->AttachControl(new IVSwitchControl(layout.normalizeButtonRect, EParams::normalize, "normalize input"), EControlTags::normalizeSwitch);
 }

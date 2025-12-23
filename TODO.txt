@@ -1,5 +1,13 @@
 The biggest and most noticeable TODOs of this project:
 
+- BUG Adding a new ShapePoint while dragging a curve segment leaves the cursor permanently hidden.
+
+- BUG Moving the cursor while rightclick is pressed to reset the curve segment interpolation shape displays a crash error message. The plugin remains functional afterwards though.
+
+- Implement a lookahead buffer and latency to properly normalize audio. Unfortunately, this is necessary because the surrounding extrema/ zero points of every sample must be known and sometimes they are in the future. Buffer size must fully capture the lowest frequency supposed to process correctly and is probably best around 30ms (comparable to linear phase EQ). Option to decrease buffer size should be available to the user.
+
+- Normalizing is not possible in mid/side mode yet. The easiest way to implement it is by immediately transforming left/right to mid/sight before writing it to the buffer. This way l/r and m/s can be treated the same way and processing methods do not need to know what the channels are.
+
 - (BUG (FL Studio) UDShaper crashes on disable when chained after certain plugins (Fruity Limiter). Why??? Does not happen with other effects and can safely be put before Fruity Limmiter.)
 I could not reproduce this and will assume it has fixed itself, keeping this note so I can watch out for similar bugs in the future.
 

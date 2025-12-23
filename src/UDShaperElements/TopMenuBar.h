@@ -1,10 +1,12 @@
 #pragma once
 
 #include <assert.h>
+#include <IControls.h>
 #include "../IControl.h"
 #include "../GUILayout.h"
 #include "../enums.h"
 #include "../UDShaperParameters.h"
+#include "../controlTags.h"
 
 // Renders the menu bar at the top of the plugin and handles all user inputs on this area.
 // The menu bar will consist of: The plugin logo (TODO), a button to select the distortion

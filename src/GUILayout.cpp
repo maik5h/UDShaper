@@ -72,6 +72,11 @@ void TopMenuBarLayout::setCoordinates(IRECT rect, float inGUIWidth, float inGUIH
   menuTitleRect.T = fullRect.T;
   menuTitleRect.R = modeMenuRect.R;
   menuTitleRect.B = modeMenuRect.T;
+
+  normalizeButtonRect.L = GUIWidth * 0.5f + 2 * FRAME_WIDTH;
+  normalizeButtonRect.T = fullRect.T;
+  normalizeButtonRect.R = normalizeButtonRect.L + GUIWidth * 0.2f;
+  normalizeButtonRect.B = fullRect.B;
 }
 
 ShapeEditorLayout::ShapeEditorLayout(IRECT rect, float GUIWidth, float GUIHeight)

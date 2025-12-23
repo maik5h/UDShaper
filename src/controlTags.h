@@ -3,7 +3,9 @@
 // Tags to access IControls.
 enum EControlTags
 {
-  ShapeEditorControl1 = 0,
+  modeMenu = 0,
+  normalizeSwitch,
+  ShapeEditorControl1,
   ShapeEditorControl2,
   LFOSelectorControlTag,
   LFOEditorControlTag,

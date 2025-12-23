@@ -17,6 +17,9 @@ UDShaper::UDShaper(const InstanceInfo& info)
   param->SetDisplayText(2, "Mid/Side");
   param->SetDisplayText(3, "+/-");
 
+  param = GetParam(EParams::normalize);
+  param->InitBool("Piecewise input normalization", false);
+
   param = GetParam(activeLFOIdx);
   param->InitInt("Active LFO", 0, 0, MAX_NUMBER_LFOS);
 
@@ -101,6 +104,69 @@ void UDShaper::modulationStep(double (&modAmps)[MAX_NUMBER_LFOS * MAX_MODULATION
   seconds += 1. / GetSampleRate();
 }
 
+void UDShaper::findPOI(iplug::sample* audio, int nFrames, NormalizeInfo& info)
+{
+  // Check if we are in a increasing or decreasing segment.
+  bool increasing = audio[info.idx] < audio[info.idx + 1];
+
+  // Check if we are above or below zero.
+  bool negative = audio[info.idx] < 0;
+
+  // Check the following input samples until a spot where the
+  // derivative or the sign changes is found.
+  while (info.idx < nFrames - 1)
+  {
+    info.idx++;
+
+    if (increasing != (audio[info.idx] < audio[info.idx + 1]))
+    {
+      info.ampPrev = info.ampNext;
+      info.ampNext = audio[info.idx];
+      break;
+    }
+    if (negative != (audio[info.idx] < 0))
+    {
+      info.ampPrev = info.ampNext;
+      info.ampNext = 0.f;
+      break;
+    }
+  }
+}
+
+float UDShaper::normalizeSample(iplug::sample sample, NormalizeInfo info)
+{
+  if (info.ampPrev == info.ampNext)
+  {
+    return sample;
+  }
+
+  if (sample >= 0)
+  {
+    return (sample - info.getLower()) / (info.getUpper() - info.getLower());
+  }
+  else
+  {
+    return (sample - info.getUpper()) / (info.getUpper() - info.getLower());
+  }
+}
+
+float UDShaper::revertNormalizeSample(iplug::sample sample, NormalizeInfo info)
+{
+  if (info.ampPrev == info.ampNext)
+  {
+    return sample;
+  }
+
+  if (sample >= 0)
+  {
+    return sample * (info.getUpper() - info.getLower()) + info.getLower();
+  }
+  else
+  {
+    return sample * (info.getUpper() - info.getLower()) + info.getUpper();
+  }
+}
+
 void UDShaper::ProcessBlock(sample** inputs, sample** outputs, int nFrames)
 {
   sample* inputL = inputs[0];
@@ -115,95 +181,132 @@ void UDShaper::ProcessBlock(sample** inputs, sample** outputs, int nFrames)
   // Fetch the state of all modulation amplitudes at the given host beatPosition or time.
   double modAmps[MAX_NUMBER_LFOS * MAX_MODULATION_LINKS] = {};
 
-  switch (mMode)
+  // Store information about the position and amplitudes of extrema within
+  // the input array.
+  NormalizeInfo normL;
+  NormalizeInfo normR;
+  normL.ampNext = mPreviousBlockPeakL;
+  normR.ampNext = mPreviousBlockPeakR;
+
+  // The amplitude of the previous sample (left channel).
+  iplug::sample previousLevelL = mPreviousBlockLevelL;
+
+  // The amplitude of the previous sample (right channel).
+  iplug::sample previousLevelR = mPreviousBlockLevelR;
+
+  for (int i = 0; i < nFrames; i++)
   {
-  // Distortion mode Up/Down:
-  // Use shapeEditor1 on samples that have higher or equal value than the previous sample, else use
-  // shapeEditor2.
-  case upDown: {
-    // The amplitude of the previous sample (left channel).
-    float previousLevelL = mPreviousBlockLevelL;
+    modulationStep(modAmps, beatPosition, secondsPlayed);
 
-    // The amplitude of the previous sample (right channel).
-    float previousLevelR = mPreviousBlockLevelR;
+    // Value of the current sample after normalizing (left channel).
+    iplug::sample inputSampleL = inputL[i];
 
-    for (int i = 0; i < nFrames; i++)
+    // Value of the current sample after normalizing (right channel).
+    iplug::sample inputSampleR = inputR[i];
+
+    // Gather information needed to normalize the input audio piecewise.
+    if (mNormalize && (i < nFrames - 1))
     {
-      modulationStep(modAmps, beatPosition, secondsPlayed);
-
-      if (inputL[i] >= previousLevelL)
+      // Find the next peak if the previous one has been reached.
+      if (i == normL.idx)
       {
-        outputL[i] = shapeEditor1.forward(inputL[i], modAmps);
+        findPOI(inputL, nFrames, normL);
       }
-      else
+      if (i == normR.idx)
       {
-        outputL[i] = shapeEditor2.forward(inputL[i], modAmps);
+        findPOI(inputR, nFrames, normR);
       }
-
-      if (inputR[i] >= previousLevelR)
-      {
-        outputR[i] = shapeEditor1.forward(inputR[i], modAmps);
-      }
-      else
-      {
-        outputR[i] = shapeEditor2.forward(inputR[i], modAmps);
-      }
-
-      previousLevelL = inputL[i];
-      previousLevelR = inputR[i];
     }
 
-    // Save the last amplitudes for the next block.
-    mPreviousBlockLevelL = previousLevelL;
-    mPreviousBlockLevelR = previousLevelR;
-    break;
-  }
-
-  // Distortion mode Mid/Side:
-  // Use shapeEditor1 on the mid-, shapeEditor2 on the side-channel.
-  case midSide: {
-    float mid;
-    float side;
-
-    for (int index = 0; index < nFrames; index++)
+    // Apply the normalization to this sample.
+    if (mNormalize)
     {
-      modulationStep(modAmps, beatPosition, secondsPlayed);
-
-      mid = shapeEditor1.forward((inputL[index] + inputR[index]) / 2, modAmps);
-      side = shapeEditor2.forward((inputL[index] - inputR[index]) / 2, modAmps);
-
-      outputL[index] = mid + side;
-      outputR[index] = mid - side;
+      inputSampleL = normalizeSample(inputL[i], normL);
+      inputSampleR = normalizeSample(inputR[i], normR);
     }
-    break;
-  }
 
-  // Distortion mode Left/Right:
-  // Use shapeEditor1 on the left, shapeEditor2 on the right channel.
-  case leftRight: {
-    for (int index = 0; index < nFrames; index++)
+    // Process the audio based on the distortion mode.
+    switch (mMode)
     {
-      modulationStep(modAmps, beatPosition, secondsPlayed);
+      // Distortion mode Up/Down:
+      // Use shapeEditor1 on samples that have higher or equal value than the
+      // previous sample, else use shapeEditor2.
+      case upDown:
+      {
+        // Forward (normalized) input values to the corresponding ShapeEditors.
+        if (inputL[i] >= previousLevelL)
+        {
+          outputL[i] = shapeEditor1.forward(inputSampleL, modAmps);
+        }
+        else
+        {
+          outputL[i] = shapeEditor2.forward(inputSampleL, modAmps);
+        }
 
-      outputL[index] = shapeEditor1.forward(inputL[index], modAmps);
-      outputR[index] = shapeEditor2.forward(inputR[index], modAmps);
+        if (inputR[i] >= previousLevelR)
+        {
+          outputR[i] = shapeEditor1.forward(inputSampleR, modAmps);
+        }
+        else
+        {
+          outputR[i] = shapeEditor2.forward(inputSampleR, modAmps);
+        }
+
+        previousLevelL = inputL[i];
+        previousLevelR = inputR[i];
+        
+        break;
+      }
+
+      // Distortion mode Mid/Side:
+      // Use shapeEditor1 on the mid-, shapeEditor2 on the side-channel.
+      case midSide:
+      {
+        iplug::sample mid = shapeEditor1.forward((inputSampleL + inputSampleR) / 2, modAmps);
+        iplug::sample side = shapeEditor2.forward((inputSampleL - inputSampleR) / 2, modAmps);
+
+        outputL[i] = mid + side;
+        outputR[i] = mid - side;
+
+        break;
+      }
+
+      // Distortion mode Left/Right:
+      // Use shapeEditor1 on the left, shapeEditor2 on the right channel.
+      case leftRight:
+      {
+        outputL[i] = shapeEditor1.forward(inputSampleL, modAmps);
+        outputR[i] = shapeEditor2.forward(inputSampleR, modAmps);
+
+        break;
+      }
+
+      // Distortion mode +/-:
+      // Use shapeEditor one on positive, shapeEditor2 on negative samples.
+      case positiveNegative:
+      {
+        outputL[i] = (inputSampleL > 0) ? shapeEditor1.forward(inputSampleL, modAmps) : shapeEditor2.forward(inputSampleL, modAmps);
+        outputR[i] = (inputSampleR > 0) ? shapeEditor1.forward(inputSampleR, modAmps) : shapeEditor2.forward(inputSampleR, modAmps);
+
+        break;
+      }
     }
-    break;
-  }
 
-  // Distortion mode +/-:
-  // Use shapeEditor one on positive, shapeEditor2 on negative samples.
-  case positiveNegative: {
-    for (int index = 0; index < nFrames; index++)
+    // If the audio has been normalized before, revert the normalization after
+    // shaping.
+    if (mNormalize)
     {
-      modulationStep(modAmps, beatPosition, secondsPlayed);
-
-      outputL[index] = (inputL[index] > 0) ? shapeEditor1.forward(inputL[index], modAmps) : shapeEditor2.forward(inputL[index], modAmps);
-      outputR[index] = (inputR[index] > 0) ? shapeEditor1.forward(inputR[index], modAmps) : shapeEditor2.forward(inputR[index], modAmps);
+      outputL[i] = revertNormalizeSample(outputL[i], normL);
+      outputR[i] = revertNormalizeSample(outputR[i], normR);
     }
-    break;
   }
-  }
+
+  // Save the amplitudes of the last sample and peak/ zero point for the next block.
+  mPreviousBlockLevelL = previousLevelL;
+  mPreviousBlockLevelR = previousLevelR;
+
+  mPreviousBlockPeakL = normL.ampPrev;
+  mPreviousBlockPeakR = normR.ampPrev;
 }
 #endif
 
@@ -214,6 +317,10 @@ void UDShaper::OnParamChange(int idx)
     if (idx == EParams::distMode)
     {
       mMode = static_cast<distortionMode>(GetParam(idx)->Value());
+    }
+    if (idx == EParams::normalize)
+    {
+      mNormalize = GetParam(idx)->Value();
     }
     if (idx == activeLFOIdx)
     {

@@ -17,14 +17,17 @@ enum EParams
   // Plugin distortion mode, switches between Up/Down, Left/Right, Mid/Side and +/-.
   distMode = 0,
 
+  // Whether to use piecewise normalization on audio or not.
+  normalize,
+
   // Index of the LFO that is currently editable.
   // The host does not necessarily need to know about this, but it makes internal
   // communication way easier.
-  activeLFOIdx = 1,
+  activeLFOIdx,
 
   // LFO parameters start here.
   // Every LFO has the parameters mode, frequency in beats and duration in seconds.
-  LFOsStart = 2,
+  LFOsStart,
 
   // Modulation amplitudes start here.
   // Every LFO has a fixed number (MAX_MODULATION_LINKS) of links that can connect to a ModulatedParameter.

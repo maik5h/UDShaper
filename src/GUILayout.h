@@ -38,6 +38,7 @@ struct TopMenuBarLayout {
   IRECT logoRect = IRECT();       // Box coordinates of the plugin logo (upper left corner).
   IRECT modeMenuRect = IRECT();   // Box coordinates of the menu to select the distortion mode.
   IRECT menuTitleRect = IRECT();  // Box coordinates of the menu title text.
+  IRECT normalizeButtonRect = IRECT();  // Box coordinates of the button used to toggle input normalization.
 
   TopMenuBarLayout(IRECT rect, float GUIWidth, float GUIHeight);
   void setCoordinates(IRECT rect, float GUIWidth, float GUIHeight);

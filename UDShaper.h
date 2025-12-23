@@ -26,11 +26,20 @@ class UDShaper final : public Plugin
   // The distortion mode of the plugin.
   distortionMode mMode = distortionMode::upDown;
 
+  // Apply piecewise normalization before audio processing.
+  bool mNormalize = true;
+
   // The amplitude of the last sample in the previous block (left channel).
-  float mPreviousBlockLevelL = 0.f;
+  iplug::sample mPreviousBlockLevelL = 0.f;
 
   // The amplitude of the last sample in the previous block (right channel).
-  float mPreviousBlockLevelR = 0.f;
+  iplug::sample mPreviousBlockLevelR = 0.f;
+
+  // The amplitude of the last extremum of the last block (left channel).
+  iplug::sample mPreviousBlockPeakL = 0.f;
+
+  // The amplitude of the last extremum of the last block (right channel).
+  iplug::sample mPreviousBlockPeakR = 0.f;
 
   // Array holding the amplitudes of all LFO modulation links. See src/LFOController.h.
   // Is updated on the UI thread and provides modulation amplitudes for IControls.
@@ -50,11 +59,55 @@ public:
   bool SerializeState(IByteChunk& chunk) const override;
   int UnserializeState(const IByteChunk& chunk, int startPos) override;
 
-#if IPLUG_DSP // http://bit.ly/2S64BDd
+#if IPLUG_DSP
+  // Stores amplitudes and positions of extrema needed to normalize audio.
+  struct NormalizeInfo
+  {
+    // Amplitude of the previous extremum or zero point.
+    iplug::sample ampPrev = 0.f;
+
+    // Amplitude of the next extremum or zero point.
+    iplug::sample ampNext = 1.f;
+
+    // Index of the next extremum or zero point in the array.
+    int idx = 0;
+
+    // * @return The lower of the two amplitudes ampPrev and ampNext
+    iplug::sample getLower() const { return (ampPrev > ampNext) ? ampNext : ampPrev; }
+
+    // * @return The higher of the two amplitudes ampPrev and ampNext
+    iplug::sample getUpper() const { return (ampPrev < ampNext) ? ampNext : ampPrev; }
+  };
 
   // Updates the modulation amplitudes and increases the beatPosition and seconds by one sample.
   void modulationStep(double (&modulationAmplitudes)[MAX_NUMBER_LFOS * MAX_MODULATION_LINKS] , double& beatPosition, double& seconds);
 
-  void ProcessBlock(sample** inputs, sample** outputs, int nFrames) override;
+  void ProcessBlock(iplug::sample** inputs, iplug::sample** outputs, int nFrames) override;
+
+  // Find the next "point of interest" in the given block of audio.
+  //
+  // POIs are local minima, local maxima and zero points. The next POI
+  // after info.idx is determined and written to the same NormalizeInfo
+  // object.
+  // * @param audio Pointer to the first element of the audio array
+  // * @param nFrames Number of elements in the audio array
+  // * @param info NormalizeInfo object to which the position and amplitude of
+  // the next POI will be written
+  static void findPOI(iplug::sample* audio, int nFrames, NormalizeInfo& info);
+
+  // Normalize a sample to the surrounding extrema/ zero points as given in
+  // info.
+  // * @param sample The input sample amplitude
+  // * @param info NormalizeInfo object storing information about the
+  // surrounding minima/ maxima/ zero points
+  // * @return The input normalized to the surrounding minima/ maxima/ zero
+  // points
+  static float normalizeSample(iplug::sample sample, NormalizeInfo info);
+
+  // Reverts the normalization of normalizeSample.
+  // * @param sample Value of a sample normalized to info
+  // * @param info NormalizeInfo object holding the normalization bounds
+  // * @return The input sample reverted to the original scale
+  static float revertNormalizeSample(iplug::sample sample, NormalizeInfo info);
 #endif
 };
