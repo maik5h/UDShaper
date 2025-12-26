@@ -40,3 +40,10 @@ constexpr int MAX_MODULATION_LINKS = 10;
 
 // Default text size for labels, values, etc.
 constexpr float UDS_TEXT_SIZE = 22.f;
+
+// Latency in samples used for piecewise normalization.
+// 674 samples is one period of a C2 note (65.41 Hz) at a sample
+// rate of 44100 Hz. For sine waves, this can be
+// sufficient to distort signals down to C0 (16.35 Hz), in general
+// this depends on the waveform and number of extrema per cycle.
+constexpr int LATENCY_NORMALIZE = 674;

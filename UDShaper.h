@@ -1,5 +1,6 @@
 #pragma once
 
+#include <deque>
 #include "IPlug_include_in_plug_hdr.h"
 #include "src/color_palette.h"
 #include "src/string_presets.h"
@@ -35,11 +36,14 @@ class UDShaper final : public Plugin
   // The amplitude of the last sample in the previous block (right channel).
   iplug::sample mPreviousBlockLevelR = 0.f;
 
-  // The amplitude of the last extremum of the last block (left channel).
-  iplug::sample mPreviousBlockPeakL = 0.f;
+  // Audio buffers for two channels.
+  // Deques because traversal must be possible.
+  std::deque<iplug::sample> mBufferL = {};
+  std::deque<iplug::sample> mBufferR = {};
 
-  // The amplitude of the last extremum of the last block (right channel).
-  iplug::sample mPreviousBlockPeakR = 0.f;
+  // Flag to safely clear buffers after normalization has been turned off.
+  // Will clear buffers at the start of ProcessBlock on the audio thread.
+  bool mClearBuffer = false;
 
   // Array holding the amplitudes of all LFO modulation links. See src/LFOController.h.
   // Is updated on the UI thread and provides modulation amplitudes for IControls.
@@ -56,6 +60,7 @@ public:
   void OnParamChange(int paramIdx) override;
   bool OnMessage(int msgTag, int ctrlTag, int dataSize, const void* pData) override;
   void OnIdle() override;
+  void OnReset() override;
   bool SerializeState(IByteChunk& chunk) const override;
   int UnserializeState(const IByteChunk& chunk, int startPos) override;
 
@@ -79,6 +84,14 @@ public:
     iplug::sample getUpper() const { return (ampPrev < ampNext) ? ampNext : ampPrev; }
   };
 
+  // The amplitude and position of the last extremum/ zero point
+  // of the last processed block (left channel).
+  NormalizeInfo mNormPrevL = {};
+
+  // The amplitude and position of the last extremum/ zero point
+  // of the last processed block (right channel).
+  NormalizeInfo mNormPrevR = {};
+
   // Updates the modulation amplitudes and increases the beatPosition and seconds by one sample.
   void modulationStep(double (&modulationAmplitudes)[MAX_NUMBER_LFOS * MAX_MODULATION_LINKS] , double& beatPosition, double& seconds);
 
@@ -89,11 +102,10 @@ public:
   // POIs are local minima, local maxima and zero points. The next POI
   // after info.idx is determined and written to the same NormalizeInfo
   // object.
-  // * @param audio Pointer to the first element of the audio array
-  // * @param nFrames Number of elements in the audio array
+  // * @param audio Audio buffer
   // * @param info NormalizeInfo object to which the position and amplitude of
   // the next POI will be written
-  static void findPOI(iplug::sample* audio, int nFrames, NormalizeInfo& info);
+  static void findPOI(std::deque<iplug::sample> audio, NormalizeInfo& info);
 
   // Normalize a sample to the surrounding extrema/ zero points as given in
   // info.

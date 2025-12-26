@@ -104,20 +104,20 @@ void UDShaper::modulationStep(double (&modAmps)[MAX_NUMBER_LFOS * MAX_MODULATION
   seconds += 1. / GetSampleRate();
 }
 
-void UDShaper::findPOI(iplug::sample* audio, int nFrames, NormalizeInfo& info)
+void UDShaper::findPOI(std::deque<iplug::sample> audio, NormalizeInfo& info)
 {
+  assert(!audio.empty());
+
   // Check if we are in a increasing or decreasing segment.
-  bool increasing = audio[info.idx] < audio[info.idx + 1];
+  bool increasing = audio[0] < audio[1];
 
   // Check if we are above or below zero.
-  bool negative = audio[info.idx] < 0;
+  bool negative = audio[0] < 0;
 
   // Check the following input samples until a spot where the
   // derivative or the sign changes is found.
-  while (info.idx < nFrames - 1)
+  while (info.idx < audio.size() - 1)
   {
-    info.idx++;
-
     if (increasing != (audio[info.idx] < audio[info.idx + 1]))
     {
       info.ampPrev = info.ampNext;
@@ -130,6 +130,7 @@ void UDShaper::findPOI(iplug::sample* audio, int nFrames, NormalizeInfo& info)
       info.ampNext = 0.f;
       break;
     }
+    info.idx++;
   }
 }
 
@@ -181,12 +182,10 @@ void UDShaper::ProcessBlock(sample** inputs, sample** outputs, int nFrames)
   // Fetch the state of all modulation amplitudes at the given host beatPosition or time.
   double modAmps[MAX_NUMBER_LFOS * MAX_MODULATION_LINKS] = {};
 
-  // Store information about the position and amplitudes of extrema within
-  // the input array.
-  NormalizeInfo normL;
-  NormalizeInfo normR;
-  normL.ampNext = mPreviousBlockPeakL;
-  normR.ampNext = mPreviousBlockPeakR;
+  // Load information about the position and amplitudes of peaks
+  // determined in the last ProcessBlock call.
+  NormalizeInfo normL = mNormPrevL;
+  NormalizeInfo normR = mNormPrevR;
 
   // The amplitude of the previous sample (left channel).
   iplug::sample previousLevelL = mPreviousBlockLevelL;
@@ -194,35 +193,79 @@ void UDShaper::ProcessBlock(sample** inputs, sample** outputs, int nFrames)
   // The amplitude of the previous sample (right channel).
   iplug::sample previousLevelR = mPreviousBlockLevelR;
 
+  bool isPlaying = GetTransportIsRunning();
+
+  if (mClearBuffer)
+  {
+    mBufferL.clear();
+    mBufferR.clear();
+    mClearBuffer = false;
+  }
+
   for (int i = 0; i < nFrames; i++)
   {
-    modulationStep(modAmps, beatPosition, secondsPlayed);
-
     // Value of the current sample after normalizing (left channel).
+    // If the distortion mode is set to mid/side, this represents
+    // the mid channel.
     iplug::sample inputSampleL = inputL[i];
 
     // Value of the current sample after normalizing (right channel).
+    // If the distortion mode is set to mid/side, this represents
+    // the side channel.
     iplug::sample inputSampleR = inputR[i];
 
-    // Gather information needed to normalize the input audio piecewise.
-    if (mNormalize && (i < nFrames - 1))
+    // If normalization is active, load input audio to buffers, load
+    // front sample from buffer and apply normalization.
+    if (mNormalize)
     {
-      // Find the next peak if the previous one has been reached.
-      if (i == normL.idx)
+      // Load audio to the buffer, transform to mid/side if necessary.
+      if (mMode == distortionMode::midSide)
       {
-        findPOI(inputL, nFrames, normL);
+        mBufferL.push_back((inputL[i] + inputR[i]) * 0.5);
+        mBufferR.push_back((inputL[i] - inputR[i]) * 0.5);
       }
-      if (i == normR.idx)
+      else
       {
-        findPOI(inputR, nFrames, normR);
+        mBufferL.push_back(inputL[i]);
+        mBufferR.push_back(inputR[i]);
+      }
+
+      // Only process if enough samples have been loaded to the buffers.
+      if (mBufferL.size() > LATENCY_NORMALIZE)
+      {
+        inputSampleL = mBufferL.front();
+        inputSampleR = mBufferR.front();
+        mBufferL.pop_front();
+        mBufferR.pop_front();
+
+        // Apply normalization to this sample.
+        // Count down until the previously found index is reached before
+        // finding the next one.
+        normL.idx--;
+        normR.idx--;
+        if (normL.idx <= 0)
+        {
+          normL.idx = 0;
+          findPOI(mBufferL, normL);
+        }
+        if (normR.idx <= 0)
+        {
+          normR.idx = 0;
+          findPOI(mBufferR, normR);
+        }
+
+        inputSampleL = normalizeSample(inputSampleL, normL);
+        inputSampleR = normalizeSample(inputSampleR, normR);
+      }
+      else
+      {
+        continue;
       }
     }
 
-    // Apply the normalization to this sample.
-    if (mNormalize)
+    if (isPlaying)
     {
-      inputSampleL = normalizeSample(inputL[i], normL);
-      inputSampleR = normalizeSample(inputR[i], normR);
+      modulationStep(modAmps, beatPosition, secondsPlayed);
     }
 
     // Process the audio based on the distortion mode.
@@ -234,7 +277,7 @@ void UDShaper::ProcessBlock(sample** inputs, sample** outputs, int nFrames)
       case upDown:
       {
         // Forward (normalized) input values to the corresponding ShapeEditors.
-        if (inputL[i] >= previousLevelL)
+        if (inputSampleL >= previousLevelL)
         {
           outputL[i] = shapeEditor1.forward(inputSampleL, modAmps);
         }
@@ -243,7 +286,7 @@ void UDShaper::ProcessBlock(sample** inputs, sample** outputs, int nFrames)
           outputL[i] = shapeEditor2.forward(inputSampleL, modAmps);
         }
 
-        if (inputR[i] >= previousLevelR)
+        if (inputSampleR >= previousLevelR)
         {
           outputR[i] = shapeEditor1.forward(inputSampleR, modAmps);
         }
@@ -252,8 +295,14 @@ void UDShaper::ProcessBlock(sample** inputs, sample** outputs, int nFrames)
           outputR[i] = shapeEditor2.forward(inputSampleR, modAmps);
         }
 
-        previousLevelL = inputL[i];
-        previousLevelR = inputR[i];
+        if (mNormalize)
+        {
+          outputL[i] = revertNormalizeSample(outputL[i], normL);
+          outputR[i] = revertNormalizeSample(outputR[i], normR);
+        }
+
+        previousLevelL = inputSampleL;
+        previousLevelR = inputSampleR;
         
         break;
       }
@@ -262,8 +311,24 @@ void UDShaper::ProcessBlock(sample** inputs, sample** outputs, int nFrames)
       // Use shapeEditor1 on the mid-, shapeEditor2 on the side-channel.
       case midSide:
       {
-        iplug::sample mid = shapeEditor1.forward((inputSampleL + inputSampleR) / 2, modAmps);
-        iplug::sample side = shapeEditor2.forward((inputSampleL - inputSampleR) / 2, modAmps);
+        iplug::sample mid = 0;
+        iplug::sample side = 0;
+
+        // If normalization is used, left/right has already been transformed
+        // to mid/side in the buffer. If not, transform here.
+        if (mNormalize)
+        {
+          mid = shapeEditor1.forward(inputSampleL, modAmps);
+          side = shapeEditor2.forward(inputSampleR, modAmps);
+
+          mid = revertNormalizeSample(mid, normL);
+          side = revertNormalizeSample(side, normR);
+        }
+        else
+        {
+          mid = shapeEditor1.forward((inputSampleL + inputSampleR) * 0.5, modAmps);
+          side = shapeEditor2.forward((inputSampleL - inputSampleR) * 0.5, modAmps);
+        }
 
         outputL[i] = mid + side;
         outputR[i] = mid - side;
@@ -278,6 +343,12 @@ void UDShaper::ProcessBlock(sample** inputs, sample** outputs, int nFrames)
         outputL[i] = shapeEditor1.forward(inputSampleL, modAmps);
         outputR[i] = shapeEditor2.forward(inputSampleR, modAmps);
 
+        if (mNormalize)
+        {
+          outputL[i] = revertNormalizeSample(outputL[i], normL);
+          outputR[i] = revertNormalizeSample(outputR[i], normR);
+        }
+
         break;
       }
 
@@ -288,16 +359,14 @@ void UDShaper::ProcessBlock(sample** inputs, sample** outputs, int nFrames)
         outputL[i] = (inputSampleL > 0) ? shapeEditor1.forward(inputSampleL, modAmps) : shapeEditor2.forward(inputSampleL, modAmps);
         outputR[i] = (inputSampleR > 0) ? shapeEditor1.forward(inputSampleR, modAmps) : shapeEditor2.forward(inputSampleR, modAmps);
 
+        if (mNormalize)
+        {
+          outputL[i] = revertNormalizeSample(outputL[i], normL);
+          outputR[i] = revertNormalizeSample(outputR[i], normR);
+        }
+
         break;
       }
-    }
-
-    // If the audio has been normalized before, revert the normalization after
-    // shaping.
-    if (mNormalize)
-    {
-      outputL[i] = revertNormalizeSample(outputL[i], normL);
-      outputR[i] = revertNormalizeSample(outputR[i], normR);
     }
   }
 
@@ -305,8 +374,8 @@ void UDShaper::ProcessBlock(sample** inputs, sample** outputs, int nFrames)
   mPreviousBlockLevelL = previousLevelL;
   mPreviousBlockLevelR = previousLevelR;
 
-  mPreviousBlockPeakL = normL.ampPrev;
-  mPreviousBlockPeakR = normR.ampPrev;
+  mNormPrevL = normL;
+  mNormPrevR = normR;
 }
 #endif
 
@@ -321,6 +390,16 @@ void UDShaper::OnParamChange(int idx)
     if (idx == EParams::normalize)
     {
       mNormalize = GetParam(idx)->Value();
+
+      if (mNormalize)
+      {
+        SetLatency(LATENCY_NORMALIZE);
+      }
+      else
+      {
+        SetLatency(0);
+        mClearBuffer = true;
+      }
     }
     if (idx == activeLFOIdx)
     {
@@ -431,6 +510,12 @@ void UDShaper::OnIdle()
   // TODO for testing only
   GetUI()->GetControlWithTag(ShapeEditorControl1)->SetDirty(false);
   GetUI()->GetControlWithTag(ShapeEditorControl2)->SetDirty(false);
+}
+
+void UDShaper::OnReset()
+{
+  // Clear audio buffers.
+  mClearBuffer = true;
 }
 
 bool UDShaper::SerializeState(IByteChunk& chunk) const
