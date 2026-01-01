@@ -1,6 +1,8 @@
 #pragma once
 
+#include <queue>
 #include <deque>
+#include <algorithm>
 #include "IPlug_include_in_plug_hdr.h"
 #include "src/color_palette.h"
 #include "src/string_presets.h"
@@ -30,21 +32,6 @@ class UDShaper final : public Plugin
   // Apply piecewise normalization before audio processing.
   bool mNormalize = true;
 
-  // The amplitude of the last sample in the previous block (left channel).
-  iplug::sample mPreviousBlockLevelL = 0.f;
-
-  // The amplitude of the last sample in the previous block (right channel).
-  iplug::sample mPreviousBlockLevelR = 0.f;
-
-  // Audio buffers for two channels.
-  // Deques because traversal must be possible.
-  std::deque<iplug::sample> mBufferL = {};
-  std::deque<iplug::sample> mBufferR = {};
-
-  // Flag to safely clear buffers after normalization has been turned off.
-  // Will clear buffers at the start of ProcessBlock on the audio thread.
-  bool mClearBuffer = false;
-
   // Array holding the amplitudes of all LFO modulation links. See src/LFOController.h.
   // Is updated on the UI thread and provides modulation amplitudes for IControls.
   double modulationAmplitudesUI[MAX_NUMBER_LFOS * MAX_MODULATION_LINKS] = {};
@@ -65,61 +52,142 @@ public:
   int UnserializeState(const IByteChunk& chunk, int startPos) override;
 
 #if IPLUG_DSP
-  // Stores amplitudes and positions of extrema needed to normalize audio.
-  struct NormalizeInfo
+  // ----- normalization attributes -----
+  // When normalizing audio, it must be known if
+  // - the input audio is currently increasing or decreasing
+  // - the input audio is currently positive or negative
+  // for every sample going in and out of the buffer.
+  // Samples where one of these states change are referred to as 'points of
+  // interest' (POIs).
+
+  // Stores two POI levels and normalizes samples to their interval.
+  // 'points of interest' (POIs) are samples that are either minima, maxima or
+  // zero points.
+  struct POINormalizer
   {
-    // Amplitude of the previous extremum or zero point.
-    iplug::sample ampPrev = 0.f;
+    // Set the value of the next POI.
+    void setNextLevel(iplug::sample newLevel)
+    {
+      levelPrev = levelNext;
+      levelNext = newLevel;
 
-    // Amplitude of the next extremum or zero point.
-    iplug::sample ampNext = 1.f;
+      increasing = levelPrev < levelNext;
 
-    // Index of the next extremum or zero point in the array.
-    int idx = 0;
+      range = levelNext - levelPrev;
+      range = (range > 0) ? range : -range;
 
-    // * @return The lower of the two amplitudes ampPrev and ampNext
-    iplug::sample getLower() const { return (ampPrev > ampNext) ? ampNext : ampPrev; }
+      iplug::sample absolutePrev = (levelPrev > 0) ? levelPrev : -levelPrev;
+      iplug::sample absoluteNext = (levelNext > 0) ? levelNext : -levelNext;
+      offset = (absolutePrev < absoluteNext) ? levelPrev : levelNext;
+    }
 
-    // * @return The higher of the two amplitudes ampPrev and ampNext
-    iplug::sample getUpper() const { return (ampPrev < ampNext) ? ampNext : ampPrev; }
+    // Normalize a sample to the current POI range. The sign is preserved,
+    // i.e. ouput is either in [-1, 0] or [0, 1].
+    // * @param input Input value, should be within the current POI range
+    // * @return The value of the input sample normalized to the POI range
+    iplug::sample normalize(iplug::sample input) const
+    {
+      if (range == 0.)
+      {
+        return input;
+      }
+      return (input - offset) / range;
+    }
+
+    // * @param input Sample normalized to [0, 1] or [-1, 0]
+    // * @return The value of a normalized sample scaled back to the POI range
+    iplug::sample revertNormalize(iplug::sample input) const
+    {
+      if (range == 0.)
+      {
+        return input;
+      }
+      return input * range + offset;
+    }
+
+    bool isIncreasing() const
+    {
+      return increasing;
+    }
+
+  private:
+    iplug::sample levelPrev = 0.;
+    iplug::sample levelNext = 0.;
+    iplug::sample range = 0.;
+    iplug::sample offset = 0.;
+    bool increasing = false;
   };
 
-  // The amplitude and position of the last extremum/ zero point
-  // of the last processed block (left channel).
-  NormalizeInfo mNormPrevL = {};
+  // Stores information regarding the state of a single sample.
+  // Contains flags to indicate if the sample is on a positive segment of
+  // audio, if the audio is increasing at this sample and the level of the
+  // previous sample.
+  struct SampleState
+  {
+    // Indicates if the sample is on a positive segment. This can be true
+    // even if the audio is zero, in which case it means that the previous
+    // samples were all >= zero. This must be tracked to correctly detect
+    // points at which the sign changes.
+    bool isPositive = false;
 
-  // The amplitude and position of the last extremum/ zero point
-  // of the last processed block (right channel).
-  NormalizeInfo mNormPrevR = {};
+    bool isIncreasing = false;
+    iplug::sample previousLevel = 0.;
+  };
+
+  // Audio buffer for the left channel.
+  // If mid/side mode is active, this represents the mid-channel.
+  std::queue<iplug::sample> mBufferL;
+
+  // Audio buffer for the right channel.
+  // If mid/side mode is active, this represents the side-channel.
+  std::queue<iplug::sample> mBufferR;
+
+  // POINormalizer for the left channel.
+  POINormalizer mNormL;
+
+  // POINormalizer for the right channel.
+  POINormalizer mNormR;
+
+  // State of the sample about to be processed at the front of the buffer.
+  SampleState mFrontSampleL;
+  SampleState mFrontSampleR;
+
+  // State of the sample at the back of the buffer.
+  SampleState mBackSampleL;
+  SampleState mBackSampleR;
+
+  // The position of points of interest in the audio buffer
+  // (left channel).
+  // Each entry corresponds to one POI and gives the relative
+  // offset in samples from the previous POI.
+  std::deque<int> mPOIOffsetL;
+
+  // The position of points of interest in the audio buffer
+  // (right channel).
+  // Each entry corresponds to one POI and gives the relative
+  // offset in samples from the previous POI.
+  std::deque<int> mPOIOffsetR;
+
+  // The level of samples at POIs in the buffer (left channel).
+  std::deque<iplug::sample> mPOILevelL;
+
+  // The level of samples at POIs in the buffer (right channel).
+  std::deque<iplug::sample> mPOILevelR;
+
+  // The number of samples passed since the last POI on the left
+  // channel has been found.
+  int mPOIOffsetCountL = 0;
+
+  // The number of samples passed since the last POI on the right
+  // channel has been found.
+  int mPOIOffsetCountR = 0;
 
   // Updates the modulation amplitudes and increases the beatPosition and seconds by one sample.
   void modulationStep(double (&modulationAmplitudes)[MAX_NUMBER_LFOS * MAX_MODULATION_LINKS] , double& beatPosition, double& seconds);
 
   void ProcessBlock(iplug::sample** inputs, iplug::sample** outputs, int nFrames) override;
 
-  // Find the next "point of interest" in the given block of audio.
-  //
-  // POIs are local minima, local maxima and zero points. The next POI
-  // after info.idx is determined and written to the same NormalizeInfo
-  // object.
-  // * @param audio Audio buffer
-  // * @param info NormalizeInfo object to which the position and amplitude of
-  // the next POI will be written
-  static void findPOI(std::deque<iplug::sample> audio, NormalizeInfo& info);
-
-  // Normalize a sample to the surrounding extrema/ zero points as given in
-  // info.
-  // * @param sample The input sample amplitude
-  // * @param info NormalizeInfo object storing information about the
-  // surrounding minima/ maxima/ zero points
-  // * @return The input normalized to the surrounding minima/ maxima/ zero
-  // points
-  static float normalizeSample(iplug::sample sample, NormalizeInfo info);
-
-  // Reverts the normalization of normalizeSample.
-  // * @param sample Value of a sample normalized to info
-  // * @param info NormalizeInfo object holding the normalization bounds
-  // * @return The input sample reverted to the original scale
-  static float revertNormalizeSample(iplug::sample sample, NormalizeInfo info);
+  // Clears all audio and POI buffers.
+  void clearBuffer();
 #endif
 };
